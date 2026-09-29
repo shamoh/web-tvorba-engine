@@ -11,7 +11,6 @@ status: available # available | reserved | sold | not-for-sale
 price: 3200 # Kč, nepovinné; zobrazí se jen u available
 fler: "" # odkaz na produkt na Fleru, až bude
 featured: true # na úvodní stránce
-collection: demo-plener-sumava-2026
 description: |
   Malováno na plenéru za úsvitu, kdy se mlha ještě držela nad hladinou.
 details: # popisky detailních fotek ze složky demo-rano-u-rybnika/ (název fotky bez přípony: popisek)
