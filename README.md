@@ -3502,3 +3502,6 @@ Kód: `scripts/lib/straighten.mjs` (hledání listu, homografie, převzorkován�
   `*_binary`, `game/`, fotky scén `mockups/`, texty a údaje v `site.config.yaml`) jsou © autorka webu, všechna práva
   vyhrazena; co s nimi návštěvníci smějí, říká stránka [Podmínky užití](https://pavla.kramolis.cz/podminky-uziti/).
 - **Písma** ve `fonts/` mají vlastní licenci SIL Open Font License (soubory `OFL-*.txt` vedle nich).
+- **Příspěvky** od kohokoli jiného než vlastníka repa jen se souhlasem s licenční smlouvou přispěvatele (CLA)
+  v [CONTRIBUTING.md](CONTRIBUTING.md): věta v popisu pull requestu. Pull requesty vlastníka a automatické aktualizace
+  obsahu ji nepotřebují (žádná automatická kontrola CLA, která by je mohla zastavit).

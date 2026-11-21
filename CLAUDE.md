@@ -449,6 +449,9 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
 Novinky/blog, kalendář plenérů a později kurzy/workshopy; prodej zatím přes Fler.
 
 ## Licence
+- Cizí příspěvky jen se souhlasem s CLA v `CONTRIBUTING.md` (věta v popisu pull requestu); pull requesty vlastníka
+  a automatika ne. Kontrolu CLA (bot, povinná kontrola) nepřidávat bez výjimky pro vlastníka a `obsah/aktualizace`:
+  auto-merge aktualizací obsahu čeká jen na `check`.
 - Kód: `LICENSE.md` = FSL-1.1-MIT (po dvou letech MIT), `package.json` `license`. Obsah webu (obrazy, fotky, texty autorky:
   `content/`, obrázky `public/` a větví `*_binary`, `game/`, `mockups/`, údaje v `site.config.yaml`) pod ni nespadá, všechna práva
   vyhrazena (README „Licence“, stránka Podmínky užití); písma `fonts/` OFL. Nový druh obsahu = do výčtu v README „Licence“.
