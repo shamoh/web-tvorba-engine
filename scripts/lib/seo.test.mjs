@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   artform, artworkLd, workPageLd, gamePageLd, authorId, imageObjectLd, breadcrumbLd, collectionPageLd, graphLd, HIDDEN_SITE_ROBOTS, jsonLdText, personLd, robotsTxt, summarize,
+  AI_TRAINING_CRAWLERS, TDM_RESERVATION, tdmRepJson,
   tagKeywords, verificationMeta, websiteLd, workDescription, workPageDescription, workPageTitle, yearPageDescription, YEAR_DESCRIPTION, fillTemplate,
 } from './seo.mjs';
 import { demoSiteConfig } from './test-support/demo-site.mjs';
@@ -114,8 +115,27 @@ test('verificationMeta and robotsTxt', () => {
   ]);
   assert.deepEqual(verificationMeta(undefined), []);
   assert.deepEqual(verificationMeta({ pinterest: 'p1' }), [{ name: 'p:domain_verify', content: 'p1' }]);
-  assert.equal(robotsTxt({ url: 'https://web.test/' }), 'User-agent: *\nAllow: /\n\nSitemap: https://web.test/sitemap.xml\n');
+  assert.ok(robotsTxt({ url: 'https://web.test/' }).endsWith('\n\nUser-agent: *\nAllow: /\n\nSitemap: https://web.test/sitemap.xml\n'));
   assert.equal(robotsTxt({ url: 'https://web.test/' }, { hidden: false }), robotsTxt({ url: 'https://web.test/' }));
+});
+
+test('robotsTxt: the crawlers training artificial intelligence get nothing, search engines and Pinterest everything', () => {
+  const txt = robotsTxt({ url: 'https://web.test/' });
+  const [ai, rest] = txt.split('\n\n');
+  assert.deepEqual(ai.split('\n'), [...AI_TRAINING_CRAWLERS.map((bot) => `User-agent: ${bot}`), 'Disallow: /'], 'one group, everything disallowed');
+  for (const bot of ['GPTBot', 'ClaudeBot', 'Google-Extended', 'CCBot']) assert.ok(AI_TRAINING_CRAWLERS.includes(bot), bot);
+  for (const bot of ['Googlebot', 'Googlebot-Image', 'Bingbot', 'SeznamBot', 'Pinterestbot', 'facebookexternalhit']) {
+    assert.ok(!AI_TRAINING_CRAWLERS.some((ai) => ai.toLowerCase() === bot.toLowerCase()), `${bot} stays allowed`);
+  }
+  assert.equal(rest, 'User-agent: *\nAllow: /');
+  assert.equal(new Set(AI_TRAINING_CRAWLERS).size, AI_TRAINING_CRAWLERS.length, 'no crawler twice');
+});
+
+test('tdmRepJson and TDM_RESERVATION: the mining of the whole site (in its folder) is reserved', () => {
+  assert.deepEqual(JSON.parse(tdmRepJson('/')), [{ location: '/*', 'tdm-reservation': 1 }]);
+  assert.deepEqual(JSON.parse(tdmRepJson('/web-tvorba-engine')), [{ location: '/web-tvorba-engine/*', 'tdm-reservation': 1 }]);
+  assert.deepEqual(JSON.parse(tdmRepJson('/web-tvorba-engine/')), [{ location: '/web-tvorba-engine/*', 'tdm-reservation': 1 }]);
+  assert.deepEqual(TDM_RESERVATION, { name: 'tdm-reservation', content: '1' });
 });
 
 test('robotsTxt and HIDDEN_SITE_ROBOTS: a hidden site (the test site) forbids everything and names no map', () => {

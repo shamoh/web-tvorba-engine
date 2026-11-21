@@ -22,10 +22,13 @@ import {
   ABOUT_CLOSING, ABOUT_DESCRIPTION, ABOUT_TEXT, CONTACT_DESCRIPTION, CONTACT_LOCATION_LABEL, CONTACT_TEXT,
   EDITOR_DESCRIPTION, GAME_DESCRIPTION, NOT_FOUND_CLOSING, NOT_FOUND_DESCRIPTION, NOT_FOUND_HEADING, NOT_FOUND_TEXT, NOT_FOUND_TITLE, PAGE_DESCRIPTION_CHARS,
   PAGE_SCHEMAS, QUIZ_DESCRIPTION, QUIZ_DROPS_TEXT, QUIZ_EDITOR_TEXT, QUIZ_LINES, QUIZ_LINE_KEYS, QUIZ_TEXT,
-  TERMS_CLOSING, TERMS_DESCRIPTION, TERMS_TEXT, TERMS_TITLE, fieldKeys, publicKeys,
+  TERMS_CLOSING, TERMS_DESCRIPTION, TERMS_TEXT, TERMS_TEXT_EN, TERMS_TITLE, TERMS_TITLE_EN, fieldKeys, publicKeys,
 } from './schema.mjs';
 
 export const PAGES_SUBDIR = 'stranky';
+
+/** The address of the page Podmínky užití (the footer, the sitemap, the XMP of the works, the TDM policy). */
+export const TERMS_PATH = '/podminky-uziti/';
 
 /**
  * Every page with a text in stranky/: its schema and either the values of its skeleton (`defaults` = what the site
@@ -41,7 +44,7 @@ export const PAGES = {
   // what visitors may do with the works (copyright), linked from the footer
   'podminky-uziti': {
     schema: PAGE_SCHEMAS['podminky-uziti'],
-    defaults: { description: TERMS_DESCRIPTION, text: TERMS_TEXT, closing: TERMS_CLOSING, title: TERMS_TITLE },
+    defaults: { description: TERMS_DESCRIPTION, text: TERMS_TEXT, closing: TERMS_CLOSING, title: TERMS_TITLE, title_en: TERMS_TITLE_EN, text_en: TERMS_TEXT_EN },
   },
   kurzy: { schema: PAGE_SCHEMAS.kurzy, optional: true },
   // the texts of the game Detail dne and of the quiz of a visitor (its own pages build them, getGamePage)
@@ -62,7 +65,7 @@ export const GENERIC_PAGES = Object.keys(PAGES).filter((name) => PAGES[name].opt
 export const publicPageFields = (name) => publicKeys(PAGES[name].schema);
 
 /** Attributes that must not be empty when the schema of the page has them. */
-const REQUIRED_KEYS = ['title', 'heading', 'location_label', ...QUIZ_LINE_KEYS];
+const REQUIRED_KEYS = ['title', 'title_en', 'heading', 'location_label', ...QUIZ_LINE_KEYS];
 /** Descriptions for link previews besides `description` (checked by textProblems), with the same limit. */
 const PREVIEW_KEYS = ['quiz_description', 'editor_description'];
 

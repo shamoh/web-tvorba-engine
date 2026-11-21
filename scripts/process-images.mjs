@@ -77,6 +77,7 @@ import { siteDirectory, sitePaths } from './lib/site-dir.mjs';
 import { loadScenes, pickScenes, renderMockup } from './lib/mockups.mjs';
 import { WATERMARK_LOOK, watermarkSvg } from './lib/watermark.mjs';
 import { rightsXmp } from './lib/image-rights.mjs';
+import { TERMS_PATH } from './lib/pages.mjs';
 import { overviewReadme, overviewSizeAdvice, pagesReadme } from './lib/overview.mjs';
 import { DRAFT_EDGE, STORY_UTM, collectionIndexes, draftIndex, draftReadme, noteMarks, exportIndex, flerReadme, instagramReadme, publishedUrl, readmeFingerprint } from './lib/export-readme.mjs';
 import {
@@ -965,8 +966,8 @@ export async function run({
     const pinInputs = [JSON.stringify(['snug', { feed: pinterest, ...pinVersion }, pinConfig, siteHost(config.site?.url), w.data.title, w.data.technique, w.data.size_cm, w.year])];
     // Fler exports carry the signature: its settings and look (a change makes them again)
     const flerInputs = onSale ? [JSON.stringify([img.fler, WATERMARK_LOOK])] : [];
-    // Creator, title, copyright and page of the work in the XMP of its web images (a new title makes them again)
-    const xmp = rightsXmp({ author: config.site?.author, title: w.data.title, year: w.year, pageUrl: workPageUrl(w.year, key) });
+    // Creator, title, copyright, terms of use and page of the work in the XMP of its web images (a new title makes them again)
+    const xmp = rightsXmp({ author: config.site?.author, title: w.data.title, year: w.year, pageUrl: workPageUrl(w.year, key), termsUrl: `${siteUrl}${TERMS_PATH}` });
     // the mockup scenes only for a work with mockups: a change of mockups/scenes.yaml leaves the others alone
     const fingerprint = sha1(
       String(PIPELINE_VERSION), master, JSON.stringify(w.data.size_cm ?? null), mockupsOn ? scenesText : '', String(onSale), String(instagram), String(mockupsOn && (w.data.meta_edge ?? 'deckle')),

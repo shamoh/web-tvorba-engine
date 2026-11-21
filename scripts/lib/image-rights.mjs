@@ -7,12 +7,16 @@ export const copyrightNotice = (author, year) => `© ${[year, author].filter(Boo
 
 const xml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]);
 
+/** "Všechna práva vyhrazena. Podmínky užití: <address>": the usage terms in the XMP (xmpRights:UsageTerms). */
+export const usageTerms = (termsUrl) => `Všechna práva vyhrazena. Podmínky užití: ${termsUrl}`;
+
 /**
  * XMP packet of the web images of a work: creator (dc:creator), title (dc:title), copyright notice (dc:rights),
- * credit line (photoshop:Credit), "copyrighted" (xmpRights:Marked) and the page of the work (xmpRights:WebStatement).
- * Never a licence: the author sells originals, not rights to use the pictures.
+ * credit line (photoshop:Credit), "copyrighted" (xmpRights:Marked), the page Podmínky užití as the statement of the
+ * rights (xmpRights:WebStatement) with the usage terms in words (xmpRights:UsageTerms), and the page of the work
+ * (dc:relation). Never a licence: the author sells originals, not rights to use the pictures.
  */
-export function rightsXmp({ author, title, year, pageUrl }) {
+export function rightsXmp({ author, title, year, pageUrl, termsUrl }) {
   const alt = (v) => `<rdf:Alt><rdf:li xml:lang="x-default">${xml(v)}</rdf:li></rdf:Alt>`;
   return [
     '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>',
@@ -24,7 +28,8 @@ export function rightsXmp({ author, title, year, pageUrl }) {
     `<dc:rights>${alt(copyrightNotice(author, year))}</dc:rights>`,
     `<photoshop:Credit>${xml(author)}</photoshop:Credit>`,
     '<xmpRights:Marked>True</xmpRights:Marked>',
-    ...(pageUrl ? [`<xmpRights:WebStatement>${xml(pageUrl)}</xmpRights:WebStatement>`] : []),
+    ...(termsUrl ? [`<xmpRights:WebStatement>${xml(termsUrl)}</xmpRights:WebStatement>`, `<xmpRights:UsageTerms>${alt(usageTerms(termsUrl))}</xmpRights:UsageTerms>`] : []),
+    ...(pageUrl ? [`<dc:relation><rdf:Bag><rdf:li>${xml(pageUrl)}</rdf:li></rdf:Bag></dc:relation>`] : []),
     '</rdf:Description></rdf:RDF></x:xmpmeta>',
     '<?xpacket end="w"?>',
   ].join('');

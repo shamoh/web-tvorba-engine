@@ -433,6 +433,18 @@ export function getGamePage() {
   };
 }
 
+/**
+ * The page Podmínky užití: its texts (getPage) and its English part under them (title_en, text_en of the copy, each its
+ * default when missing; an empty text_en = no English part).
+ */
+export function getTermsPage() {
+  const data = { ...PAGES['podminky-uziti'].defaults, ...(copies().pages.get('podminky-uziti') ?? {}) } as Record<string, unknown>;
+  return {
+    ...getPage('podminky-uziti')!,
+    english: { title: String(data.title_en ?? '').trim(), blocks: richBlocks(data.text_en, { url, work: workHref }) as TextBlock[] },
+  };
+}
+
 /** The generic text pages that exist (their file is in the content): [{ name, page }]. */
 export const getGenericPages = () => GENERIC_PAGES.flatMap((name) => {
   const page = getPage(name as keyof typeof PAGES);

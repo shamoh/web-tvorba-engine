@@ -1879,7 +1879,8 @@ test('web images of a work carry creator, copyright and its page (XMP), a new ti
     const xmp = String((await sharp(path.join(dir, f)).metadata()).xmp ?? '');
     assert.ok(xmp.includes('<rdf:li>Růženka Borůvková</rdf:li>'), `${f}: creator`);
     assert.ok(xmp.includes('© 2026 Růženka Borůvková'), `${f}: copyright`);
-    assert.ok(xmp.includes(`/tvorba/2026/rano-${id}/</xmpRights:WebStatement>`), `${f}: page`);
+    assert.ok(xmp.includes(`/tvorba/2026/rano-${id}/</rdf:li></rdf:Bag></dc:relation>`), `${f}: page`);
+    assert.ok(xmp.includes('/podminky-uziti/</xmpRights:WebStatement>'), `${f}: terms of use`);
   }
   for (const f of (await fs.readdir(path.join(siteDir, 'public/fotky/portret'))).filter((x) => x.endsWith('.jpg'))) {
     assert.equal((await sharp(path.join(siteDir, 'public/fotky/portret', f)).metadata()).xmp, undefined, 'a photo of the site is not a work of the author');

@@ -7,7 +7,7 @@ import { GENERIC_PAGES, PAGES, PAGES_SUBDIR, pageProblems, paragraphs, preparePa
 import {
   GAME_DESCRIPTION, EDITOR_DESCRIPTION, QUIZ_DESCRIPTION, QUIZ_DROPS_TEXT, QUIZ_EDITOR_TEXT, QUIZ_LINES, QUIZ_LINE_KEYS, QUIZ_LINK, QUIZ_TEXT,
   ABOUT_CLOSING, ABOUT_DESCRIPTION, ABOUT_TEXT, CONTACT_DESCRIPTION, CONTACT_TEXT, NOT_FOUND_CLOSING, NOT_FOUND_TITLE, PAGE_DESCRIPTION_CHARS, TODO, fieldKeys,
-  TERMS_CLOSING, TERMS_DESCRIPTION, TERMS_TEXT, TERMS_TITLE,
+  TERMS_CLOSING, TERMS_DESCRIPTION, TERMS_TEXT, TERMS_TEXT_EN, TERMS_TITLE, TERMS_TITLE_EN,
 } from './schema.mjs';
 import { schemaKeysIn } from './metadata-yaml.mjs';
 import { placeholderProblems, textProblems } from './content.mjs';
@@ -36,6 +36,7 @@ test('preparePages writes skeletons with the texts the pages had, without DOPLNI
   assert.deepEqual([notFound.data.title, notFound.data.closing], [NOT_FOUND_TITLE, NOT_FOUND_CLOSING]);
   const terms = r.pages.find((p) => p.name === 'podminky-uziti');
   assert.deepEqual([terms.data.title, t(terms.data.description), terms.data.text, terms.data.closing], [TERMS_TITLE, t(TERMS_DESCRIPTION), TERMS_TEXT, TERMS_CLOSING]);
+  assert.deepEqual([terms.data.title_en, terms.data.text_en], [TERMS_TITLE_EN, TERMS_TEXT_EN], 'the English part too');
   const text = await fs.readFile(file('o-mne'), 'utf8');
   assert.deepEqual(schemaKeysIn(text, PAGES['o-mne'].schema), fieldKeys(PAGES['o-mne'].schema));
   assert.doesNotMatch(text, new RegExp(TODO), 'approved texts: nothing to fill in');
@@ -182,6 +183,20 @@ test('the default texts of Podmínky užití: reserved rights, sharing by link, 
   assert.match(text, /odkaz/);
   assert.match(TERMS_CLOSING, /\]\(\/kontakt\/\)/, 'the closing leads to the contact page');
   assert.ok(TERMS_DESCRIPTION.length <= PAGE_DESCRIPTION_CHARS);
-  assert.doesNotMatch(TERMS_TEXT + TERMS_DESCRIPTION + TERMS_CLOSING, /Pavl|Kramoli|Roztok/, 'the same for every site');
-  assert.deepEqual(textProblems('stranky/podminky-uziti.yaml', { text: TERMS_TEXT, closing: TERMS_CLOSING, description: TERMS_DESCRIPTION }, PAGES['podminky-uziti'].schema), []);
+  assert.doesNotMatch(TERMS_TEXT + TERMS_DESCRIPTION + TERMS_CLOSING + TERMS_TEXT_EN, /Pavl|Kramoli|Roztok/, 'the same for every site');
+  const english = normalizeText(TERMS_TEXT_EN);
+  assert.match(english, /All rights reserved/);
+  assert.match(english, /artificial intelligence/);
+  assert.equal(paragraphs(TERMS_TEXT_EN).length, paragraphs(TERMS_TEXT).length + paragraphs(TERMS_CLOSING).length, 'the same paragraphs as the Czech text and its closing');
+  assert.deepEqual(textProblems('stranky/podminky-uziti.yaml', { text: TERMS_TEXT, closing: TERMS_CLOSING, description: TERMS_DESCRIPTION, text_en: TERMS_TEXT_EN }, PAGES['podminky-uziti'].schema), []);
+});
+
+test('Podmínky užití: an empty title_en is a problem, a missing English part is filled with the default', async () => {
+  await fs.mkdir(path.join(dir, PAGES_SUBDIR), { recursive: true });
+  await fs.writeFile(file('podminky-uziti'), 'title: Podmínky užití\ntitle_en: ""\ntext: |\n  Moje.\n');
+  const r = await preparePages(dir);
+  assert.ok(r.problems.some((p) => p.startsWith('stranky/podminky-uziti.yaml: title_en je prázdný')), r.problems.join('\n'));
+  await fs.writeFile(file('podminky-uziti'), 'title: Podmínky užití\ntext: |\n  Moje.\n');
+  const again = await preparePages(dir);
+  assert.equal(again.pages.find((p) => p.name === 'podminky-uziti').data.text_en, TERMS_TEXT_EN);
 });

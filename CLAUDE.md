@@ -200,7 +200,7 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   (až budou) = další kritérium v `criteria`.
 - Texty stránek: `stranky/<stránka>.yaml` obsahového repa (jméno = adresa, `PAGES` v `scripts/lib/pages.mjs`, schémata
   `PAGE_SCHEMAS`): O mně (`ABOUT_SCHEMA`), Kontakt (`CONTACT_SCHEMA`, `location_label`), 404 (`NOT_FOUND_SCHEMA`, `title`,
-  `heading`), Podmínky užití (`TERMS_SCHEMA`, `/podminky-uziti/`, odkaz v patičce za ©; výchozí texty `TERMS_*` obecné, bez jména autorky) mají kostru s dosavadními texty (`ABOUT_*`, `CONTACT_*`, `NOT_FOUND_*`, schválené = `settled`, bez `DOPLNIT`);
+  `heading`), Podmínky užití (`TERMS_SCHEMA`, `TERMS_PATH` `/podminky-uziti/`, odkaz v patičce za ©; výchozí texty `TERMS_*` obecné, bez jména autorky; anglická část `title_en`/`text_en` pod českou, `getTermsPage`) mají kostru s dosavadními texty (`ABOUT_*`, `CONTACT_*`, `NOT_FOUND_*`, schválené = `settled`, bez `DOPLNIT`);
   texty hry a kvízu `detail-dne` (`GAME_PAGE_SCHEMA`, bez `text`, web `getGamePage`; atributy po stránkách předponou `description`/`editor_*`/`quiz_*`/`work_*` (`GAME_PAGE_PLACES`, nová = stejně), krátké texty `QUIZ_LINES`, skriptům přes `data-texts`; pravidla, verdikty, nápovědy a texty společné se hrou zůstávají v kódu), obecná textová stránka (`TEXT_PAGE_SCHEMA`, `optional`, teď `kurzy`) bez kostry, `/<název>/` (`src/pages/[page].astro`,
   `getGenericPages`, mapa webu) jen dokud soubor existuje; nová = záznam v `PAGES` i `PAGE_SCHEMAS`, do menu ručně.
   Texty jako všude (viz Texty popisů), navíc `closing`. Jiný soubor ve `stranky/` = chyba; veřejná kopie `content/stranky/<stránka>.yaml`,
@@ -270,7 +270,7 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   přesně (`unindentedText`).
 - Testovacích děl (`pavla/demo-content/`) musí být vždy víc, než je nejmenší počet na stránku (aspoň 15 při 12).
 - Autorství v obrázcích: webové obrázky díla (originál, detaily, mockupy ve všech formátech a náhled pro sdílení) nesou XMP
-  (autorka, název, © rok, kredit, odkaz na stránku díla; `scripts/lib/image-rights.mjs`, v otisku díla), JSON-LD obrázku
+  (autorka, název, © rok, kredit, Podmínky užití `xmpRights:WebStatement` + `UsageTerms`, odkaz na stránku díla `dc:relation`; `scripts/lib/image-rights.mjs`, v otisku díla), JSON-LD obrázku
   díla je `ImageObject` se stejným `creditText` a `copyrightNotice`; nikdy licence. Jiné fotky webu XMP nedostanou.
 - Náhledy pro sdílení (`og:image` + rozměry): dílo = `og-<otisk>.jpg` celý obraz na papíře (nikdy neořezávat),
   úvodní obraz kolekce/roku/úvodu = ořez vybraného (`aspect`/`focus`), vlastní fotka nebo detail celé na papíře, jinak náhled
@@ -368,7 +368,7 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   vlastní titulek a popis (max. 160 znaků) a strukturovaná data schema.org (JSON-LD, `graphLd`): `VisualArtwork`
   u díla, `CollectionPage` u výpisů, `Person`/`WebSite`/`ProfilePage`/`ContactPage`, všude `BreadcrumbList`.
   Obraz na prodej uvádí jen dostupnost, **nikdy cenu** (rozhodnutí 2026-10). Nová stránka = popis + JSON-LD
-  + do `STATIC_PAGES` (mapa webu). `robots.txt` a 404 (`noindex`) generuje web; ověřovací kódy `site.verification`.
+  + do `STATIC_PAGES` (mapa webu). `robots.txt` (roboti učení umělé inteligence `AI_TRAINING_CRAWLERS` nic) a 404 (`noindex`) generuje web; výhrada vytěžování dat (EU 2019/790 čl. 4) strojově: meta `TDM_RESERVATION` na každé stránce a `/.well-known/tdmrep.json`; ověřovací kódy `site.verification`.
 - Návštěvnost: Google Analytics 4 (`analytics.googleMeasurementId` v `site.config.yaml`, `scripts/lib/analytics.mjs`,
   značka v `Base.astro`), jen produkční build skutečného webu, nikdy dev ani testovací data; URL i s parametry filtrů.
   Vlastní události (`EVENTS`: `gallery_filter`, `fler_click`, `instagram_click`, `share`, `email_click`, `message_sent`, `palette_change`, `view_change`, `image_view`, `cinema_open`, `cinema_close`, `game_start`, `game_end`, `code_open`, `more_click`, `app_install`, `favorite_add`, `favorite_remove`, `favorites_open`); nový parametr události = zapsat do README

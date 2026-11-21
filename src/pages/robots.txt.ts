@@ -1,4 +1,5 @@
-// robots.txt: everything may be crawled, the map of the site is at /sitemap.xml; the test site nothing (scripts/lib/seo.mjs).
+// robots.txt: everything may be crawled except by the crawlers training artificial intelligence, the map of the site is
+// at /sitemap.xml; the test site nothing (scripts/lib/seo.mjs).
 import { hiddenFromSearch, site } from '../lib/site';
 import { robotsTxt } from '../../scripts/lib/seo.mjs';
 

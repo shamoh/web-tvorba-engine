@@ -1000,6 +1000,21 @@ export const TERMS_TEXT = 'Všechny obrazy, kresby, fotky a texty na tomto webu 
   + '\n'
   + 'Koupí originálu získáte obraz samotný, ne právo ho dál rozmnožovat (tisky, pohlednice, obrázky).\n';
 export const TERMS_CLOSING = 'Chcete obraz použít jinak? [Napište mi](/kontakt/) a domluvíme se.\n';
+/** The same in English, under the Czech text (title_en, text_en): for visitors from abroad and a future English site. */
+export const TERMS_TITLE_EN = 'Terms of use';
+export const TERMS_TEXT_EN = 'All paintings, drawings, photos and texts on this website are my original works, protected by copyright.\n'
+  + 'All rights reserved.\n'
+  + '\n'
+  + '**Sharing is welcome:** you may send a link to the page of a painting to anyone and share it on social networks\n'
+  + 'or on Pinterest. A link with a preview is shared, the painting stays here.\n'
+  + '\n'
+  + '**Please not without my permission:** downloading and further distributing the pictures of the paintings,\n'
+  + 'printing them, editing them, using them in other works, on products or in advertising, or for training\n'
+  + 'artificial intelligence.\n'
+  + '\n'
+  + 'Buying an original gives you the painting itself, not the right to reproduce it (prints, postcards, pictures).\n'
+  + '\n'
+  + 'Would you like to use a painting in another way? [Write to me](/kontakt/) and we will find a way.\n';
 
 /** Former wording of the formatting of the texts of pages (in their `previous`). */
 const FORMATTING = 'Odkaz [text](https://…) nebo [text](/tvorba/), tučně **slovo**, kurzíva *slovo*.';
@@ -1098,9 +1113,28 @@ export const TERMS_SCHEMA = {
   name: 'terms',
   header: [
     'Stránka Podmínky užití (/podminky-uziti/, odkaz v patičce vedle ©) - kostru vytvořila pipeline s výchozím textem.',
-    'Co návštěvníci smějí s obrazy, fotkami a texty webu.',
+    'Co návštěvníci smějí s obrazy, fotkami a texty webu. Pod českým textem je stejný text anglicky (title_en, text_en).',
   ],
-  fields: ordered(pageFields('pod nadpisem', { closing: true, title: 'Nadpis stránky, zároveň titulek v záložce prohlížeče, např. „Podmínky užití“. Povinné.' })),
+  fields: ordered([
+    ...pageFields('pod nadpisem', { closing: true, title: 'Nadpis stránky, zároveň titulek v záložce prohlížeče, např. „Podmínky užití“. Povinné.' }),
+    {
+      key: 'title_en',
+      settled: true,
+      doc: 'Nadpis anglické části pod českým textem, např. „Terms of use“. Povinné.',
+      value: '',
+      missing: TERMS_TITLE_EN,
+    },
+    textField('Anglický text pod českým (pro návštěvníky z ciziny), stejný obsah jako text', {
+      key: 'text_en',
+      settled: true,
+      missing: TERMS_TEXT_EN,
+      empty: 'bez anglické části',
+      doc: [
+        'Anglický text pod českým (pro návštěvníky z ciziny), stejný obsah jako text.',
+        'Piš ho pod „text_en: |“, každý řádek odsazený dvěma mezerami:', ...textRules('bez anglické části'),
+      ],
+    }),
+  ]),
 };
 
 /**

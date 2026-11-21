@@ -58,3 +58,9 @@ test('isNoindex: the robots meta of a whole hidden site does not count, the noin
   // the pages of the hidden site stay in the check of the sitemap
   assert.deepEqual(unlistedPages([{ path: '/zapomenuta/', html: hidden }], ['https://web.test/']), ['/zapomenuta/']);
 });
+
+test('STATIC_PAGES: the page Podmínky užití (TERMS_PATH) is in the map', async () => {
+  const { STATIC_PAGES } = await import('./sitemap.mjs');
+  const { TERMS_PATH } = await import('./pages.mjs');
+  assert.ok(STATIC_PAGES.includes(TERMS_PATH));
+});

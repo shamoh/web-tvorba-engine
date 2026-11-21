@@ -48,8 +48,38 @@ text: |
 
   Koupí originálu získáte obraz samotný, ne právo ho dál rozmnožovat (tisky, pohlednice, obrázky).
 
+# Anglický text pod českým (pro návštěvníky z ciziny), stejný obsah jako text.
+# Piš ho pod „text_en: |“, každý řádek odsazený dvěma mezerami:
+#   - řádky zalamuj, kde chceš: na webu se spojí mezerou (příliš dlouhé zalomí automatika),
+#   - prázdný řádek = nový odstavec,
+#   - prázdné "" = bez anglické části.
+# Formátování:
+#   - **slovo** = tučně,
+#   - *slovo* = kurzívou,
+#   - [text](/tvorba/) = odkaz na stránku tohoto webu (adresa začíná /),
+#   - [text](k3f9a) = odkaz na jiný obraz podle jeho kódu id, [](k3f9a) = s jeho názvem jako textem odkazu
+#     (rozpracovaný obraz zůstane bez odkazu),
+#   - [text](https://…) = odkaz na jiný web, [text](mailto:…) = odkaz na e-mail.
+text_en: |
+  All paintings, drawings, photos and texts on this website are my original works, protected by copyright.
+  All rights reserved.
+
+  **Sharing is welcome:** you may send a link to the page of a painting to anyone and share it on social networks
+  or on Pinterest. A link with a preview is shared, the painting stays here.
+
+  **Please not without my permission:** downloading and further distributing the pictures of the paintings,
+  printing them, editing them, using them in other works, on products or in advertising, or for training
+  artificial intelligence.
+
+  Buying an original gives you the painting itself, not the right to reproduce it (prints, postcards, pictures).
+
+  Would you like to use a painting in another way? [Write to me](/kontakt/) and we will find a way.
+
 # Nadpis stránky, zároveň titulek v záložce prohlížeče, např. „Podmínky užití“. Povinné.
 title: Podmínky užití
+
+# Nadpis anglické části pod českým textem, např. „Terms of use“. Povinné.
+title_en: Terms of use
 
 # NEPOVINNÉ. Soukromá poznámka, zůstane jen v tomto repu, na web se nikdy nedostane.
 # private_note: co jsem na stránce změnila a proč

@@ -292,12 +292,33 @@ export function verificationMeta(verification = {}) {
 }
 
 /**
- * robots.txt: everything may be crawled, the map of the site is at /sitemap.xml. A site hidden from search engines
- * (`hidden`: the test site, HIDDEN_SITE_ROBOTS) may not be crawled at all and names no map.
+ * Crawlers that collect pages to train artificial intelligence (not to search): the works of the author may not be
+ * mined (the reservation of text and data mining of the EU directive 2019/790, article 4, machine-readable here and in
+ * TDM_RESERVATION). Search engines, their image search, link previews and Pinterest stay allowed: Google-Extended and
+ * Applebot-Extended only opt out of training, never of the search. A new crawler of the kind = a line here.
+ */
+export const AI_TRAINING_CRAWLERS = [
+  'GPTBot', 'ClaudeBot', 'anthropic-ai', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'meta-externalagent',
+  'Bytespider', 'cohere-training-data-crawler', 'Amazonbot', 'Diffbot', 'ImagesiftBot', 'Omgilibot', 'Timpibot',
+];
+
+/**
+ * robots.txt: the crawlers training artificial intelligence (AI_TRAINING_CRAWLERS) nothing, everyone else everything,
+ * the map of the site is at /sitemap.xml. A site hidden from search engines (`hidden`: the test site,
+ * HIDDEN_SITE_ROBOTS) may not be crawled at all and names no map.
  */
 export const robotsTxt = (site, { hidden = false } = {}) => (hidden
   ? 'User-agent: *\nDisallow: /\n'
-  : `User-agent: *\nAllow: /\n\nSitemap: ${absolute(site, '/sitemap.xml')}\n`);
+  : `${AI_TRAINING_CRAWLERS.map((bot) => `User-agent: ${bot}`).join('\n')}\nDisallow: /\n\nUser-agent: *\nAllow: /\n\nSitemap: ${absolute(site, '/sitemap.xml')}\n`);
+
+/**
+ * The reservation of text and data mining (W3C TDMRep, EU directive 2019/790 article 4): the meta of every page and
+ * /.well-known/tdmrep.json (tdmRepJson) say the rights to mine the whole site are reserved.
+ */
+export const TDM_RESERVATION = { name: 'tdm-reservation', content: '1' };
+
+/** /.well-known/tdmrep.json: every address of the site (its folder `base`, siteBase) reserved. */
+export const tdmRepJson = (base = '/') => `${JSON.stringify([{ location: `${base.replace(/\/?$/, '/')}*`, 'tdm-reservation': 1 }], null, 2)}\n`;
 
 /**
  * The robots meta of every page of a site hidden from search engines (the test site, isDemoSite): neither the page nor
