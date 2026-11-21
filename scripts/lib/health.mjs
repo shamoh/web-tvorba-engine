@@ -259,7 +259,7 @@ export function evaluateUntranslatedTags(found, { siteRepo } = {}) {
 /**
  * Size limits of GitHub (docs.github.com): a repository should stay below 1 GB (its whole history, every version of
  * every image), a site on GitHub Pages must stay below 1 GB. `warnShare`: the share of a limit from which the check fails,
- * so there is time to act (docs/github-provoz.md of the content repository).
+ * so there is time to act (docs/github-provoz.md of the private documents of the administrator).
  */
 export const SIZE_LIMITS = { repoBytes: 1_000_000_000, siteBytes: 1_000_000_000, warnShare: 0.7 };
 
@@ -287,7 +287,7 @@ export function evaluateSizes(sizes, limits = SIZE_LIMITS, { siteRepo } = {}) {
     ok: false,
     message: `Blíží se limit velikosti GitHubu (${over.map(([label]) => label).join(', ')}): [blizi-se-limit]\n`
       + `Velikost: ${parts.join(' · ')}.\n`
-      + 'Co s tím: kapitola „Velikost rep a webu“ v docs/github-provoz.md obsahového repa.',
+      + 'Co s tím: kapitola „Velikost rep a webu“ v docs/github-provoz.md (soukromá dokumentace správce webu).',
   };
 }
 
@@ -335,7 +335,7 @@ export function httpFailure(status, body = '', permissions = null) {
  */
 export function evaluateMinutes(items, isPrivate, { now = new Date(), limits = MINUTE_LIMITS } = {}) {
   if (items === null) {
-    return { ok: true, message: 'Minuty GitHub Actions nebyly zkontrolovány (chybí secret CHECK_TOKEN, viz docs/github-provoz.md obsahového repa).' };
+    return { ok: true, message: 'Minuty GitHub Actions nebyly zkontrolovány (chybí secret CHECK_TOKEN, viz docs/github-provoz.md v soukromé dokumentaci správce webu).' };
   }
   const minutes = items.filter((i) => i.product === 'actions' && /minute/i.test(String(i.unitType ?? '')) && isPrivate(i.repositoryName));
   const byRepo = new Map();
@@ -357,7 +357,7 @@ export function evaluateMinutes(items, isPrivate, { now = new Date(), limits = M
     return {
       ok: false,
       message: `Docházejí volné minuty GitHub Actions: [dochazeji-minuty]\n${facts}\n`
-        + 'Bez minut GitHub zastaví zpracování obsahu až do dalšího měsíce. Co s tím: docs/github-provoz.md obsahového repa.',
+        + 'Bez minut GitHub zastaví zpracování obsahu až do dalšího měsíce. Co s tím: docs/github-provoz.md v soukromé dokumentaci správce webu.',
     };
   }
   return { ok: true, message: facts };
