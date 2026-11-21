@@ -17,9 +17,9 @@ site:
   # Popis stránky roku pro vyhledávače, když roky/<rok>.yaml nemá vlastní; {year} = rok, {author} = author
   yearDescription: Akvarely a kresby z roku {year} – {author}.
   # Předpona jmen, pod kterými si prohlížeč návštěvníka pamatuje oblíbené obrazy, barvy webu, postup ve hře a mezipaměti
-  # aplikace („ukazka.favorites“, „ukazka-images“); malá písmena a číslice, slova spojená „-“. Po zveřejnění webu neměnit:
+  # aplikace („demo.favorites“, „demo-images“); malá písmena a číslice, slova spojená „-“. Po zveřejnění webu neměnit:
   # návštěvníci by přišli o to, co si jejich prohlížeč pamatoval. Prázdné = „web“.
-  storagePrefix: ukazka
+  storagePrefix: demo
   repository: shamoh/web-tvorba-engine   # repo webu na GitHubu (vlastník/jméno), čte ho týdenní kontrola automatiky
   email: ruzenka@example.com
   location: Mýtinka                        # kde autorka žije a maluje, zobrazí se v Kontaktu; prázdné = nic
@@ -42,8 +42,8 @@ messages:
   # e-mailem. accessKey = klíč z web3forms.com (veřejný, říká jen, kam zprávu doručit). Prázdné = bez formuláře
   # (Kontakt ukáže jen adresu). Web z testovacích dat ukáže vždy jen náhled, který nic neodesílá.
   accessKey: ""
-  # Značka na začátku předmětu e-mailu („[ukazka-web] Dotaz na obraz: …“), aby šly zprávy z webu filtrovat; prázdné = „web“
-  subjectTag: ukazka-web
+  # Značka na začátku předmětu e-mailu („[demo-web] Dotaz na obraz: …“), aby šly zprávy z webu filtrovat; prázdné = „web“
+  subjectTag: demo-web
 
 instagramPost:
   # Text příspěvku na Instagram (README.md ve složce díla v export/instagram/, jen díla s meta_instagram: true):

@@ -1,0 +1,201 @@
+# Shared workflow "Zpracování obsahu": runs the image pipeline of this repository on the content repository that calls it
+# (workflow_call). The calling workflow keeps its triggers (push to the content, the Monday schedule, by hand), its
+# concurrency and permissions, and passes the repository of the site and its token; the `github` context here is the
+# caller's (its repository, branch and run). Its steps = the steps of the weekly dry run on the test data (dry-run.yml):
+# a change of one is the same change in the other.
+#
+# main: publishes.
+#   1. new photos get a metadata skeleton, works get an id and the corners of the sheet (meta_corners),
+#      exports (Fler, Instagram) are generated
+#   2. those changes are committed back to main of the content repository
+#   3. web images go to the branch obsah/aktualizace_binary of the site repository (one commit, replaced every time)
+#      and the metadata copies with binary.lock (the name of those images) as a pull request (branch obsah/aktualizace)
+#   The pipeline also extends the plan of the days of the game Detail dne (game/detail-dne/ of the site, a file per year:
+#   the days up to tomorrow stay, two weeks ahead from the works of now); it goes into the same pull request.
+#
+# any other branch: only prepares, nothing is published.
+#   1. new photos get a metadata skeleton with default values, works get an id and the corners of the sheet,
+#      all descriptions are checked (`npm run images -- --prepare-only`: no images, no exports, nothing for the site)
+#   2. those changes are committed back to the same branch, to be filled in there
+#
+# both: export/ (cut previews of drafts, Instagram and Fler photos, their READMEs and overviews) is not in the history
+# of the branch: it lives in the branch <branch>_binary of the content repository, a single commit replaced by every run
+# (restored before the pipeline, packed after it: scripts/binary.mjs).
+#
+# A failed run (on any branch, for any reason, also errors in descriptions) opens an issue in the content repository
+# assigned to its owner, or comments on the open one of that branch, so GitHub sends an e-mail even when someone else
+# pushed. The next successful run of the branch closes it.
+#
+# The pull request is public: its title, commit and description never name the (private) content repository.
+name: Zpracování obsahu (sdílené)
+
+on:
+  workflow_call:
+    inputs:
+      site-repository:
+        description: The repository of the site (owner/name), its code and its data
+        type: string
+        required: true
+    secrets:
+      SITE_TOKEN:
+        description: Token for the site repository with Contents and Pull requests read and write
+        required: true
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      # Branch names come from whoever pushes: only ever used quoted, through this variable.
+      BRANCH: ${{ github.ref_name }}
+      ISSUE_TITLE: "Zpracování obsahu selhalo: ${{ github.ref_name }}"
+      SITE_REPOSITORY: ${{ inputs.site-repository }}
+    steps:
+      - name: Checkout the content (the calling repository)
+        uses: actions/checkout@v7
+        with:
+          path: content
+          # the whole history: the run summary recommends drafts waiting too long and Instagram photos without
+          # the link of their post by the day their files came into git (scripts/lib/git-dates.mjs)
+          fetch-depth: 0
+
+      - name: Checkout the site
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.site-repository }}
+          path: site
+          token: ${{ secrets.SITE_TOKEN }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install
+        working-directory: site
+        run: npm ci
+
+      # The images of the site are not in its main: the branch whose tree its binary.lock names (main_binary;
+      # a merged update not deployed yet is promoted first). The pipeline only makes what changed against them.
+      - name: Images of the site (main_binary)
+        if: github.ref_name == 'main'
+        working-directory: site
+        run: |
+          node scripts/binary.mjs promote
+          node scripts/binary.mjs unpack
+
+      # export/ of this branch (or of main for a new branch): unchanged works keep their exports and previews
+      - name: Exports of this branch (<branch>_binary)
+        run: node site/scripts/binary.mjs unpack --dir content --paths export --no-lock --branch "${BRANCH}_binary,main_binary"
+
+      - name: Pipeline
+        id: pipeline
+        working-directory: site
+        env:
+          CONTENT_DIR: ${{ github.workspace }}/content
+          # file names in the run summary link to the content repository, on the branch of the run
+          CONTENT_BLOB_URL: ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.ref_name }}
+        # The run summary is also kept for the issue of a failed run.
+        run: |
+          status=0
+          if [ "$BRANCH" = "main" ]; then npm run images || status=$?; else npm run images -- --prepare-only || status=$?; fi
+          cp "$GITHUB_STEP_SUMMARY" "$RUNNER_TEMP/summary.md" 2>/dev/null || true
+          exit "$status"
+
+      - name: Commit ids, skeletons and exports back to the branch
+        if: ${{ !cancelled() && steps.pipeline.outcome != 'skipped' }}
+        working-directory: content
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
+          if [ "$BRANCH" = "main" ]; then
+            git commit -m "Pipeline: ids, metadata skeletons, corners and exports"
+          else
+            git commit -m "Pipeline: metadata skeletons, ids and corners to fill in"
+          fi
+          git pull --rebase origin "$BRANCH"
+          git push origin "HEAD:refs/heads/$BRANCH"
+
+      - name: Exports back to <branch>_binary
+        if: ${{ !cancelled() && steps.pipeline.outcome != 'skipped' }}
+        run: |
+          node site/scripts/binary.mjs pack "${BRANCH}_binary" --dir content --paths export --no-lock --push --message "Exports of $BRANCH"
+          if [ "$BRANCH" = "main" ]; then node site/scripts/binary.mjs prune --dir content; fi
+
+      # The images first, into their branch of the site (binary.lock then names them); the pull request needs them.
+      - name: Images of the site to obsah/aktualizace_binary
+        if: github.ref_name == 'main'
+        working-directory: site
+        run: node scripts/binary.mjs pack obsah/aktualizace_binary --push --message "Images of a content update"
+
+      - name: Describe changes for the pull request
+        if: github.ref_name == 'main'
+        id: changes
+        working-directory: site
+        # Output paths for add-paths (content/, game/ and binary.lock, empty = no pull request) and the Czech description.
+        run: node scripts/pull-request.mjs "$RUNNER_TEMP/pr-body.md"
+
+      - name: Pull request into the site
+        id: pr
+        if: github.ref_name == 'main' && steps.changes.outputs.paths != ''
+        uses: peter-evans/create-pull-request@v8
+        with:
+          path: site
+          token: ${{ secrets.SITE_TOKEN }}
+          branch: obsah/aktualizace
+          base: main
+          add-paths: ${{ steps.changes.outputs.paths }}
+          commit-message: "Content update"
+          title: "Obsah: aktualizace"
+          body-path: ${{ runner.temp }}/pr-body.md
+          delete-branch: true
+
+      # The pull request merges itself once "Kontrola kódu" (the required check of the ruleset on main of the site)
+      # passes; the branch is then deleted by the repository setting. Needs "Allow auto-merge" in the site repository.
+      - name: Merge the pull request automatically once the checks pass
+        if: steps.pr.outputs.pull-request-number != '' && steps.pr.outputs.pull-request-operation != 'closed'
+        env:
+          GH_TOKEN: ${{ secrets.SITE_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: gh pr merge "$PR_NUMBER" --repo "$SITE_REPOSITORY" --auto --merge
+
+      - name: Open or update the issue of this branch (sends an e-mail)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          body="$RUNNER_TEMP/issue.md"
+          {
+            echo "Běh: $RUN_URL"
+            echo "Větev: \`$BRANCH\`, spustil: $ACTOR, commit: ${GITHUB_SHA::7}"
+            echo
+            if [ -s "$RUNNER_TEMP/summary.md" ]; then head -c 60000 "$RUNNER_TEMP/summary.md"
+            else echo "Zpracování selhalo mimo kontrolu popisů (viz běh)."; fi
+          } > "$body"
+          existing=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number,title --jq '.[] | select(.title == env.ISSUE_TITLE) | .number' | head -n 1)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$body"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file "$body" --assignee "$OWNER"
+          fi
+
+      - name: Close the issue of this branch when it runs fine again
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          for n in $(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number,title --jq '.[] | select(.title == env.ISSUE_TITLE) | .number'); do
+            gh issue close "$n" --comment "Další běh prošel: $RUN_URL"
+          done

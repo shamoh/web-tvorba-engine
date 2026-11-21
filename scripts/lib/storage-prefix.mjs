@@ -11,7 +11,7 @@ export const DEFAULT_STORAGE_PREFIX = 'web';
 /** The name the build replaces with the prefix of the site (vite define, as a JSON string). */
 export const STORAGE_PREFIX_GLOBAL = '__SITE_STORAGE_PREFIX__';
 
-/** A prefix: small letters and digits, words joined by "-", starting with a letter ("pavla", "ukazka", "kacka-web"). */
+/** A prefix: small letters and digits, words joined by "-", starting with a letter ("pavla", "demo", "kacka-web"). */
 export const isStoragePrefix = (value) => typeof value === 'string' && /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(value);
 
 /** The prefix of the site with the settings `config` (site.config.yaml); not set = DEFAULT_STORAGE_PREFIX, invalid = an error. */

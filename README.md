@@ -53,7 +53,7 @@ jména (hlásí je jejich vlastní kontrola). Přípona jen malými písmeny a v
 pavla/                                      (toto repo, veřejné)
   demo-content/                             testovací data: vymyšlené obsahové repo (stejná struktura jako
                                             skutečné, yaml + recept na obrázky), viz Testovací data
-  demo-content/site/                        složka testovacího webu: site.config.yaml (demo: true), písma, scény, ikony
+  demo/                        složka testovacího webu: site.config.yaml (demo: true), písma, scény, ikony
   .demo/                                    připravená testovací data a web z nich (npm run demo, mimo git)
   .previews/                                náhledy ořezu (npm run images: drafty kreslené v tomto běhu, npm run preview: cokoli; mimo git), viz Ořez pozadí
   content/                                  veřejné kopie popisů = zrcadlo obsahového repa (generuje pipeline, needitovat):
@@ -220,7 +220,7 @@ skutečného webu hlídá tahle kontrola, v „Kontrole kódu“ hned po testech
   pootáčejí dílo na opačné strany.
 
 Problémy vypíše a skončí kódem 1. Testovací web: `SITE_DIR=.demo/site npm run check:site` (nebo
-`npm run check:site -- demo-content/site`); Pavlin web trvá asi 15 s (umisťování velikostí na stoly).
+`npm run check:site -- demo`); Pavlin web trvá asi 15 s (umisťování velikostí na stoly).
 
 ### Filtry v galerii
 
@@ -1323,7 +1323,7 @@ zatím prázdná.
 | | Skutečná data | Testovací data |
 |---|---|---|
 | zdroj | obsahové repo (soukromé) | `pavla/demo-content/` (toto repo), stejná struktura jako obsahové repo |
-| složka webu | kořen tohoto repa (`site.config.yaml`, `fonts/`, `mockups/`, ikony, viz Složka webu) | `demo-content/site/` (vlastní `site.config.yaml` s `demo: true`, písma, podmnožina scén, ikony), složená do `.demo/site/` |
+| složka webu | kořen tohoto repa (`site.config.yaml`, `fonts/`, `mockups/`, ikony, viz Složka webu) | `demo/` (vlastní `site.config.yaml` s `demo: true`, písma, podmnožina scén, ikony), složená do `.demo/site/` |
 | obrázky | fotky v gitu obsahového repa | negenerují se do gitu: `demo-content/images.yaml` je recept, obrázky vzniknou vždy stejně při `npm run demo` |
 | zpracování | `npm run images` → `content/`, `public/` tohoto repa, exporty do `export/` obsahového repa | `npm run demo` → `.demo/content/` (obsah), `.demo/site/` (data webu), vše mimo git |
 | web | `npm run dev` / `npm run build` / GitHub Pages | `npm run demo` (dev server), `npm run demo:build` (`.demo/site/dist`) |
@@ -1347,7 +1347,7 @@ zatím prázdná.
 **Jak `npm run demo` funguje** (`scripts/demo.mjs`): zkopíruje yaml z `demo-content/`
 (včetně značky `demo-content.yaml`) do `.demo/content/`, vykreslí obrázky podle receptu (`scripts/lib/demo-images.mjs`:
 abstraktní skvrny z pevného seedu a přes ně ostré tahy štětcem uprostřed listu, aby hra Detail dne měla co poznávat; detailní fotky jako výřezy),
-složí složku testovacího webu `.demo/site/` z `demo-content/site/` (`assembleSite`: `site.config.yaml`, `home-screen-icon.svg`,
+složí složku testovacího webu `.demo/site/` z `demo/` (`assembleSite`: `site.config.yaml`, `home-screen-icon.svg`,
 `fonts/` a `mockups/` nahradí, statické soubory `public/` přidá vedle vyrobených, nikdy `CNAME`) a spustí **stejnou pipeline**
 jako pro skutečná data s touto složkou webu (nastavení, scény a písma testovacího webu). Web pak běží s `SITE_DIR=.demo/site`
 (`src/lib/site.ts` a `astro.config.mjs` čtou nastavení i data odtud). Testovací web podle `demo: true` (`isDemoSite`)
@@ -1361,7 +1361,7 @@ s vlastním plátnem, `hallway`, `shelf`, `desk`; ateliér: světlý stůl a sto
 webu; každá scéna zůstává v historii gitu navždy, proto jen tolik, kolik ukázka funkcí potřebuje. Nastavení testovacího
 webu je kopie nastavení Pavlina webu s vymyšlenou autorkou (Růženka Borůvková, Mýtinka): žádné skutečné jméno ani adresa,
 žádné odkazy na profily (`instagram`, `pinterest`, `fler` prázdné), žádné ověřovací kódy, měření ani klíč formuláře;
-kde funkce potřebuje adresu, je zjevně vymyšlená (`site.url` `https://ukazka.example.com`, e-mail na `example.com`,
+kde funkce potřebuje adresu, je zjevně vymyšlená (`site.url` = adresa ukázky na GitHub Pages, e-mail na `example.com`,
 odkazy děl na Instagram a Fler s `demo-` v adrese). Kódy (`id`) a kostry,
 které pipeline doplní, se zapíšou zpět do `demo-content/`, aby zůstaly stálé. První
 příprava trvá kolem 1,5 minuty, další jen přegenerují změny.
@@ -2766,10 +2766,21 @@ nepodařilo načíst). Problémy textů stránek mají kód každý (`titulek-ch
 vypisuje i `npm run check:images`. Stejně vložené skripty (`skript-bez-prvku`, `skript-bere-predchozi-prvek`,
 `data-view-neplatny`, kódy `inlineScriptProblems`).
 
+**Sdílená workflow** (`workflow_call`, volá je obsahové repo ze svých obálek): `.github/workflows/process-content.yml`
+(„Zpracování obsahu (sdílené)“: checkout obsahu = volajícího repa do `content/` s celou historií, repa webu do `site/`,
+`npm ci`, na `main` obrázky webu `promote` + `unpack`, `export/` větve `unpack`, `npm run images` (na jiných větvích
+`--prepare-only`), commit zpět i po chybě pipeline, `export/` do `<větev>_binary` (`prune` na `main`), na `main` obrázky do
+`obsah/aktualizace_binary`, popis a pull request do repa webu s auto-merge, při selhání issue „Zpracování obsahu selhalo:
+<větev>“ v obsahovém repu, další úspěšný běh ho zavře) a `.github/workflows/health-check.yml` („Kontrola automatiky
+(sdílená)“: `scripts/check-health.mjs` s popisy obsahu, issue s kódy problémů). Vstupy: `site-repository` (vlastník/jméno
+repa webu), u kontroly `demo-url` (adresa nasazené ukázky, prázdné = bez ní); secrety `SITE_TOKEN` (token zpracování obsahu
+pro repo webu), u kontroly nepovinný `CHECK_TOKEN`. Spouštěče, souběh běhů a oprávnění má obálka; kontext `github` je její
+(repo, větev, běh, token pro issue). Kontroluje je `actionlint` (job `workflows` v `check.yml`).
+
 **Zkušební běh zpracování** (`.github/workflows/dry-run.yml` v tomto repu): každou neděli (den před
 týdenní kontrolou), po změně pipeline (`scripts/process-images.mjs`, `scripts/pull-request.mjs`,
 `scripts/lib/pull-request.mjs`, `scripts/demo.mjs`, `scripts/binary.mjs`, složky testovacího webu
-`demo-content/site/`, samotného workflow) a ručně (*Actions → Zkušební běh
+`demo/`, samotného workflow nebo sdíleného `process-content.yml`) a ručně (*Actions → Zkušební běh
 zpracování → Run workflow*) projde celé zpracování obsahu na testovacích datech, aby se chyba ukázala dřív,
 než na ni narazí skutečný obsah:
 
@@ -3037,7 +3048,7 @@ Složku určí proměnná `SITE_DIR` (relativně k pracovní složce), bez ní j
 Pavly. Kód ve `src/` bere kořen repa z pracovní složky (`process.cwd()`), ne z cesty modulu: build Astra moduly
 přibalí jinam. Pipeline (`run` v `process-images.mjs`) bere scény, písma a nastavení ze své `siteDir`, jen když je
 volající nepředá; načtení scén a písem (`loadScenes`, `loadInstagramScenes`, `loadFonts`) žádnou výchozí složku nemá.
-Testovací web má vlastní složku `.demo/site/` (složenou z `demo-content/site/`, viz Testovací data), proto `SITE_DIR=.demo/site`
+Testovací web má vlastní složku `.demo/site/` (složenou z `demo/`, viz Testovací data), proto `SITE_DIR=.demo/site`
 staví, kontroluje a prototypuje testovací web.
 
 Testy kódu berou nastavení, písma, scény a ikonu testovacího webu (`scripts/lib/test-support/demo-site.mjs`), nikdy
@@ -3048,7 +3059,7 @@ podle zadání generátoru `promptCamera`, velikosti `mustFitCm`) kontroluje `np
 **Co si pamatuje prohlížeč návštěvníka** (oblíbené, barvy, zobrazení a počty galerie, postup ve hře, rozepsaná zpráva,
 mezipaměti aplikace) má jména s předponou webu `site.storagePrefix` ze `site.config.yaml` (`scripts/lib/storage-prefix.mjs`):
 klíče `localStorage` a `sessionStorage` `<předpona>.<jméno>` (`storageKey`, např. `pavla.favorites`), mezipaměti service
-workeru `<předpona>-<druh>` (`CACHE_PREFIX`, např. `pavla-images`). Pavlin web `pavla`, testovací `ukazka`, bez nastavení
+workeru `<předpona>-<druh>` (`CACHE_PREFIX`, např. `pavla-images`). Pavlin web `pavla`, testovací `demo`, bez nastavení
 `web`; jiný tvar (jen malá písmena a číslice, slova spojená `-`) ohlásí `npm run check:site` a build skončí chybou. Build
 předponu vloží do kódu (`vite.define` v `astro.config.mjs`, `STORAGE_PREFIX_GLOBAL`), mimo build (testy, pipeline,
 prototypy) platí výchozí `web`. Po zveřejnění webu ji neměnit: návštěvníci by přišli o to, co si jejich prohlížeč

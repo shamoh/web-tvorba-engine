@@ -11,8 +11,8 @@ import { pullRequestPaths } from './lib/pull-request.mjs';
 import { run } from './process-images.mjs';
 import { CODE_ROOT, readSiteConfig, sitePaths } from './lib/site-dir.mjs';
 
-// the folder of the test site (its source in demo-content/site/) and the real site in the root of the code
-const DEMO_SITE = path.join(CODE_ROOT, 'demo-content', 'site');
+// the folder of the test site (its source in demo/) and the real site in the root of the code
+const DEMO_SITE = path.join(CODE_ROOT, 'demo');
 const siteConfig = readSiteConfig(DEMO_SITE);
 const config = {
   ...siteConfig,

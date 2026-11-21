@@ -20,7 +20,7 @@ import { PHOTO_FIELDS } from './lib/photos.mjs';
 import { sitePaths } from './lib/site-dir.mjs';
 import { DEMO_SITE_DIR, demoSiteConfig } from './lib/test-support/demo-site.mjs';
 
-// the settings of the test site (demo-content/site/), never those of a real site
+// the settings of the test site (demo/), never those of a real site
 const siteConfig = demoSiteConfig();
 // Small web widths keep the test fast.
 const config = {

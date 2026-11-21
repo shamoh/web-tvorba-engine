@@ -1,4 +1,5 @@
-# Dry run of the content workflow (the one that runs the pipeline on the real content) on the test data (demo-content/):
+# Dry run of the content workflow (process-content.yml, the shared workflow the content repository calls to run the
+# pipeline on the real content) on the test data (demo-content/): the same steps, a change of one = the same change here.
 #   1. the test content is built from demo-content/ into .demo/content (like a checkout of the content repository)
 #      and the folder of the test site into .demo/site (SITE_DIR), made a git repository with a local origin (like a
 #      checkout of the repository of a site),
@@ -26,9 +27,10 @@ on:
       - 'scripts/lib/pull-request.mjs'
       - 'scripts/demo.mjs'
       - 'scripts/binary.mjs'
-      - 'demo-content/site/**'
+      - 'demo/**'
       - 'scripts/lib/binary.mjs'
       - '.github/workflows/dry-run.yml'
+      - '.github/workflows/process-content.yml'
       - '.github/dry-run-commit.sh'
   workflow_dispatch:
 

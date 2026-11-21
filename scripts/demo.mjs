@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Test data (demo): prepares pavla/demo-content into .demo/ and runs the same pipeline as for the real content,
+// Test data (demo): prepares demo-content/ and demo/ into .demo/ and runs the same pipeline as for the real content,
 // completely apart from it:
 //   demo-content/               source: a made-up content repository (its YAML, the marker demo-content.yaml)
 //                               + images.yaml (recipe of the images, no binary files in git)
-//   demo-content/site/          source of the folder of the test site (scripts/lib/site-dir.mjs): its own
-//                               site.config.yaml (demo: true), fonts, mockup scenes, icons
+//   demo/                       source of the folder of the test site (scripts/lib/site-dir.mjs), like the
+//                               repository of a site: its own site.config.yaml (demo: true), fonts, scenes, icons
 //   .demo/content/              a content repository built from demo-content/ (YAML copies + rendered images)
-//   .demo/site/                 the folder of the test site: demo-content/site/ + generated data (content/, public/,
+//   .demo/site/                 the folder of the test site: demo/ + generated data (content/, public/,
 //                               game/) and the built site (dist/); SITE_DIR=.demo/site builds and checks it
 // The real content (the content repository) and the real site (its folder) are never touched.
 //
@@ -72,14 +72,14 @@ export async function assembleSite(source, target) {
 /**
  * Prepares the test data and runs the pipeline on them. Returns the pipeline result
  * ({ ok: false, problems } when the recipe is broken). Options: demoDir, outDir, siteSource (source of the folder
- * of the test site, demo-content/site/), config (default: its site.config.yaml), log,
+ * of the test site, demo/), config (default: its site.config.yaml), log,
  * contentOnly (only build .demo/content and the folder of the test site .demo/site, do not run the pipeline; returns
  * { ok: true, contentDir, siteDir }: the inputs of the dry run, .github/workflows/dry-run.yml).
  */
 export async function prepareDemo({
   demoDir = path.join(CODE_ROOT, 'demo-content'),
   outDir = path.join(CODE_ROOT, '.demo'),
-  siteSource = path.join(demoDir, 'site'),
+  siteSource = path.join(CODE_ROOT, 'demo'),
   config,
   log = console.log,
   contentOnly = false,

@@ -31,9 +31,9 @@ test('contextLabel and messageSubject say what the message is about', () => {
   assert.equal(contextLabel(pageContext('/tvorba/kolekce/', 'Kolekce')), 'Ke stránce: Kolekce');
   assert.equal(contextLabel(pageContext('/x/', '')), 'Ke stránce: /x/', 'a page without a title is named by its address');
   assert.equal(contextLabel(null), null);
-  assert.equal(messageSubject('work', ovce, TAG), '[ukazka-web] Dotaz na obraz: Ovce (v39nd)');
-  assert.equal(messageSubject('bug', pageContext('/tvorba/kolekce/', 'Kolekce'), TAG), '[ukazka-web] Chyba na webu: Kolekce');
-  assert.equal(messageSubject('greeting', null, TAG), '[ukazka-web] Pozdrav nebo vzkaz');
+  assert.equal(messageSubject('work', ovce, TAG), '[demo-web] Dotaz na obraz: Ovce (v39nd)');
+  assert.equal(messageSubject('bug', pageContext('/tvorba/kolekce/', 'Kolekce'), TAG), '[demo-web] Chyba na webu: Kolekce');
+  assert.equal(messageSubject('greeting', null, TAG), '[demo-web] Pozdrav nebo vzkaz');
 });
 
 test('validateMessage: text is required, the address must look right and is required only where an answer is needed', () => {
@@ -57,7 +57,7 @@ test('messagesMode: the real site with a key = live, without = no form; the test
 test('web3formsBody: subject, reply-to and the page; no address = no reply-to', () => {
   const body = web3formsBody(KEY, site, { type: 'work', text: ' Je ještě volný? ', email: 'a@b.cz' }, ovce, TAG);
   assert.equal(body.access_key, KEY);
-  assert.equal(body.subject, '[ukazka-web] Dotaz na obraz: Ovce (v39nd)');
+  assert.equal(body.subject, '[demo-web] Dotaz na obraz: Ovce (v39nd)');
   assert.equal(body.from_name, 'Web web.test', 'the site, not the author, is the sender');
   assert.equal(body.replyto, 'a@b.cz');
   assert.equal(body['Zpráva'], 'Je ještě volný?');
@@ -97,9 +97,9 @@ test('messageEventParams: the kind, and the work when the message is about one',
 });
 
 test('mailtoLink: the same subject as a sent message, encoded', () => {
-  assert.equal(mailtoLink('a@b.cz', 'greeting', null, TAG), `mailto:a@b.cz?subject=${encodeURIComponent('[ukazka-web] Pozdrav nebo vzkaz')}`);
+  assert.equal(mailtoLink('a@b.cz', 'greeting', null, TAG), `mailto:a@b.cz?subject=${encodeURIComponent('[demo-web] Pozdrav nebo vzkaz')}`);
   const link = mailtoLink('a@b.cz', 'work', ovce, TAG);
-  assert.equal(decodeURIComponent(link.split('subject=')[1]), '[ukazka-web] Dotaz na obraz: Ovce (v39nd)');
+  assert.equal(decodeURIComponent(link.split('subject=')[1]), '[demo-web] Dotaz na obraz: Ovce (v39nd)');
 });
 
 test('sitePath: only paths on this site, read as a browser reads them', () => {
@@ -119,7 +119,7 @@ test('contextFromQuery and web3formsBody never point the e-mail to another site'
 });
 
 test('formSubject: the subject of a message sent without JavaScript', () => {
-  assert.equal(formSubject(TAG), '[ukazka-web] Zpráva z webu');
+  assert.equal(formSubject(TAG), '[demo-web] Zpráva z webu');
 });
 
 test('the tag of the subjects comes from messages.subjectTag; "web" when it is not set', () => {

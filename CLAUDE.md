@@ -16,7 +16,7 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
 - **Složka webu** (`scripts/lib/site-dir.mjs`, `SITE_DIR`, výchozí kořen repa): `site.config.yaml`, `fonts/`, `mockups/`,
   `home-screen-icon.svg`, `public/`, `content/`, `game/`, `binary.lock`, `dist/`. Cesty k nim jen přes `sitePaths`
   (`readSiteConfig`), nikdy natvrdo z kořene kódu; ve `src/` kořen kódu z `process.cwd()` (build moduly přibalí jinam).
-  Načítání scén a písem nemá výchozí složku. Testovací web má vlastní složku `demo-content/site/` (`demo: true` =
+  Načítání scén a písem nemá výchozí složku. Testovací web má vlastní složku `demo/` (`demo: true` =
   `isDemoSite`: bez analytiky, formulář jen náhled, skrytý vyhledávačům `hiddenFromSearch`: `robots.txt` `Disallow`,
   `HIDDEN_SITE_ROBOTS` s `data-hidden-site`, který `isNoindex` nepočítá; vymyšlená autorka bez profilů a skutečných
   adres, vymyšlené adresy jen `example.com` nebo s `demo-`), `npm run demo` ji složí do `.demo/site/` (`assembleSite`),
@@ -339,6 +339,11 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   „Zkušební běh zpracování“ (`.github/workflows/dry-run.yml`, každou neděli na testovacích datech, nic nepushne)
   prochází tytéž kroky ve složce testovacího webu `.demo/site` (`SITE_DIR`, git repo s lokálním `origin`, nikdy
   skutečný web): změna kroků zpracování obsahu = stejná změna ve `dry-run.yml`.
+  Kroky zpracování obsahu a týdenní kontroly jsou sdílená workflow tohoto repa (`workflow_call`):
+  `.github/workflows/process-content.yml` („Zpracování obsahu (sdílené)“, vstup `site-repository`, secret `SITE_TOKEN`)
+  a `.github/workflows/health-check.yml` („Kontrola automatiky (sdílená)“, navíc `CHECK_TOKEN`, `demo-url`). Obsahové repo
+  je volá ze svých obálek (spouštěče, souběh, oprávnění, tokeny); kontext `github` je volajícího (jeho repo, větev, issue).
+  Ani sdílená workflow nejmenují obsahové repo (cesty `content` a `site`).
   Týdenní kontrola (token, selhané běhy, zkušební běh, nasazení, čekající PR, neznámé atributy, chybějící obrázky
   nasazeného webu `scripts/lib/site-check.mjs`, texty a JSON-LD jeho stránek `evaluatePageTexts`, vložené skripty všech jeho stránek `evaluateInlineScripts`, velikost obou rep
   a nasazeného webu proti limitům GitHubu `evaluateSizes` (od 70 % `blizi-se-limit`), minuty Actions soukromých rep

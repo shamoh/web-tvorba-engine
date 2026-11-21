@@ -1,0 +1,114 @@
+# Shared workflow "Kontrola automatiky": the weekly health check of the automation (scripts/check-health.mjs), called by
+# the content repository (workflow_call) on its schedule. The `github` context is the caller's: its repository (the
+# runs of its "Zpracování obsahu", its issues), its token. What is checked: scripts/check-health.mjs and README
+# ("Týdenní kontrola"). When something is wrong, the run fails and an issue is opened in the content repository, so
+# GitHub sends an e-mail; its title ends with the codes of the problems ("… [token-vyprsi] [obrazky-chybi]", rewritten
+# by every failing run). When everything is fine again, the issue is closed automatically.
+name: Kontrola automatiky (sdílená)
+
+on:
+  workflow_call:
+    inputs:
+      site-repository:
+        description: The repository of the site (owner/name), its code and its data
+        type: string
+        required: true
+      demo-url:
+        description: The address of the deployed test site, checked like the site (check-health.mjs --demo-url); empty = not checked
+        type: string
+        default: ''
+    secrets:
+      SITE_TOKEN:
+        description: The token of the content workflow for the site repository (its expiry is checked)
+        required: true
+      CHECK_TOKEN:
+        description: Optional read-only token of the owner (minutes of Actions, settings of the repositories)
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+env:
+  ISSUE_TITLE: "Automatika webu potřebuje pozornost"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the site (the check script, its dependencies and the address of the site)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.site-repository }}
+          sparse-checkout: |
+            scripts
+            package.json
+            package-lock.json
+            site.config.yaml
+          sparse-checkout-cone-mode: false
+
+      - name: Checkout the descriptions (the calling repository)
+        uses: actions/checkout@v7
+        with:
+          path: obsah
+          sparse-checkout: |
+            tvorba
+            fotky
+            roky
+            stranky
+            docs/github-nastaveni
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      # The check of the descriptions reads YAML (the yaml package).
+      - name: Install
+        run: npm ci
+
+      - name: Check token and recent runs
+        id: check
+        env:
+          TOKEN: ${{ secrets.SITE_TOKEN }}
+          RUNS_TOKEN: ${{ github.token }}
+          CHECK_TOKEN: ${{ secrets.CHECK_TOKEN }}
+          SETTINGS_DIR: ${{ github.workspace }}/obsah/docs/github-nastaveni
+          REPO: ${{ github.repository }}
+          CONTENT_DIR: ${{ github.workspace }}/obsah
+          DEMO_URL: ${{ inputs.demo-url }}
+        run: node scripts/check-health.mjs --days 14 --run-days 7 --pr-days 1 ${DEMO_URL:+--demo-url "$DEMO_URL"}
+
+      - name: Open or update the issue (sends an e-mail)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPORT: ${{ steps.check.outputs.report }}
+          CODES: ${{ steps.check.outputs.codes }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          title="$ISSUE_TITLE${CODES:+ $CODES}"
+          existing=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number --jq '.[0].number')
+          body="$REPORT
+          Běh kontroly: $RUN_URL"
+          if [ -n "$existing" ]; then
+            # the title first: the e-mail of the comment carries the codes of this run
+            gh issue edit "$existing" --title "$title"
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --assignee "$OWNER"
+          fi
+
+      - name: Close the issue when everything is fine again
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPORT: ${{ steps.check.outputs.report }}
+        run: |
+          for n in $(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "$REPORT"
+          done

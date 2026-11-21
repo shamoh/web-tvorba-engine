@@ -20,7 +20,7 @@ test('storagePrefixOf: the prefix of the site, the default without one, an error
     assert.throws(() => storagePrefixOf({ site: { storagePrefix: bad } }), /site\.storagePrefix must be/, String(bad));
     assert.equal(isStoragePrefix(bad), false, String(bad));
   }
-  assert.equal(storagePrefixOf(demoSiteConfig()), 'ukazka', 'the test site has its own');
+  assert.equal(storagePrefixOf(demoSiteConfig()), 'demo', 'the test site has its own');
 });
 
 test('outside the build the prefix is the default; every name of the browser starts with it', () => {
@@ -49,7 +49,7 @@ test('no name of the browser is written out in the code: all of them go through 
 
 test('withStoragePrefix: a name of this build with the prefix of another site; a name without the prefix is an error', () => {
   assert.equal(withStoragePrefix(FAVORITES_STORE, 'pavla'), 'pavla.favorites');
-  assert.equal(withStoragePrefix(`${CACHE_PREFIX}images`, 'ukazka'), 'ukazka-images');
+  assert.equal(withStoragePrefix(`${CACHE_PREFIX}images`, 'demo'), 'demo-images');
   assert.equal(withStoragePrefix(storageKey('cinema.interval'), 'kacka-web'), 'kacka-web.cinema.interval');
   for (const bad of ['favorites', 'webfavorites', 'jine.favorites', '']) assert.throws(() => withStoragePrefix(bad, 'pavla'), /no name of the browser/, bad);
 });
