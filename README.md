@@ -1326,7 +1326,7 @@ zatím prázdná.
 |---|---|---|
 | zdroj | obsahové repo (soukromé) | `pavla/demo-content/` (toto repo), stejná struktura jako obsahové repo |
 | složka webu | kořen tohoto repa (`site.config.yaml`, `fonts/`, `mockups/`, ikony, viz Složka webu) | `demo/` (vlastní `site.config.yaml` s `demo: true`, písma, podmnožina scén, ikony), složená do `.demo/site/` |
-| obrázky | fotky v gitu obsahového repa | negenerují se do gitu: `demo-content/images.yaml` je recept, obrázky vzniknou vždy stejně při `npm run demo` |
+| obrázky | fotky v gitu obsahového repa | v `demo-content/` vedle popisů jako fotky obsahového repa, vyrobené z receptu `demo-content/images.yaml` (`npm run demo:images`, i při `npm run demo`) jen ty, které chybějí; v tomto repu mimo git (`.gitignore`), v enginu v gitu |
 | zpracování | `npm run images` → `content/`, `public/` tohoto repa, exporty do `export/` obsahového repa | `npm run demo` → `.demo/content/` (obsah), `.demo/site/` (data webu), vše mimo git |
 | web | `npm run dev` / `npm run build` / GitHub Pages | `npm run demo` (dev server), `npm run demo:build` (`.demo/site/dist`) |
 | označení | nic, testovací data jsou zakázaná | celá sada: soubor `demo-content.yaml` v kořeni; každé dílo a kolekce: jméno `demo-…`; web: `demo: true` v jeho `site.config.yaml` |
@@ -1346,9 +1346,17 @@ zatím prázdná.
 - Pravidlo pro Claude Code v CLAUDE.md: testovací data se tvoří jen v `pavla/demo-content/`,
   nikdy v obsahovém repu.
 
-**Jak `npm run demo` funguje** (`scripts/demo.mjs`): zkopíruje yaml z `demo-content/`
-(včetně značky `demo-content.yaml`) do `.demo/content/`, vykreslí obrázky podle receptu (`scripts/lib/demo-images.mjs`:
-abstraktní skvrny z pevného seedu a přes ně ostré tahy štětcem uprostřed listu, aby hra Detail dne měla co poznávat; detailní fotky jako výřezy),
+**Obrázky testovacích dat** (`npm run demo:images`, `scripts/demo-images.mjs`, `scripts/lib/demo-images.mjs`): podle receptu
+`demo-content/images.yaml` vyrobí do `demo-content/` obrázky, které tam ještě nejsou (abstraktní skvrny z pevného seedu
+a přes ně ostré tahy štětcem uprostřed listu, aby hra Detail dne měla co poznávat; detailní fotky jako výřezy), kolem minuty
+pro všechny. Existující obrázek nikdy znovu nevyrobí (jiná verze `sharp` by změnila jeho bajty a v gitu zůstane každá verze
+navždy). Změněný recept jednoho obrázku: `npm run demo:images -- <cesta z receptu>` vyrobí ten obrázek a všechny jeho výřezy
+znovu (`forcedImages`); `npm run demo:images -- --check` jen ohlásí chybějící obrázky a obrázky mimo recept
+(`demoImageProblems`; ty hlásí i `npm run demo` a zastaví ho: každý testovací obrázek musí jít z receptu vyrobit).
+V tomto repu jsou obrázky mimo git (`.gitignore` `/demo-content/**/*.jpg` …), v enginu budou v gitu jako fotky obsahového repa.
+
+**Jak `npm run demo` funguje** (`scripts/demo.mjs`): vyrobí chybějící obrázky testovacích dat (viz výše), zkopíruje yaml
+a obrázky z `demo-content/` (včetně značky `demo-content.yaml`) do `.demo/content/`,
 složí složku testovacího webu `.demo/site/` z `demo/` (`assembleSite`: `site.config.yaml`, `home-screen-icon.svg`,
 `fonts/` a `mockups/` nahradí, statické soubory `public/` přidá vedle vyrobených, nikdy `CNAME`) a spustí **stejnou pipeline**
 jako pro skutečná data s touto složkou webu (nastavení, scény a písma testovacího webu). Web pak běží s `SITE_DIR=.demo/site`
@@ -1366,12 +1374,12 @@ webu je kopie nastavení Pavlina webu s vymyšlenou autorkou (Růženka Borůvko
 kde funkce potřebuje adresu, je zjevně vymyšlená (`site.url` = adresa ukázky na GitHub Pages, e-mail na `example.com`,
 odkazy děl na Instagram a Fler s `demo-` v adrese). Kódy (`id`) a kostry,
 které pipeline doplní, se zapíšou zpět do `demo-content/`, aby zůstaly stálé. První
-příprava trvá kolem 1,5 minuty, další jen přegenerují změny.
+příprava trvá kolem 1,5 minuty (s vyrobením obrázků), další jen přegenerují změny.
 
 **Nové testovací dílo:** yaml do `demo-content/tvorba/demo-<slug>.yaml` nebo do složky testovací
 kolekce `demo-content/tvorba/demo-<kolekce>/`
 a řádek do `demo-content/images.yaml` (`size`, `palette`, `seed`; detailní fotka jako
-`from` + `crop`; list vyfocený nakřivo na podlaze s `floor: { angle, margin }`). Pak `npm run demo`, pipeline doplní `id`.
+`from` + `crop`; list vyfocený nakřivo na podlaze s `floor: { angle, margin }`). Pak `npm run demo` (vyrobí jeho obrázek), pipeline doplní `id`.
 
 ## Přidání nového díla
 
@@ -2886,7 +2894,7 @@ Co web dělá, aby mu vyhledávače rozuměly (`scripts/lib/seo.mjs`, `src/layou
   vypínají jen učení, ne hledání). Nový takový robot = řádek v `AI_TRAINING_CRAWLERS`.
 - **Výhrada vytěžování textů a dat** (směrnice EU 2019/790, čl. 4, strojově čitelně, W3C TDMRep): každá stránka má
   `<meta name="tdm-reservation" content="1">` (`TDM_RESERVATION`) a web `/.well-known/tdmrep.json`
-  (`src/pages/.well-known/tdmrep.json.ts`, `tdmRepJson`: celý web ve své složce vyhrazen). Totéž slovy říká stránka Podmínky užití.
+  (`src/pages/.well-known/tdmrep.json.ts`, `tdmRepJson`: celý web ve své složce vyhrazen; skrytou složku nasazení přibalí jen s `include-hidden-files: true` v `deploy.yml`, hlídá `scripts/workflows.test.mjs`). Totéž slovy říká stránka Podmínky užití.
 - **`/robots.txt`** dál: ostatním vše povoleno, odkaz na mapu webu `/sitemap.xml` (u webu v podsložce ho vyhledávače nečtou); testovací web
   (`hiddenFromSearch`) jen `Disallow: /` a každá jeho stránka `noindex, nofollow` (viz Testovací data).
 - **Stránka 404** (`src/pages/404.astro`): „Tento obraz ještě nebyl namalován“, tři obrazy z výběru autorky

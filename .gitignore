@@ -17,3 +17,7 @@ dist/
 AGENTS.md
 # screenshots of the site for the install dialog: taken by the deploy once a week (npm run app-screenshots)
 /.app-screenshots/
+# images of the test data: rendered from demo-content/images.yaml (npm run demo:images), in git only in the engine
+/demo-content/**/*.jpg
+/demo-content/**/*.png
+/demo-content/**/*.webp

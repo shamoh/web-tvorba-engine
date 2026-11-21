@@ -405,7 +405,8 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
 
 ## Testovací a skutečná data
 - Testovací (demo) data žijí **jen** v `pavla/demo-content/`: vymyšlené obsahové repo se stejnou strukturou jako
-  skutečné (yaml + recept `demo-content/images.yaml`, značka `demo-content.yaml`), zpracovávají se přes
+  skutečné (yaml, obrázky vyrobené z receptu `demo-content/images.yaml` přes `npm run demo:images` jen chybějící, nikdy
+  přepsané, tady mimo git, v enginu v gitu; značka `demo-content.yaml`), zpracovávají se přes
   `npm run demo` do `.demo/` (mimo git). Skutečná data jsou **jen** v obsahovém repu; web v produkci se staví
   jen z nich (i když jsou prázdná).
 - **Nikdy netvoř testovací/ukázková data v obsahovém repu** (díla, kolekce, fotky, obrázky), ani „dočasně“.

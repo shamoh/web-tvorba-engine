@@ -13,6 +13,7 @@
     "check:site": "node scripts/check-site.mjs",
     "test": "node --test \"scripts/**/*.test.mjs\"",
     "demo:prepare": "node scripts/demo.mjs",
+    "demo:images": "node scripts/demo-images.mjs",
     "binary:pull": "node scripts/binary.mjs unpack",
     "demo": "node scripts/demo.mjs && SITE_DIR=.demo/site astro dev",
     "demo:build": "node scripts/demo.mjs && SITE_DIR=.demo/site astro build",

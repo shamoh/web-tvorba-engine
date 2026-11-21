@@ -67,6 +67,8 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
+          # the site has hidden files too (/.well-known/tdmrep.json); without this the action leaves them out
+          include-hidden-files: true
           # only the deploy job below needs it; one day keeps the Actions storage of the account small
           retention-days: 1
 

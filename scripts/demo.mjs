@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Test data (demo): prepares demo-content/ and demo/ into .demo/ and runs the same pipeline as for the real content,
 // completely apart from it:
-//   demo-content/               source: a made-up content repository (its YAML, the marker demo-content.yaml)
-//                               + images.yaml (recipe of the images, no binary files in git)
+//   demo-content/               source: a made-up content repository (its YAML, the marker demo-content.yaml, its
+//                               images) + images.yaml (the recipe of the images: npm run demo:images renders the
+//                               missing ones, never an existing one; in this repository they stay out of git)
 //   demo/                       source of the folder of the test site (scripts/lib/site-dir.mjs), like the
 //                               repository of a site: its own site.config.yaml (demo: true), fonts, scenes, icons
-//   .demo/content/              a content repository built from demo-content/ (YAML copies + rendered images)
+//   .demo/content/              a content repository built from demo-content/ (copies of its YAML and images)
 //   .demo/site/                 the folder of the test site: demo/ + generated data (content/, public/,
 //                               game/) and the built site (dist/); SITE_DIR=.demo/site builds and checks it
 // The real content (the content repository) and the real site (its folder) are never touched.
@@ -20,7 +21,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import YAML from 'yaml';
-import { recipeProblems, renderDemoImages } from './lib/demo-images.mjs';
+import { demoImageProblems, recipeProblems, renderDemoImages } from './lib/demo-images.mjs';
 import { INDEX_FILE } from './lib/content.mjs';
 import { DEMO_MARKER } from './lib/demo.mjs';
 import { PAGES_SUBDIR } from './lib/pages.mjs';
@@ -85,13 +86,18 @@ export async function prepareDemo({
   contentOnly = false,
 } = {}) {
   const recipe = YAML.parse(await fs.readFile(path.join(demoDir, 'images.yaml'), 'utf8')) ?? {};
+  // the images of the test data: the missing ones rendered into demo-content/, then checked against the recipe
   const broken = recipeProblems(recipe);
+  if (!broken.length) {
+    for (const f of await renderDemoImages(recipe, demoDir)) log(`+ demo-content/${f} rendered from the recipe`);
+    broken.push(...(await demoImageProblems(recipe, demoDir)).map((p) => `demo-content/${p}`));
+  }
   if (broken.length) return { ok: false, problems: broken, created: [], assigned: [], processed: 0, skipped: 0, missing: [], pruned: [] };
 
   const contentDir = path.join(outDir, 'content');
   const dataDir = path.join(outDir, 'site');
 
-  // 1. content: fresh copies of the YAML files and the rendered images (exports stay, the pipeline prunes them)
+  // 1. content: fresh copies of the YAML files and the images (exports stay, the pipeline prunes them)
   for (const sub of [...CONTENT_SUBDIRS, ...CONTENT_FILES]) await fs.rm(path.join(contentDir, sub), { recursive: true, force: true });
   for (const f of await fs.readdir(contentDir).catch(() => [])) if (/^_cover\.(jpe?g|png|webp)$/.test(f)) await fs.rm(path.join(contentDir, f));
   await fs.mkdir(path.join(contentDir, 'tvorba'), { recursive: true });
@@ -100,7 +106,10 @@ export async function prepareDemo({
     await fs.mkdir(path.dirname(path.join(contentDir, f)), { recursive: true });
     await fs.copyFile(path.join(demoDir, f), path.join(contentDir, f));
   }
-  await renderDemoImages(recipe, contentDir);
+  for (const f of Object.keys(recipe.images ?? {})) {
+    await fs.mkdir(path.dirname(path.join(contentDir, f)), { recursive: true });
+    await fs.copyFile(path.join(demoDir, f), path.join(contentDir, f));
+  }
 
   // 2. the folder of the test site: its settings, icons, fonts and scenes next to the generated test data
   await assembleSite(siteSource, dataDir);

@@ -110,13 +110,35 @@ export async function onWall(sheet, [w, h], { angle, margin }) {
   return sharp(wall).composite([{ input: rotated, left: m, top: m }]).png().toBuffer();
 }
 
-/** Renders every image of the recipe into `outDir` (paths as in the recipe). Returns the written paths. */
-export async function renderDemoImages(recipe, outDir) {
+/**
+ * The images of the recipe to render again when `paths` are asked for: those paths and every crop of one of them
+ * (a crop of a new source would show the old one). Unknown paths are returned in `unknown`.
+ */
+export function forcedImages(recipe, paths) {
+  const images = recipe.images ?? {};
+  const forced = new Set(paths.filter((p) => Object.hasOwn(images, p)));
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [file, r] of Object.entries(images)) if (r.from && forced.has(r.from) && !forced.has(file)) { forced.add(file); grew = true; }
+  }
+  return { forced: [...forced], unknown: paths.filter((p) => !Object.hasOwn(images, p)) };
+}
+
+const exists = (file) => fs.access(file).then(() => true, () => false);
+
+/**
+ * Renders the images of the recipe into `outDir` (paths as in the recipe) that are not there yet: an existing image
+ * is never rendered again (another version of sharp would change its bytes, and in git every version stays forever),
+ * except the paths in `force` (forcedImages). Returns the written paths.
+ */
+export async function renderDemoImages(recipe, outDir, { force = [] } = {}) {
   const written = [];
+  const again = new Set(force);
   const images = Object.entries(recipe.images ?? {});
   // painted images first, crops need their source
   for (const [file, r] of [...images.filter(([, r]) => !r.from), ...images.filter(([, r]) => r.from)]) {
     const target = path.join(outDir, file);
+    if (!again.has(file) && await exists(target)) continue;
     await fs.mkdir(path.dirname(target), { recursive: true });
     let img;
     if (r.from) {
@@ -132,4 +154,28 @@ export async function renderDemoImages(recipe, outDir) {
     written.push(file);
   }
   return written;
+}
+
+/** Image files of a content folder (tvorba/, fotky/, roky/ and the root), paths relative to it with "/". */
+const IMAGE_FILE = /\.(jpe?g|png|webp)$/i;
+export async function contentImages(dir, rel = '') {
+  const out = [];
+  for (const e of await fs.readdir(path.join(dir, rel), { withFileTypes: true }).catch(() => [])) {
+    const r = rel ? `${rel}/${e.name}` : e.name;
+    if (e.isDirectory() && (rel || ['tvorba', 'fotky', 'roky'].includes(e.name))) out.push(...await contentImages(dir, r));
+    else if (e.isFile() && IMAGE_FILE.test(e.name)) out.push(r);
+  }
+  return out.sort();
+}
+
+/**
+ * Problems of the images of the test data against their recipe: an image that is not in the recipe (every test image
+ * must be reproducible from it) and, with `missing: true`, a recipe entry without its image (Czech, for the console).
+ */
+export async function demoImageProblems(recipe, dir, { missing = false } = {}) {
+  const images = recipe.images ?? {};
+  const present = await contentImages(dir);
+  const extra = present.filter((f) => !Object.hasOwn(images, f)).map((f) => `${f}: obrázek není v receptu images.yaml (přidej ho tam, nebo ho smaž)`);
+  const lacking = missing ? Object.keys(images).filter((f) => !present.includes(f)).map((f) => `${f}: chybí, vyrob ho: npm run demo:images`) : [];
+  return [...extra, ...lacking];
 }
