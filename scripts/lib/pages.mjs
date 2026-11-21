@@ -3,7 +3,7 @@
 // scripts/lib/schema.mjs): `description` for search engines and link previews, `text` shown on the page (paragraphs
 // split by an empty line, simple formatting of scripts/lib/rich-text.mjs), an optional muted `closing` paragraph and
 // what the page needs besides (the title of 404 and of a generic page, the label of the place on Kontakt).
-// A fixed page (O mně, Kontakt, 404) gets a skeleton with the texts it had in the code when its file is missing; an
+// A fixed page (O mně, Kontakt, 404, Podmínky užití) gets a skeleton with the texts it had in the code when its file is missing; an
 // optional page (a generic text page, `optional`) exists only while its file does. Every file is brought in line with
 // its schema like the other descriptions. Photos of the pages stay in fotky/; the `text` of a page may place one of them
 // between its paragraphs ("[fotka: <name>, vlevo|vpravo]", scripts/lib/rich-text.mjs photoMarker).
@@ -21,7 +21,8 @@ export { paragraphs };
 import {
   ABOUT_CLOSING, ABOUT_DESCRIPTION, ABOUT_TEXT, CONTACT_DESCRIPTION, CONTACT_LOCATION_LABEL, CONTACT_TEXT,
   EDITOR_DESCRIPTION, GAME_DESCRIPTION, NOT_FOUND_CLOSING, NOT_FOUND_DESCRIPTION, NOT_FOUND_HEADING, NOT_FOUND_TEXT, NOT_FOUND_TITLE, PAGE_DESCRIPTION_CHARS,
-  PAGE_SCHEMAS, QUIZ_DESCRIPTION, QUIZ_DROPS_TEXT, QUIZ_EDITOR_TEXT, QUIZ_LINES, QUIZ_LINE_KEYS, QUIZ_TEXT, fieldKeys, publicKeys,
+  PAGE_SCHEMAS, QUIZ_DESCRIPTION, QUIZ_DROPS_TEXT, QUIZ_EDITOR_TEXT, QUIZ_LINES, QUIZ_LINE_KEYS, QUIZ_TEXT,
+  TERMS_CLOSING, TERMS_DESCRIPTION, TERMS_TEXT, TERMS_TITLE, fieldKeys, publicKeys,
 } from './schema.mjs';
 
 export const PAGES_SUBDIR = 'stranky';
@@ -36,6 +37,11 @@ export const PAGES = {
   404: {
     schema: PAGE_SCHEMAS[404],
     defaults: { description: NOT_FOUND_DESCRIPTION, heading: NOT_FOUND_HEADING, text: NOT_FOUND_TEXT, closing: NOT_FOUND_CLOSING, title: NOT_FOUND_TITLE },
+  },
+  // what visitors may do with the works (copyright), linked from the footer
+  'podminky-uziti': {
+    schema: PAGE_SCHEMAS['podminky-uziti'],
+    defaults: { description: TERMS_DESCRIPTION, text: TERMS_TEXT, closing: TERMS_CLOSING, title: TERMS_TITLE },
   },
   kurzy: { schema: PAGE_SCHEMAS.kurzy, optional: true },
   // the texts of the game Detail dne and of the quiz of a visitor (its own pages build them, getGamePage)

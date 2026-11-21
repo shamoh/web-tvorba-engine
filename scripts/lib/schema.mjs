@@ -983,6 +983,24 @@ export const NOT_FOUND_TEXT = 'Na téhle adrese zatím zůstal jen čistý papí
 export const NOT_FOUND_CLOSING = 'Mezitím se podívejte na [výběr autorky](/tvorba/?featured=1)\n'
   + 'nebo [na celou tvorbu](/tvorba/).\n';
 
+/**
+ * Default texts of the page Podmínky užití (/podminky-uziti/, linked from the footer next to the ©): what visitors may do
+ * with the works, photos and texts of the site. Generic, in the first person of the author, without her name.
+ */
+export const TERMS_TITLE = 'Podmínky užití';
+export const TERMS_DESCRIPTION = 'Obrazy, fotky a texty na tomto webu jsou moje autorská díla. Co s nimi smíte a kdy mě požádat o svolení.';
+export const TERMS_TEXT = 'Všechny obrazy, kresby, fotky a texty na tomto webu jsou moje autorská díla a chrání je autorský\n'
+  + 'zákon. Všechna práva vyhrazena.\n'
+  + '\n'
+  + '**Sdílení je vítané:** odkaz na stránku obrazu můžete poslat komukoli a sdílet ho na sociálních\n'
+  + 'sítích nebo na Pinterestu. Sdílí se odkaz s náhledem, obraz zůstává tady.\n'
+  + '\n'
+  + '**Bez mého svolení prosím ne:** stahovat a dál šířit obrázky obrazů, tisknout je, upravovat, používat\n'
+  + 'je v jiných dílech, na výrobcích nebo v reklamě, ani je používat k učení umělé inteligence.\n'
+  + '\n'
+  + 'Koupí originálu získáte obraz samotný, ne právo ho dál rozmnožovat (tisky, pohlednice, obrázky).\n';
+export const TERMS_CLOSING = 'Chcete obraz použít jinak? [Napište mi](/kontakt/) a domluvíme se.\n';
+
 /** Former wording of the formatting of the texts of pages (in their `previous`). */
 const FORMATTING = 'Odkaz [text](https://…) nebo [text](/tvorba/), tučně **slovo**, kurzíva *slovo*.';
 
@@ -1074,6 +1092,15 @@ export const NOT_FOUND_SCHEMA = {
       value: '',
     },
   ]),
+};
+
+export const TERMS_SCHEMA = {
+  name: 'terms',
+  header: [
+    'Stránka Podmínky užití (/podminky-uziti/, odkaz v patičce vedle ©) - kostru vytvořila pipeline s výchozím textem.',
+    'Co návštěvníci smějí s obrazy, fotkami a texty webu.',
+  ],
+  fields: ordered(pageFields('pod nadpisem', { closing: true, title: 'Nadpis stránky, zároveň titulek v záložce prohlížeče, např. „Podmínky užití“. Povinné.' })),
 };
 
 /**
@@ -1205,7 +1232,9 @@ export const GAME_PAGE_SCHEMA = {
   ]),
 };
 
-export const PAGE_SCHEMAS = { 'o-mne': ABOUT_SCHEMA, kontakt: CONTACT_SCHEMA, 404: NOT_FOUND_SCHEMA, kurzy: TEXT_PAGE_SCHEMA, 'detail-dne': GAME_PAGE_SCHEMA };
+export const PAGE_SCHEMAS = {
+  'o-mne': ABOUT_SCHEMA, kontakt: CONTACT_SCHEMA, 404: NOT_FOUND_SCHEMA, 'podminky-uziti': TERMS_SCHEMA, kurzy: TEXT_PAGE_SCHEMA, 'detail-dne': GAME_PAGE_SCHEMA,
+};
 
 /** Keys of a schema. */
 export const fieldKeys = (schema) => schema.fields.map((f) => f.key);

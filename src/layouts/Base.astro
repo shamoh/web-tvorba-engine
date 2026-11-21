@@ -121,6 +121,8 @@ const skipScope = skipHeaderScope(Astro.url.pathname, import.meta.env.BASE_URL);
     <footer class:list={['site-footer', { 'with-launcher': withMessages && messageLauncher }]}>
       <span class="meta">
         <span>© {new Date().getFullYear()} <NameShades text={site.author} />
+        <!-- what visitors may do with the works (copyright, src/pages/podminky-uziti.astro) -->
+        <span class="terms">· <a href={url('/podminky-uziti/')} title="Co smíte s obrazy, fotkami a texty tohoto webu">Podmínky užití</a></span>
         <!-- Build version: calendar versioning, the version is the build time (YY.MMDD.HHMM, Prague time). -->
         <span class="version">· <time datetime={version.iso} title={version.title}>{version.label}</time></span></span>
         <PalettePicker />
@@ -270,6 +272,7 @@ const skipScope = skipHeaderScope(Astro.url.pathname, import.meta.env.BASE_URL);
   .site-footer .links { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
   /* Room under the footer for the floating "Napište mi" launcher, so it never covers the footer links. */
   .site-footer.with-launcher { padding-bottom: 88px; }
+  .site-footer .terms a { color: inherit; }
   .site-footer .version { opacity: 0.6; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
   .site-footer .version time { cursor: help; }
   /* On a phone the footer is one column aligned left: the © and version, the colour dots on a row of their own,

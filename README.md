@@ -20,7 +20,7 @@ nikdy nejdou.
   tvorba/<kolekce>/_cover.jpg               úvodní fotka kolekce (nepovinné)
   tvorba/<kolekce>/<slug>.yaml + .jpg       díla kolekce (a jejich detaily v <slug>/)
   fotky/<název>.jpg + <název>.yaml          ostatní fotky webu (O mně, Kontakt)
-  stranky/<stránka>.yaml                    texty stránek O mně, Kontakt, 404, Detail dne (kostru s dosavadním textem založí pipeline)
+  stranky/<stránka>.yaml                    texty stránek O mně, Kontakt, 404, Podmínky užití, Detail dne (kostru s dosavadním textem založí pipeline)
                                             a volitelných textových stránek (kurzy.yaml = /kurzy/)
   roky/<rok>.yaml                           text autorky o roce a úvodní obraz roku (kostru založí pipeline)
   roky/<rok>.jpg                            vlastní úvodní fotka roku (nepovinné)
@@ -64,7 +64,7 @@ pavla/                                      (toto repo, veřejné)
     tvorba/<kolekce>/<slug>.yaml            dílo kolekce (kolekce = složka, žádný atribut)
     roky/<rok>.yaml                         rok
     fotky/<název>.yaml                      ostatní fotka (alt, caption, focus)
-    stranky/<stránka>.yaml                  text stránky (O mně, Kontakt, 404, volitelné textové stránky)
+    stranky/<stránka>.yaml                  text stránky (O mně, Kontakt, 404, Podmínky užití, volitelné textové stránky)
   binary.lock                               jméno (hash stromu) vygenerovaných obrázků, které patří k tomuto stavu main
   public/                                   vygenerované obrázky leží ve složce své stránky (= adresa, generuje pipeline,
                                             scripts/lib/site-images.mjs), nejsou v main: větev main_binary (npm run binary:pull);
@@ -103,6 +103,7 @@ Kód webu a pipeline (`scripts/`, `src/`, `demo-content/`) je od webu oddělený
 | `/tvorba/k3f9a/` | trvalý krátký odkaz, přesměruje na detail |
 | `/tvorba/vyber/?obrazy=k3f9a,…` | „Můj výběr“: díla z odkazu, bez `obrazy` vlastní oblíbené návštěvníka (`noindex`, mimo mapu webu; viz *Oblíbené obrazy*) |
 | `/o-mne/`, `/kontakt/` | stránky s texty ze `stranky/` a fotkami z `fotky/` obsahového repa |
+| `/podminky-uziti/` | Podmínky užití: co návštěvníci smějí s obrazy, fotkami a texty (autorské právo, sdílení odkazem, svolení); odkaz v patičce za © |
 | `/kurzy/` | obecná textová stránka, jen když obsahové repo má `stranky/kurzy.yaml` |
 | `/sitemap.xml` | mapa webu: kanonická adresa každé stránky (bez krátkých odkazů a 404) |
 | `/pinterest.xml` | kanál RSS pro Pinterest: díla s `meta_pinterest: true` (viz *Pinterest*) |
@@ -531,6 +532,7 @@ Texty stránek jsou v obsahovém repu ve složce `stranky/`, jeden soubor na str
 | `stranky/o-mne.yaml` | `/o-mne/` | `ABOUT_SCHEMA` | `closing` |
 | `stranky/kontakt.yaml` | `/kontakt/` | `CONTACT_SCHEMA` | `location_label` (popisek nad `site.location`, výchozí „Žiji a maluji“) |
 | `stranky/404.yaml` | neexistující adresa (`src/pages/404.astro`) | `NOT_FOUND_SCHEMA` | `title` (titulek v záložce), `heading` (nadpis), `closing` |
+| `stranky/podminky-uziti.yaml` | `/podminky-uziti/` (`src/pages/podminky-uziti.astro`, odkaz „Podmínky užití“ v patičce za ©, v mapě webu) | `TERMS_SCHEMA` | `title` (nadpis i titulek), `closing`; výchozí texty `TERMS_*` jsou obecné, v 1. osobě autorky a bez jejího jména (stejné pro každý web): všechna práva vyhrazena, sdílení odkazem vítané, bez svolení ne stahovat, tisknout, upravovat, používat na výrobcích, v reklamě ani k učení umělé inteligence, koupí originálu se nekupují práva k rozmnožování |
 | `stranky/kurzy.yaml` | `/kurzy/`, jen dokud soubor existuje | `TEXT_PAGE_SCHEMA` | `title` (nadpis i titulek), `closing` |
 | `stranky/detail-dne.yaml` | `/detail-dne/`, `/detail-dne/muj/`, `/detail-dne/muj-kviz/` a odkaz na stránce díla (`getGamePage`) | `GAME_PAGE_SCHEMA` | bez `text`, atributy seskupené podle stránky předponou (`GAME_PAGE_PLACES`, začátek komentáře): `description` (hra), `editor_*` (editor: `editor_title` a `editor_description` = titulek a popis stránky, `editor_text`, nadpisy, tlačítka, hlášky), `quiz_*` (kvíz: `quiz_description`, `quiz_text`, `quiz_drops_text`, tlačítka, hlášky), `work_link` (odkaz na stránce díla). Formátované `editor_text`, `quiz_text` (editor díla mimo hru ho ukáže od 2. odstavce) a `quiz_drops_text` (rámeček `.done` na konci kola kvízu, stránka ho dá do `<template data-drops-text>`); krátké texty `QUIZ_LINES` na jeden řádek, povinné (`pageProblems`), web `getGamePage().lines`, skriptům je stránka předá v `data-texts`; náhledy `quiz_description` a `editor_description` nejvýš 160 znaků. Výchozí texty `GAME_DESCRIPTION`, `EDITOR_DESCRIPTION`, `QUIZ_*`, chybějící atribut = výchozí; pravidla, verdikty, nápovědy a texty společné se hrou zůstávají v kódu |
 
@@ -3481,3 +3483,13 @@ Kód: `scripts/lib/straighten.mjs` (hledání listu, homografie, převzorkován�
 - Vodoznak na Fleru nese jméno autorky a místo (`images.fler.watermark`), žádný odkaz ven. Fler odkazy mimo platformu nepovoluje.
 - Mockupy jsou v reálném měřítku (kalibrace v `mockups/scenes.yaml`), ať si zákazník udělá správnou představu o velikosti.
 - Provoz: GitHub Pages zdarma, platí se jen doména.
+
+## Licence
+
+- **Kód** (skripty, stránky, styly, workflow, testy, dokumentace, testovací data `demo/` a `demo-content/`):
+  [Functional Source License 1.1, MIT Future License](LICENSE.md) (`FSL-1.1-MIT`). Smí se používat, upravovat a šířit
+  k čemukoli kromě konkurenční komerční služby; každá verze se po dvou letech od zveřejnění stává licencí MIT.
+- **Obsah webu pod licenci nespadá**: obrazy, kresby, fotky a texty autorky (`content/`, obrázky v `public/` a ve větvích
+  `*_binary`, `game/`, fotky scén `mockups/`, texty a údaje v `site.config.yaml`) jsou © autorka webu, všechna práva
+  vyhrazena; co s nimi návštěvníci smějí, říká stránka [Podmínky užití](https://pavla.kramolis.cz/podminky-uziti/).
+- **Písma** ve `fonts/` mají vlastní licenci SIL Open Font License (soubory `OFL-*.txt` vedle nich).

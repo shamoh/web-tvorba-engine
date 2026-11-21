@@ -200,7 +200,7 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   (až budou) = další kritérium v `criteria`.
 - Texty stránek: `stranky/<stránka>.yaml` obsahového repa (jméno = adresa, `PAGES` v `scripts/lib/pages.mjs`, schémata
   `PAGE_SCHEMAS`): O mně (`ABOUT_SCHEMA`), Kontakt (`CONTACT_SCHEMA`, `location_label`), 404 (`NOT_FOUND_SCHEMA`, `title`,
-  `heading`) mají kostru s dosavadními texty (`ABOUT_*`, `CONTACT_*`, `NOT_FOUND_*`, schválené = `settled`, bez `DOPLNIT`);
+  `heading`), Podmínky užití (`TERMS_SCHEMA`, `/podminky-uziti/`, odkaz v patičce za ©; výchozí texty `TERMS_*` obecné, bez jména autorky) mají kostru s dosavadními texty (`ABOUT_*`, `CONTACT_*`, `NOT_FOUND_*`, schválené = `settled`, bez `DOPLNIT`);
   texty hry a kvízu `detail-dne` (`GAME_PAGE_SCHEMA`, bez `text`, web `getGamePage`; atributy po stránkách předponou `description`/`editor_*`/`quiz_*`/`work_*` (`GAME_PAGE_PLACES`, nová = stejně), krátké texty `QUIZ_LINES`, skriptům přes `data-texts`; pravidla, verdikty, nápovědy a texty společné se hrou zůstávají v kódu), obecná textová stránka (`TEXT_PAGE_SCHEMA`, `optional`, teď `kurzy`) bez kostry, `/<název>/` (`src/pages/[page].astro`,
   `getGenericPages`, mapa webu) jen dokud soubor existuje; nová = záznam v `PAGES` i `PAGE_SCHEMAS`, do menu ručně.
   Texty jako všude (viz Texty popisů), navíc `closing`. Jiný soubor ve `stranky/` = chyba; veřejná kopie `content/stranky/<stránka>.yaml`,
@@ -447,3 +447,8 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
 
 ## Plánované rozšíření
 Novinky/blog, kalendář plenérů a později kurzy/workshopy; prodej zatím přes Fler.
+
+## Licence
+- Kód: `LICENSE.md` = FSL-1.1-MIT (po dvou letech MIT), `package.json` `license`. Obsah webu (obrazy, fotky, texty autorky:
+  `content/`, obrázky `public/` a větví `*_binary`, `game/`, `mockups/`, údaje v `site.config.yaml`) pod ni nespadá, všechna práva
+  vyhrazena (README „Licence“, stránka Podmínky užití); písma `fonts/` OFL. Nový druh obsahu = do výčtu v README „Licence“.

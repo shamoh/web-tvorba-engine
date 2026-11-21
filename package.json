@@ -1,6 +1,7 @@
 {
   "name": "pavla",
   "private": true,
+  "license": "FSL-1.1-MIT",
   "type": "module",
   "scripts": {
     "dev": "astro dev",

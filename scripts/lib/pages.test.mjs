@@ -7,6 +7,7 @@ import { GENERIC_PAGES, PAGES, PAGES_SUBDIR, pageProblems, paragraphs, preparePa
 import {
   GAME_DESCRIPTION, EDITOR_DESCRIPTION, QUIZ_DESCRIPTION, QUIZ_DROPS_TEXT, QUIZ_EDITOR_TEXT, QUIZ_LINES, QUIZ_LINE_KEYS, QUIZ_LINK, QUIZ_TEXT,
   ABOUT_CLOSING, ABOUT_DESCRIPTION, ABOUT_TEXT, CONTACT_DESCRIPTION, CONTACT_TEXT, NOT_FOUND_CLOSING, NOT_FOUND_TITLE, PAGE_DESCRIPTION_CHARS, TODO, fieldKeys,
+  TERMS_CLOSING, TERMS_DESCRIPTION, TERMS_TEXT, TERMS_TITLE,
 } from './schema.mjs';
 import { schemaKeysIn } from './metadata-yaml.mjs';
 import { placeholderProblems, textProblems } from './content.mjs';
@@ -23,7 +24,7 @@ const file = (name) => path.join(dir, PAGES_SUBDIR, `${name}.yaml`);
 
 test('preparePages writes skeletons with the texts the pages had, without DOPLNIT, and keeps them on the next run', async () => {
   const r = await preparePages(dir);
-  assert.deepEqual(r.created, ['stranky/404.yaml', 'stranky/o-mne.yaml', 'stranky/kontakt.yaml', 'stranky/detail-dne.yaml'], 'no skeleton of an optional page');
+  assert.deepEqual(r.created, ['stranky/404.yaml', 'stranky/o-mne.yaml', 'stranky/kontakt.yaml', 'stranky/podminky-uziti.yaml', 'stranky/detail-dne.yaml'], 'no skeleton of an optional page');
   assert.deepEqual(r.problems, []);
   const about = r.pages.find((p) => p.name === 'o-mne');
   assert.equal(t(about.data.description), t(ABOUT_DESCRIPTION));
@@ -33,6 +34,8 @@ test('preparePages writes skeletons with the texts the pages had, without DOPLNI
   assert.deepEqual([t(contact.data.description), t(contact.data.text), contact.data.location_label], [t(CONTACT_DESCRIPTION), t(CONTACT_TEXT), 'Žiji a maluji']);
   const notFound = r.pages.find((p) => p.name === '404');
   assert.deepEqual([notFound.data.title, notFound.data.closing], [NOT_FOUND_TITLE, NOT_FOUND_CLOSING]);
+  const terms = r.pages.find((p) => p.name === 'podminky-uziti');
+  assert.deepEqual([terms.data.title, t(terms.data.description), terms.data.text, terms.data.closing], [TERMS_TITLE, t(TERMS_DESCRIPTION), TERMS_TEXT, TERMS_CLOSING]);
   const text = await fs.readFile(file('o-mne'), 'utf8');
   assert.deepEqual(schemaKeysIn(text, PAGES['o-mne'].schema), fieldKeys(PAGES['o-mne'].schema));
   assert.doesNotMatch(text, new RegExp(TODO), 'approved texts: nothing to fill in');
@@ -47,7 +50,7 @@ test('preparePages keeps a hand-written page and brings it in line', async () =>
   await fs.mkdir(path.join(dir, PAGES_SUBDIR));
   await fs.writeFile(file('kontakt'), 'text: Ahoj.\ndescription: Krátký popis.\n');
   const r = await preparePages(dir);
-  assert.deepEqual(r.created, ['stranky/404.yaml', 'stranky/o-mne.yaml', 'stranky/detail-dne.yaml'], 'only the missing pages get a skeleton');
+  assert.deepEqual(r.created, ['stranky/404.yaml', 'stranky/o-mne.yaml', 'stranky/podminky-uziti.yaml', 'stranky/detail-dne.yaml'], 'only the missing pages get a skeleton');
   assert.ok(r.updated.some((u) => u.startsWith('stranky/kontakt.yaml: doplněno location_label (výchozí hodnota)')));
   const contact = r.pages.find((p) => p.name === 'kontakt');
   assert.deepEqual([contact.data.description, contact.data.text, contact.data.location_label], ['Krátký popis.\n', 'Ahoj.\n', 'Žiji a maluji']);
@@ -89,7 +92,7 @@ test('preparePages reports a file that is no page text', async () => {
   await fs.writeFile(path.join(dir, PAGES_SUBDIR, '.DS_Store'), 'x');
   const { problems } = await preparePages(dir);
   assert.deepEqual(problems.map((p) => p.slice(0, p.indexOf(':'))), ['stranky/blog/', 'stranky/novinky.yaml', 'stranky/portret.jpg']);
-  assert.match(problems[0], /404\.yaml, o-mne\.yaml, kontakt\.yaml, kurzy\.yaml/);
+  assert.match(problems[0], /404\.yaml, o-mne\.yaml, kontakt\.yaml, podminky-uziti\.yaml, kurzy\.yaml/);
   assert.ok(problems.every((p) => p.endsWith('[cizi-soubor]')));
 });
 
@@ -171,4 +174,14 @@ test('preparePages: the texts of Detail dne and of the quiz, with their defaults
   const bad = await preparePages(dir);
   assert.deepEqual(bad.problems.map((p) => p.replace(/ .*\[/, ' [')), ['stranky/detail-dne.yaml: [prazdny-text-stranky]', 'stranky/detail-dne.yaml: [popis-stranky-dlouhy]']);
   assert.equal(bad.pages.find((p) => p.name === 'detail-dne'), undefined);
+});
+
+test('the default texts of Podmínky užití: reserved rights, sharing by link, a way to ask; generic (no name of an author)', () => {
+  const text = normalizeText(TERMS_TEXT);
+  assert.match(text, /Všechna práva vyhrazena/);
+  assert.match(text, /odkaz/);
+  assert.match(TERMS_CLOSING, /\]\(\/kontakt\/\)/, 'the closing leads to the contact page');
+  assert.ok(TERMS_DESCRIPTION.length <= PAGE_DESCRIPTION_CHARS);
+  assert.doesNotMatch(TERMS_TEXT + TERMS_DESCRIPTION + TERMS_CLOSING, /Pavl|Kramoli|Roztok/, 'the same for every site');
+  assert.deepEqual(textProblems('stranky/podminky-uziti.yaml', { text: TERMS_TEXT, closing: TERMS_CLOSING, description: TERMS_DESCRIPTION }, PAGES['podminky-uziti'].schema), []);
 });
