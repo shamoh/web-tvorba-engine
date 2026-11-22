@@ -10,6 +10,25 @@ Značky: **Nové** = nová vlastnost, **Změna** = jinak než dřív, **Konec** 
 
 ---
 
+## 2026-11-22
+
+- **Nové** Samostatný engine `web-tvorba-engine` (verze `v1`): kód webu, pipeline a sdílená workflow v jednom veřejném
+  repu, s historií kódu prvního webu (bez jeho dat a obrázků). Web má vlastní repo webu (nastavení, písma, scény,
+  data), obsah zůstává v obsahovém repu; všechna workflow pracují se třemi checkouty `content/`, `site/`, `engine/`
+  (engine ve verzi, kterou si web připnul: `uses: …@v1` a stejné `engine-ref`).
+- **Nové** Sdílená workflow pro repo webu: kontrola kódu webu (`site-check.yml`, povinná kontrola `check / check`)
+  a nasazení (`site-deploy.yml`); obsahové repo dál `process-content.yml` a `health-check.yml`.
+- **Nové** Ukázka enginu na GitHub Pages (`demo-pages.yml`, testovací web, skrytý vyhledávačům); kontrola enginu
+  staví testovací web při každé změně.
+- **Změna** `SITE_DIR` je vždy potřeba (engine vlastní web nemá; lokálně `.env`), verze buildu v patičce bere commit
+  repa webu.
+- **Změna** Větev aktualizace obsahu se jmenuje `content/update` (dřív `obsah/aktualizace`), obrázky
+  `content/update_binary`.
+- **Změna** Obrázky testovacích dat jsou v gitu (`demo-content/`, vyrobené jednou z receptu).
+- **Změna** Týdenní kontrola hlídá zkušební běh a velikost enginu (dřív v repu webu).
+- **Nové** Dokumentace enginu česky: README, `docs/navod-pro-autorku.md` (obecný návod k obsahovému repu),
+  `docs/registrace-vyhledavace.md`, tato historie změn (dřív u prvního webu).
+
 ## 2026-11-21
 
 - **Změna** Obrázky testovacích dat v repu `pavla` leží v `demo-content/` vedle popisů jako fotky obsahového repa:
