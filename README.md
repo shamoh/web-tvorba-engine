@@ -8,6 +8,7 @@ Vznikl jako web Pavly Kramolišové (pavla.kramolis.cz), proto příklady v doku
 její (volitelnost funkcí a výchozí texty pro další weby: krok 5 plánu).
 
 Návod pro autorku (obsahové repo: jak přidat obraz, texty, kolekce, co se s obsahem děje): `docs/navod-pro-autorku.md`.
+Registrace nového webu ve vyhledávačích: `docs/registrace-vyhledavace.md`.
 
 Lokálně leží všechna tři repa vedle sebe; engine je najde přes `.env` (mimo git):
 

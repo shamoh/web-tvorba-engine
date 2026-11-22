@@ -31,8 +31,8 @@ export/draft/<kolekce>/<obraz>/     náhledy ořezu rozpracovaných obrazů (vzn
 export/detail-dne/<kolekce>/<obraz>/ výřezy hry Detail dne v obraze a vynechaná místa (vznikají automaticky)
 ```
 
-**Složka `export/` není ve větvi `main`**, ale ve větvi **`main_binary`** (a u každé jiné větve v `<větev>_binary`, např.
-`<větev>_binary`): `<obsahové repo>` → větev `main_binary` → `export/`. Na GitHubu ji otevřeš
+**Složka `export/` není ve větvi `main`**, ale ve větvi **`main_binary`** (a u každé jiné větve v `<větev>_binary`):
+`<obsahové repo>` → větev `main_binary` → `export/`. Na GitHubu ji otevřeš
 i přepnutím větve vlevo nahoře nad soubory. Tahle větev má vždy jen jeden commit s aktuálním stavem a každé
 zpracování ji celou nahradí, takže se v repu nehromadí staré verze fotek. Nic v ní neukládej, přepíše se.
 
