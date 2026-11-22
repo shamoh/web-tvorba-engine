@@ -1,0 +1,458 @@
+# CLAUDE.md
+
+Osobní web akvarelistky Pavly Kramolišové, spravovaný s pomocí Claude Code.
+Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web spravuje, registrátor domény, IP adresy,
+účty, tokeny): ty jsou v dokumentaci obsahového repa.
+
+## Stack
+- Astro (statický výstup), žádný UI framework, vanilla JS jen pro filtry v galerii.
+- `sharp` + `yaml` pro obrázkovou pipeline (`scripts/process-images.mjs`).
+- Node.js ≥ 24 (`engines`); workflow na GitHubu `node-version: 24` ve všech workflow (i v obsahovém repu), držet je stejně.
+- Instalační skripty závislostí jen přes `allowScripts` v `package.json` (npm 11 je jinak přeskakuje); nový balíček
+  nejdřív posoudit, pak `npm install-scripts approve|deny`, nikdy plošně `--all`.
+- Deploy: GitHub Actions → GitHub Pages, doména v `public/CNAME`.
+
+## Data
+- **Složka webu** (`scripts/lib/site-dir.mjs`, `SITE_DIR`, výchozí kořen repa): `site.config.yaml`, `fonts/`, `mockups/`,
+  `home-screen-icon.svg`, `public/`, `content/`, `game/`, `binary.lock`, `dist/`. Cesty k nim jen přes `sitePaths`
+  (`readSiteConfig`), nikdy natvrdo z kořene kódu; ve `src/` kořen kódu z `process.cwd()` (build moduly přibalí jinam).
+  Načítání scén a písem nemá výchozí složku. Testovací web má vlastní složku `demo/` (`demo: true` =
+  `isDemoSite`: bez analytiky, formulář jen náhled, skrytý vyhledávačům `hiddenFromSearch`: `robots.txt` `Disallow`,
+  `HIDDEN_SITE_ROBOTS` s `data-hidden-site`, který `isNoindex` nepočítá; vymyšlená autorka bez profilů a skutečných
+  adres, vymyšlené adresy jen `example.com` nebo s `demo-`), `npm run demo` ji složí do `.demo/site/` (`assembleSite`),
+  `SITE_DIR=.demo/site` s ní staví a kontroluje. Testy kódu jen nad testovacím webem
+  (`scripts/lib/test-support/demo-site.mjs`), musí projít i bez Pavliných souborů webu; data webu kontroluje
+  `npm run check:site` (`scripts/lib/site-folder-check.mjs`: `SITE_FILES`, `mockupScenesProblems`,
+  `studioScenesProblems`), v „Kontrole kódu“; nová kontrola dat webu sem, ne do testů.
+  Nová scéna nebo binární soubor testovacího webu jen nutné minimum (historie gitu je navždy).
+  Jména v prohlížeči návštěvníka (`localStorage`, `sessionStorage`, mezipaměti) jen přes `storageKey` / `STORAGE_PREFIX`
+  (`scripts/lib/storage-prefix.mjs`, `site.storagePrefix`, Pavla `pavla`), nikdy natvrdo; klíče jmenované níže jsou Pavliny.
+  Web smí ležet v podsložce adresy (`site.url` s cestou, testovací web na Pages enginu; `siteBase`, Astro `base`): odkazy
+  na stránky jen `url()`, celé adresy jen `absolute` / `siteAddress` (`scripts/lib/site-url.mjs`), nikdy `new URL('/…', site.url)`.
+- **Toto repo je veřejné, obsah je v odděleném soukromém obsahovém repu.** Jeho název, cestu ani odkazy na něj
+  sem nikdy nepiš (kód, komentáře, README, CLAUDE.md, commity, texty pull requestů); piš jen „obsahové repo“
+  / „the content repository“. Odkazy vedou jen z obsahového repa sem, nikdy obráceně. Lokálně ho pipeline najde
+  přes `CONTENT_DIR` v `.env` (mimo git), na GitHubu ho předá workflow obsahového repa.
+- Obsahové repo: `tvorba/[<kolekce>/]<slug>.yaml` + master fotka,
+  bez složek roků; rok díla = rok jeho `date` (`scripts/lib/content.mjs`). V tomto repu jsou výstupy dál podle roků.
+- Systémové soubory obsahu mají všude dvě jména (`INDEX_FILE`, `COVER_NAME` v `scripts/lib/content.mjs`):
+  `_index.yaml` = popis místa, kde leží (kořen = úvodní stránka, složka kolekce = kolekce), `_cover.<ext>` = jeho
+  vlastní úvodní fotka. Stará jména (`RETIRED_NAMES`: `_kolekce.yaml`, `_uvod.*`, `uvod.yaml`, `uvod.*`) = chyba,
+  žádná migrace a vedle nich se nezakládá kostra. Složky a jména děl zůstávají česky (`tvorba/`, `roky/`, `fotky/`).
+- Jména souborů a složek v `tvorba/`, `fotky/`, `roky/` musí být svou adresou (`slugify(jméno) === jméno`; přípona malými
+  písmeny v jedné podobě `EXTENSION_SPELLING`, `.jpg` ne `.jpeg`, i u `_cover.*` včetně kořene; výjimky `_index.yaml`, `_cover`, skryté a staré systémové): `fileNameProblems` (`scripts/lib/file-names.mjs`) na začátku
+  `run`, chyba `[neplatne-jmeno]` s návrhem jména zastaví běh dřív, než se cokoli zapíše (i `--prepare-only`).
+- `npm run images` (`scripts/process-images.mjs`) z něj generuje `content/` = zrcadlo obsahového repa (stejné složky
+  a jména, jen veřejné atributy, `scripts/lib/site-content.mjs`, needitovat; plný běh smaže vše, co nezapsal)
+  a obrázky v `public/` (**nejsou v historii `main`**: `.gitignore`, větev `main_binary` s jediným commitem, `binary.lock`
+  v `main` = hash jejich stromu, `scripts/binary.mjs` pack/unpack/promote/prune, `npm run binary:pull`; pull request
+  aktualizace obsahu má obrázky v `obsah/aktualizace_binary`, deploy je `promote` povýší a pak tu větev smaže (`dropPromoted`, jen se stejným commitem jako `main_binary`); viz README „Obrázky webu ve větvi“;
+  obsahové repo stejně drží `export/` v `<větev>_binary`) ve složce své stránky (= adresa, `scripts/lib/site-images.mjs`): dílo
+  `public/tvorba/<rok>/<slug>-<id>/`, rok `public/tvorba/<rok>/_cover/` + `_og/`, kolekce
+  `public/tvorba/kolekce/<slug>/_cover/` + `_og/`, úvod `public/_cover/` + `public/_og/`, fotky `public/fotky/<název>/`;
+  náhled pro sdílení a pin mají otisk obsahu v názvu (`og-<otisk>.jpg`, `pin-<otisk>.jpg`, `fingerprintedName`; u díla
+  jméno v `info.json` `og.file`/`pin.file`, u stránky jediný soubor ve složce `_og/`, `pageShareFile`, tam otisk vstupů
+  `shareCrop`, aby se beze změny nekreslil), aby si
+  Pinterest a náhledy odkazů po změně vzaly nový; webové obrázky otisk nemají (GitHub Pages `max-age=600`);
+  plný běh smaže vše, co nevyrobil (`staleOutputs`).
+  Exporty pro Instagram a Fler jdou do `export/` obsahového repa.
+  Web čte kopie přes `readCopies`: rok díla z `date`, kolekce ze složky (žádný atribut `collection`).
+- Kostra popisu nového díla: `date` = den pořízení fotky z EXIF (`scripts/lib/exif.mjs`, bez závislosti), bez něj dnešek;
+  se složkou detailních fotek vyplněné `details:` (`DETAIL_CAPTION_TODO` u každé, jen u nové kostry).
+- Veřejný text začínající `DOPLNIT` (nástřel k přepsání) = chyba: u díla od `meta_draft: false` (`validateWorks`),
+  u kolekce, roku, úvodu a fotky stránky vždy (`placeholderProblems`); `DOPLNIT` v komentáři jen hlásí „k doplnění“.
+- Každé dílo má trvalé 5znakové `id` (začíná písmenem, viz `scripts/lib/works.mjs`). URL: `/tvorba/<rok>/<slug>-<id>/`.
+- Web načítá díla přes `src/lib/site.ts#getWorks`; `meta_draft: true` a dílo bez `info.json` se nezobrazí.
+- Atributy popisů mají skupiny podle prefixu (`attributeGroup`, `compareKeys` v `scripts/lib/schema.mjs`), v souboru
+  v pořadí `meta_*` (jen obsahové repo, řídí zpracování), sdílené bez prefixu (`id` první, pak abecedně; kopírují se 1:1),
+  `private_*` (jen obsahové repo; vlastní `private_…` smí přidat kdokoli, bez `NEZNÁMÝ`) / `derived_*` (jen toto repo,
+  odvozuje pipeline; v obsahovém repu = chyba; teď `derived_modified` díla = den poslední změny veřejných údajů
+  nebo obrázků, `lastmod` v mapě webu). Uvnitř skupiny abecedně. Přejmenovaný atribut (`renamed` ve schématu,
+  `draft` → `meta_draft`) = chyba, soubor se nemění, žádná migrace. (Jednorázový převod `description` → `text`
+  z 2026-10 už proběhl a je odstraněný: `description` je jen popis pro vyhledávače.) (`instagram` byl dřív název `meta_instagram`, dnes
+  je to odkaz na příspěvek; zapomenuté `instagram: true` ohlásí kontrola odkazu.)
+- Veřejná kopie yaml obsahuje jen sdílené atributy (`publicKeys(<schéma>)` = `PUBLIC_WORK_FIELDS` / `PUBLIC_COLLECTION_FIELDS`
+  / `PUBLIC_YEAR_FIELDS` / `PUBLIC_HOME_FIELDS` / `PUBLIC_PHOTO_FIELDS`, nikdy ručně),
+  bez komentářů. `meta_*`, `private_*` a neznámá pole nesmí nikdy do repa `pavla` (je veřejné).
+- Stav prodeje: `isOnSale` = `available` | `reserved` a musí mít `price` (kontrola v pipeline). Jen tato díla
+  mohou mít Fler exporty (s `meta_fler: true`, `makesFlerExports`) a filtr „na prodej“; `not-for-sale`, `sold` a `gifted` (darováno) nikdy.
+  Filtr Stav (`STATUS_FILTERS`): na prodej (`unsold`), ještě mám (`kept`), už nemám (`gone` = `sold` + `gifted`);
+  staré `?status=available` = `unsold` (`STATUS_ALIASES`); volba bez děl nebo se všemi díly (= „vše“) se nenabízí
+  (`offersOption`), bez žádné filtr zašedne (`facetDisplay`), stejně přepínač „Doporučené“. Štítek stavu na kartě i stránce díla, `not-for-sale` bez štítku; `sold` i `gifted` mají
+  společný štítek „V soukromé sbírce“ (`GONE_LABEL`), web je nikdy nerozlišuje.
+- Mockupy jen s `mockups: true` v popisu díla (výchozí false), nezávisle na stavu prodeje (`wantsMockups`);
+  Fler mockupy jen u díla s Fler exporty, které mockupy má.
+- Exporty jen dokud jsou potřeba: Instagram s `meta_instagram: true` a bez odkazu `instagram` (`makesInstagramExports`),
+  Fler s `meta_fler: true` (výchozí false; cena sama Fler nepotřebuje, prodej i napřímo), na prodej a bez odkazu `fler`
+  (`makesFlerExports`); s odkazem úklid složku smaže, přehled platformy dílo ukáže s odkazem bez miniatury. Otisk díla
+  se podle nich nemění (nové složení otisku = přegenerovat vše): nezměněnému dílu s chybějícím exportem vyrobí jen exporty té
+  platformy (`exportsMissing` → `workExportFiles`, webové obrázky zůstanou).
+- Exporty: Instagram jen u díla s `meta_instagram: true` (výchozí false), nikdy mockupy webu, ve složce díla
+  `export/instagram/[<kolekce>/]<slug>/` (kopíruje `tvorba/`, `exportFolder`; složka je v otisku díla): `caption-<paleta>.jpg` (dílo
+  na papíru každé palety s popiskem název / technika · rozměr · rok / adresa webu, písma z `fonts/` jako křivky přes
+  `opentype.js`), `scene-<scéna>.jpg` (dílo ve scéně ateliéru `mockups/instagram/scenes.yaml`: kamera z rohů
+  prázdného listu `fitCamera` (ohnisko `focalMm` / podle kulatých věcí na stole `circles` / nejlepší shoda, 24–70 mm), přesněji z hran podkladu `lines` (`fitCameraToLines`: hrany míří do úběžníků), nebo ruční `camera` (`cameraFromAngles`; obojí se hledá v prototypu `kamera-scen.html`), zadání generátoru scén v `mockups/instagram/README.md`, co z něj generátor dodržel = `promptCamera` scény, `npm run check:site` (`promptCameraProblems`) hlídá, že kamera zůstane v jeho rozsahu, a velikosti `mustFitCm` na stolech (nová nebo přegenerovaná scéna = zadání tam, `prompt` i `promptCamera` do `scenes.yaml`),
+  dílo jako papír s tloušťkou `paper` (hrana podle `meta_edge` díla: `deckle` roztřepená / `cut` čistá / `canvas` plátno 2 cm, `EDGE_KINDS`; bok opakuje barvu okraje díla) (`PAPER_DEFAULTS`: vrstvy hrany, zvlnění, zvednuté okraje, kontaktní stín,
+  volitelně podkladový list `underlayCm`), kreslené rovnou ve velikosti snímku, změna kreslení = zvýšit `SCENE_VERSION`; skutečné měřítko, stoly mimo rekvizity natočené k divákovi (`facingDeg`: vodorovně na fotce, ne podle hran stolu; nahodilé pootočení podle `id` od toho jen s `minTiltDeg`/`maxTiltDeg`), stojan na liště na ose (celý ve fotce a mimo `props`, jinak posun po liště nejvýš `maxSlideCm`, jinak „Ke kontrole“);
+  jen se `size_cm`), `pano-<n>.jpg` (plynulý karusel: široké dílo přes celou výšku 2–3 snímků 4:5, počet ze `size_cm`
+  `panoramaSlides`, jen když je aspoň `panorama.minGain`× větší než na snímku s popiskem), `story.jpg` (příběh 9:16,
+  `storyLayout`: volné pruhy `images.instagram.story` a místo na nálepku s odkazem, nic se tam nekreslí; adresa
+  pro nálepku v README s UTM `STORY_UTM`; přehled má u každé kolekce „Příběh kolekce“: snímky podle data, odkazy a odkaz na kolekci),
+  `grid-<pořadí>-<řádek>_<sloupec>.jpg` + `grid-preview.jpg` (mřížka na profilu `meta_instagram_grid: <sloupce>x<řádky>` 1x1 až 5x5, `parseGrid`, jiná hodnota = chyba, jen pro aplikaci se 3 sloupci (web má 4), `GRID_VERSION` v otisku, jen s `meta_instagram`, `GRID_LAYOUTS`/`instagramGrid`:
+  dlaždice 3:4 z jednoho plátna s vynechanou mezerou profilu `images.instagram.grid.gapPx`, popisek uvnitř krajních dlaždic, `gridPosts` = pořadí
+  zveřejnění pozpátku s texty; málo zaplněná mřížka = „Ke kontrole“), `detail-<jméno>.jpg` (blízký 4:5 výřez, jinak celý na papíru, široký jako panorama `detail-<jméno>-pano-<n>.jpg`, `detailSuffixes`)
+  a `README.md` (náhled pro GitHub s textem příspěvku s kolekcí a hashtagy česky a anglicky, slovník
+  `instagramPost` v `site.config.yaml`, kolekce i jako hashtag, píše se každým během; štítek bez překladu = doporučení
+  `hashtagAdvice`); před tím ořez `images.instagram.insetPercent`; `scripts/lib/instagram.mjs`.
+  Nevejde-li se dílo do scény (stoly `bounds`/`props`, stojan `props`/šířka fotky; `scenePlacement` předem): snímek té scény nevznikne, souhrn běhu „Ke kontrole“ (`misfits`).
+  Každá složka díla (obě platformy) má `README.md` s náhledy (GitHub ho vykreslí), platformy přehled `export/<platforma>/README.md`
+  (a týž přehled jen kolekce v každé složce kolekce, `collectionIndexes`; stejně `export/draft/`)
+  seskupený podle kolekcí (`scripts/lib/export-readme.mjs`; Instagram i s textem příspěvku, Fler s cenou; stav zveřejnění
+  podle atributů `instagram` / `fler`).
+- `instagram` (nepovinný, sdílený) = odkaz na příspěvek na Instagramu jako `fler` u Fleru (`isInstagramUrl`, jinak chyba):
+  stránka díla ukáže „Na Instagramu“ s bublinou „Obraz na Instagramu“ (událost `instagram_click`); oba odkazy jsou `sameAs` v JSON-LD díla. `meta_instagram` (bool) dál jen řídí výrobu fotek; jsou nezávislé.
+- Pinterest (`scripts/lib/pinterest.mjs`): kanál drží u díla stálou adresu obrázku (`pin.feedFile` z předchozího `info.json`, `workFeedPinImage`; Pinterest pozná pin podle adresy), novou jen u díla nového v kanálu nebo s vyšší `meta_pinterest_version` (`pinterestVersion`); každé dílo má pin `pin-<otisk>.jpg` (2:3, `renderCaption` s `images.pinterest` a `snug`: popisek hned pod dílem,
+  XMP) veřejně ve složce stránky díla a `pin` v `info.json`; `meta_pinterest: true` = `pin.feed` (web podle něj pozná dílo pro kanál, `meta_*` se nekopíruje);
+  kanál RSS `/pinterest.xml` (`src/pages/pinterest.xml.ts`, guid = `id`, odkazy s UTM `FEED_UTM`) čte Pinterest sám (firemní účet, ověření
+  `site.verification.pinterest`). Popis pinu končí klíčovými slovy česky · anglicky
+  (`pinKeywords`, vlastní slovník `pinterestKeywords.en` s obyčejnými slovy, chybějící překlad = `pinterestAdvice`). Profil `site.pinterest` v patičce, na Kontaktu a v `sameAs` autorky.
+  Stránka díla má řádek „Sdílet“ s ikonami (`shareLinks` v `scripts/lib/share.mjs`: Pinterest s pinem `pinSaveUrl`/`workPinImage`,
+  Facebook, WhatsApp; tlačítko odkazu `src/lib/share-button.ts` = sdílení telefonu nebo zkopírování), bez skriptů a cookies služeb, událost GA `share` s `method`. `check:images` ověří obrázky kanálu.
+  Fler jen díla s `makesFlerExports`, také ve složce díla `export/fler/[<kolekce>/]<slug>/`: `original.jpg` + `mockup-<scéna>.jpg`,
+  vše s vodoznakem. Při přegenerování se složky díla mažou (`clearExports`), plný běh navíc porovná `export/`
+  s `expectedExports` a smaže vše navíc (`planFolderPrune`, jen jména z `EXPORT_FILES`, neznámé soubory nechá,
+  staré ploché `<rok>/<slug>-<id>…` smaže), i bez přegenerování.
+- Kolekce = složka `tvorba/<kolekce>/` obsahového repa (slug = slugify názvu, např. `2026-plener-sumava`, i přes víc let)
+  s `_index.yaml` a volitelnou `_cover.jpg`; dílo do ní patří umístěním (max. jedna), `collection:` v yaml díla je chyba,
+  veřejná kopie leží ve stejné složce. Složka jménem díla vedle něj = detailní fotky. Pipeline `scripts/lib/collections.mjs`,
+  web `getCollections` a `/tvorba/kolekce/<slug>/`.
+  Úvodní obraz kolekce, roku i úvodní stránky: jedno pravidlo (`scripts/lib/covers.mjs`, web `resolveCover`,
+  komponenta `Cover.astro`): vlastní fotka (`_cover.jpg` kolekce, `roky/<rok>.jpg`, `_cover.jpg` v kořeni) > `cover: <id>` nebo
+  `<id>#<detail>` > náhodně z výběru autorky > nejnovější dílo. Vše se ukáže celé; vybraný obraz (vlastní fotka nebo
+  `cover`) s `aspect` nebo `focus` se ořízne (`coverCrop`, chybějící = `"1:1"` / `[50, 50]`; stejný výřez je `og:image`
+  v `_og/og-<otisk>.jpg` ve složce stránky). Náhodný se neořezává, `aspect`/`focus` u něj = chyba; v kostrách prázdné. Každá výstupní složka obrázků pipeline v tomto repu musí být
+  v `OUTPUT_ROOTS` (= `SITE_BINARY.paths`, větev `main_binary`, a v `.gitignore`); do PR jdou jen `OUTPUT_PATHS`
+  (`content`, `binary.lock`; `scripts/lib/pull-request.mjs`), popis PR jmenuje i díla se změněnými obrázky (`changedBinaries`).
+- Detailní fotky díla: `tvorba/[<kolekce>/]<slug>/*.jpg` (obsahové repo) → `detail-<název>-<šířka>.*` a `info.json#details`;
+  popisky v yaml díla `details: { <název fotky>: <popisek> }`.
+- Filtry galerie (`scripts/lib/gallery-filter.mjs`): všechny se kombinují a každá změna se hned zapisuje do URL,
+  aby šel odkaz poslat dál. Platí vždy, i pro každý nový filtr a pro stránku (`page`, i `page=all`).
+  Odkazy na galerii s jedním filtrem (štítky a technika na stránce díla) jen přes `galleryFilterPath`, bubliny odkazů
+  stránky díla na další obrazy (technika, štítek, kolekce, „← Tvorba“, rok) jen `galleryLinkTitle` („Všechny obrazy …“).
+  Štítky: víc najednou „a zároveň“ (`state.tag` = pole, `?tag=a&tag=b`, `sortTags`/`toggleTag`), aktivní jsou jen čipy,
+  které zobrazená díla zúží a nevyprázdní (`tagChoices`), vybrané vždy, ostatní zašedlé na místě; GA `tag` = spojené čárkou.
+  Kolekce je combobox (`src/lib/combobox.ts` nad skrytým `<select>`, který zůstává jediným stavem; kolekce podle abecedy `czechOrder` (i Technika), smazaný text = „vše“ (nápověda, Enter ji vybere), psaní zužuje podle
+  `comboMatches`, nikdy do URL). Kolekce má za „vše“ volbu „žádná“ (`NO_COLLECTION` = `?collection=none`, díla bez kolekce; čip v liště z `data-chip`),
+  přehled kolekcí končí položkou „Mimo kolekce“ (`NO_COLLECTION_TITLE`, `getUncollected`); slug `none` pipeline odmítne.
+  Její text (`text`, v přehledu čistý, prázdný = `UNCOLLECTED_TEXT`) a úvodní obraz: `tvorba/_index.yaml` + `tvorba/_cover.jpg` obsahového repa (`UNCOLLECTED_SCHEMA`, `scripts/lib/uncollected.mjs`,
+  výstup `public/tvorba/_cover/`, kopie `content/tvorba/_index.yaml`, bez og), stejné pravidlo jako kolekce.
+  Řádek výběrů na počítači (od 1280 px) vždy na jeden řádek: výběry s `max-width` a zkrácením „…“ (počet děl, „Zrušit filtry“
+  a „▶ Promítat“ jsou jeden blok za čipy štítků vždy vpravo, `.count-group`), přepínač „Doporučené“
+  (= výběr autorky), „Na stránku“ pod díly; nový filtr = ověřit nejhorší případ (všechny volby, nejdelší texty, 9999 děl) a
+  případně limity `TECHNIQUE_CHARS` / `COLLECTION_TITLE_CHARS` v `scripts/lib/advice.mjs` (doporučení v souhrnu).
+  Výběry (Technika, Rok, Kolekce, Stav, Barva) a přepínač Výběr autorky stejně (Barva: jedna barva `?color=`, kroužek s odstínem před výběrem): počty s ostatními filtry, jen volby,
+  které zúží a nevyprázdní (`facetChoices`), vybraná vždy, bez žádné filtr zašedne (nikdy se neskryje, `facetDisplay`, ukáže společnou hodnotu); nový filtr = do `FACETS`.
+  Lišta filtrů (`scripts/lib/filter-bar.mjs`): po posunu nahoru tenký řádek s vybranými filtry jako čipy s „×“
+  (`withoutFilter`) + „Upravit“ = týž formulář jako panel (nikdy kopie); nový filtr = i do `activeFilters` a `withoutFilters`.
+  Zrušení všech filtrů (`withoutFilters`, jen filtry, ne zobrazení ani stránkování; rok/kolekce stránky jsou adresa):
+  odkaz „× Zrušit filtry“ za počtem „N z M děl“ (`filteredCount`), „Zrušit vše“ v liště od 2 filtrů, „Zrušit filtry“
+  vedle „Hotovo“ v panelu; vše `[data-filters-reset]`, bez filtru skryté.
+  Prvky tvořené skriptem stylovat přes `:global(…)` (scoped CSS Astra na ně nedosáhne).
+- `featured: true` = výběr autorky: `★` za názvem na kartě, na stránce díla vedle `<h1>` na pravém okraji v úrovni prvního řádku (mimo něj, v bloku `.title` s flex;
+  `FeaturedStar.astro`, barva `var(--ink)`, nikdy v textu `<h1>`, `<title>`, JSON-LD ani bublině), filtr „Výběr autorky“ (`?featured=1`) a kandidáti úvodních obrazů
+  (`coverCandidates`, `FEATURED_PICK` = 10 nejnovějších vybraných): úvodní obraz bez vlastní fotky a `cover`
+  (`Cover.astro`, vede na zobrazené dílo); stránka ukáže náhodného skriptem `scripts/lib/random-pick.mjs` (krabička `data-pick-box`, `pickBoxBefore`)
+  (vložený, bez přeblikávání), `og:image` je vždy první kandidát. Web pipeline (`coverSource`) musí vybírat stejně.
+- Text o roce: `roky/<rok>.yaml` obsahového repa (`YEAR_SCHEMA`, `scripts/lib/years.mjs`), kostru pipeline založí
+  ke každému roku s díly; veřejná kopie `content/roky/<rok>.yaml` (`text`, `description`, `cover`, `aspect`, `focus`), web `getYear`.
+- Úvodní stránka: `_index.yaml` v kořeni obsahového repa (`HOME_SCHEMA`, `scripts/lib/home.mjs`; `text`, `description`,
+  `cover`, `aspect`, `focus`, povinné `heading` po řádcích, `button`, `button_show` (druhé tlačítko = promítání výběru autorky `featuredShowPath('home')`, jen s `hasFeaturedWorks`, `""` = bez něj; patička „Moje nejmilejší“ = `featuredShowPath('footer')`; zkratka „Promítat“ v manifestu = `featuredShowPath('shortcut')`, „Oblíbené“ = `favoritesShowPath('shortcut_favorites')`; `?from=` (`home`/`footer`/`shortcut`/`shortcut_favorites`) jen pro `method` události `cinema_open`, `CINEMA_LINK_SOURCES`, galerie ho z adresy smaže), `empty_text` a formátovaný `empty_closing` prázdného webu s odkazem na
+  `site.instagram` (`homeEmptyClosing`, předává `prepareHome`); výchozí `HOME_HEADING`, `HOME_BUTTON`, `HOME_SHOW_BUTTON`, `HOME_EMPTY_TEXT`), kostra s výchozím textem `HOME_TEXT` (= text úvodu ve skutečném obsahu); veřejná kopie `content/_index.yaml`, web `getHome`.
+- Texty popisů (dílo, kolekce, rok, úvod, „Mimo kolekce“, stránky): vždy `text` = text na stránce (`textField`, `block` + `rich`,
+  strukturovaný komentář s pravidly a formátováním) a nepovinný `description` = popis pro vyhledávače (`searchDescriptionField`,
+  zakomentovaný, bez formátování, max. `PAGE_DESCRIPTION_CHARS`, prázdný = text, `searchDescription`; „Mimo kolekce“ ho nemá).
+  Význam textu `normalizeText`/`paragraphs` (zalomení = mezera, prázdný řádek = odstavec); konzumenti nikdy syrový text:
+  HTML `textHtml`, čistý `plainText`/`ownText`. Formátování jen `scripts/lib/rich-text.mjs` (`[text](adresa)`, `**tučně**`,
+  `*kurzíva*`, nikdy HTML; adresy `https`/`http`/`mailto`/`/…`, jinak `[spatny-odkaz-v-textu]`); web vkládá HTML (`set:html`)
+  jen z `textHtml`. Popisky `details` díla taky (`richMap`; web `detailCaptionHtml` ve `figcaption` mimo odkaz na zvětšení,
+  čistý `detailCaption`). Přehled `export/README.md` ukáže texty formátované (`richTextMarkdown`, odkazy na web s celou
+  adresou `siteUrl`). Kontroly `textProblems`/`allTextProblems`.
+- Tvrdé mezery české typografie (`scripts/lib/typography.mjs`: jednopísmenná slova, číslo + jednotka `UNITS`, `×`,
+  zkratky `ABBREVIATIONS`, data, pořadová čísla, pomlčka ve větě, rozsah čísel s `\u2060`, `...` → `…`): formátované texty přes
+  `richTextHtml` (`keepTogetherHtml`), názvy a nadpisy na stránce přes `keepTogether` (nový zobrazený název či nadpis = taky),
+  text příspěvku pro Instagram (`instagramPost`, `gridPosts`, ne adresa a hashtagy) a popis pro Fler; nikdy v datech,
+  adresách, `<title>`, JSON-LD a bublinách.
+  Fotka v textu stránky `[fotka: <jméno>, vlevo|vpravo]` (`photoMarker`, `TextBlocks.astro`, jen `text` ve `stranky/`).
+- Prolinky mezi obrazy podle `id` (`scripts/lib/work-links.mjs` `workLinkProblems`): odkaz v textu `[text](<id>)`
+  (`isWorkHref`, web přímo na stránku díla přes `workHref`, nezveřejněné dílo = text bez odkazu) a atribut `related`
+  (oboustranná sekce „Související obrazy“, `relatedWorks`; JSON-LD `ItemPage` s `relatedLink`, `workPageLd`). Prázdný text
+  `[](<id>)` = název obrazu, doplní ho pipeline jen do dat pro web a exporty (`fillDescriptionsWorkLinks`), nikdy do souboru.
+  Změna `FORMATTING_DOC` = staré znění do `FORMATTING_DOC_BEFORE`.
+- Barvy díla (`scripts/lib/colors.mjs`): pipeline jednou rozebere nejmenší WebP do `info.json` `colors` (`analyseColours`: papír
+  z okraje, vyvážené pixely v mřížce; `COLOUR_VERSION`, `needsColours`, obrázky beze změny); podíly barev k výběru až web podle
+  `site.config.yaml` `gallery.colors` (`colourSettings`, `nearestFamily`: seznam barev jde měnit bez nového rozboru).
+- Podobnost dvou děl jen `scripts/lib/affinity.mjs` `workDistance` (barvy + nálada `colourProfile`, technika, štítky; váhy
+  `AFFINITY_WEIGHTS`): Podobné obrazy podle ní řadí, hra Detail dne ji přičítá k podobnosti výřezu (`rankLookalikes`,
+  `GAME_AFFINITY_WEIGHTS` × `GAME_AFFINITY_SCALE`; práh úrovní `confusion` bez barev celého díla), hledání ji má používat taky.
+- Podobné obrazy na stránce díla (`scripts/lib/similar.mjs` `similarWorks`): nejpřesnější filtr galerie z techniky
+  a štítků (ne kolekce) s aspoň 6 jinými díly, odkaz na galerii s ním (`galleryStatePath`) a jeho 6 nejpodobnějších děl (`rank`) bez souvisejících
+  jako malé obrázky (`SimilarTile.astro`, 6 v řadě, na telefonu 3); barvy díla
+  (až budou) = další kritérium v `criteria`.
+- Texty stránek: `stranky/<stránka>.yaml` obsahového repa (jméno = adresa, `PAGES` v `scripts/lib/pages.mjs`, schémata
+  `PAGE_SCHEMAS`): O mně (`ABOUT_SCHEMA`), Kontakt (`CONTACT_SCHEMA`, `location_label`), 404 (`NOT_FOUND_SCHEMA`, `title`,
+  `heading`), Podmínky užití (`TERMS_SCHEMA`, `TERMS_PATH` `/podminky-uziti/`, odkaz v patičce za ©; výchozí texty `TERMS_*` obecné, bez jména autorky; anglická část `title_en`/`text_en` pod českou, `getTermsPage`) mají kostru s dosavadními texty (`ABOUT_*`, `CONTACT_*`, `NOT_FOUND_*`, schválené = `settled`, bez `DOPLNIT`);
+  texty hry a kvízu `detail-dne` (`GAME_PAGE_SCHEMA`, bez `text`, web `getGamePage`; atributy po stránkách předponou `description`/`editor_*`/`quiz_*`/`work_*` (`GAME_PAGE_PLACES`, nová = stejně), krátké texty `QUIZ_LINES`, skriptům přes `data-texts`; pravidla, verdikty, nápovědy a texty společné se hrou zůstávají v kódu), obecná textová stránka (`TEXT_PAGE_SCHEMA`, `optional`, teď `kurzy`) bez kostry, `/<název>/` (`src/pages/[page].astro`,
+  `getGenericPages`, mapa webu) jen dokud soubor existuje; nová = záznam v `PAGES` i `PAGE_SCHEMAS`, do menu ručně.
+  Texty jako všude (viz Texty popisů), navíc `closing`. Jiný soubor ve `stranky/` = chyba; veřejná kopie `content/stranky/<stránka>.yaml`,
+  web `getPage` (bez kopie výchozí texty). Menu, kontakty, formulář a fotky zůstávají ve webu.
+- Hledání (`?q=`, `scripts/lib/search.mjs`, `SearchField.astro`), vždy na každém výpisu: každá galerie v názvech, popisech a `id`
+  děl (`searchText` předem v `data-search` karty), přehled kolekcí v názvech a popisech kolekcí; každé slovo podřetězcem, bez
+  diakritiky a velikosti písmen, nikdy regexp; přesně `id` díla galerie + Enter otevře dílo (`exactId`;
+  totéž `exactId` řídí nápovědu „Enter otevře obraz“ pod polem, nikdy jiná podmínka). Přehled kolekcí: pořadí `sortCollections` (nejnovější dílo první), stav
+  `{ year, q, page, perPage }` v adrese (`overviewStateFromParams`), stránkování jako galerie, paměť počtu zvlášť
+  (`pavla.collections.perPage`). Řádek stránek pro každý výpis: `Pager.astro` + `src/lib/pager.ts`.
+- Každý výpis děl se stránkuje, v prohlížeči nad vyfiltrovaným seznamem (`paginate`); návštěvník volí počet
+  na stránku (`gallery.pageSizes`, `?perPage=`, pamatuje se v `localStorage`, ale odkaz s `perPage`/`page` má vždy
+  přednost) a může stránkování jednorázově vypnout („Zobrazit vše“, `?page=all`, nepamatuje se).
+  Zobrazení galerie (`VIEWS` v `gallery-filter.mjs`): velké obrazy (výchozí) nebo dlaždice (`?view=tiles`, malé obrazy bez
+  textů, `sizes` přepsané skriptem), přepínač vedle „Na stránku“ (`Pager.astro` `views`); chová se jako `perPage`
+  (v URL jen nevýchozí, paměť `pavla.gallery.view`, odkaz s `view`/`tile`/`page`/`perPage` má přednost); jen výpisy děl, ne
+  přehled kolekcí. Dlaždice mají vlastní počty `gallery.tilePageSizes` a paměť `pavla.gallery.tilesPerPage`
+  (`viewPageSizes`, `pageSizeStorageKey`); přepnutí = `withView` (počet nového zobrazení, stránka s prvním zobrazeným dílem).
+  Mřížka karet `WorkGrid.astro` (CSS zobrazení), přepínač `ViewSwitch.astro`, `sizes` obrázků `viewImageSizes`; v prohlížeči
+  `scripts/lib/view-layout.mjs`: `viewOf` (odkaz, pak paměť), `showViewOf`, sloupce stejné výšky `balanceGrid` (`div.col`
+  v `.grid.balanced`, pořadí karet `gridCards`) po každé změně zobrazených děl a šířky; konec a pořadí sloupců
+  `site.config.yaml` `home.columns` a `gallery.columns`, každé zvlášť (`maxGap`, `maxTop`, `order`; `columnsFor`, `columnSettings`,
+  `columnPlan`, `orderColumns`); zapamatované zobrazení před vykreslením
+  vložený skript `viewScript` za mřížkou (mřížku najde `viewGridBefore` = nejbližší předchozí prvek s `data-view`, komponenta smí za mřížku vložit vlastní skript; funkce zkopírované jako text = bez importů a uzávěrů, všechny vkládané funkce i úvodní stránky
+  jen ve `view-layout.mjs`: dev server přepisuje volání importovaných funkcí a kopie ve stránce by spadla).
+  Úvodní stránka „Nejnovější“: stejná zobrazení bez stránkování, výchozí střední dlaždice (`scripts/lib/home-view.mjs`, `HOME_DEFAULT_VIEW`),
+  počet děl podle zobrazení v `site.config.yaml` `home.recent` (`wide` / `tablet` do 1100 px / `phone` do 640 px, `homeRecent`, `HOME_SCREENS`; = stejná výška), v URL jen jiné
+  než výchozí (`?view=grid`, `?tile=s`, ostatní parametry zůstanou), vlastní paměť `pavla.home.view` / `pavla.home.tileSize`, nikdy dílo
+  z úvodního obrazu; sloupce stejné výšky. Vše před vykreslením vložený skript `homeScript` za mřížkou. Přepnutí zobrazení = událost GA `view_change`.
+  Značky na dlaždicích (`scripts/lib/tile-marks.mjs`, `WorkCard.astro`, jen zobrazení dlaždic): hvězdička `featured` vlevo nahoře
+  (s/m/l), košík `isOnSale` vpravo dole (m/l), silueta barvy písma s lemem barvy papíru, nastavení `site.config.yaml`
+  `home.tileMarks` (jen hvězdička) a `gallery.tileMarks`, každé zvlášť (`tileMarksFor`). Oblíbené obrazy návštěvníka (`scripts/lib/favorites.mjs`, prohlížeč `src/lib/favorites.ts`, jen `localStorage` `pavla.favorites`, bez služeb): srdce `[data-heart]` vpravo nahoře na kartách `WorkGrid` (plné vždy, obrysové jen při najetí myší, telefon jen plná; vpravo nahoře u dlaždic proto žádná značka), pod ★ u titulku díla a v popisku promítání s klávesou L; barva palety `--heart`; před ním zaškrtávátko = filtr galerie `?favorites=1` (`FAVORITES_ON`, ve `FACETS`, `activeFilters`, `withoutFilters`; funguje i nad stropem); „♥ Moje oblíbené (N)“ vlevo od počtu děl galerie = oblíbené ze všech děl podle filtrů, nad `FAVORITES_LINK_MAX` šedý s bublinou `OVER_LINK_TITLE`; v patičce první odkaz „Oblíbené“ = promítání oblíbených `favoritesShowPath('footer')` (filtr `?favorites=1`), jen s nějakými oblíbenými; zkratka manifestu „Oblíbené“ (`from=shortcut_favorites`, vždy, bez oblíbených `NO_FAVORITES_TEXT`); „Seznam“ (klávesa S, `hooks.list`) v každém promítání zavře promítání a nechá výpis s filtry, v promítání oblíbených otevře jeho díla jako „Můj výběr“ (`showSelectionLink`, `reason: list` zpět na výpis / `selection` na „Můj výběr“, k tomu `method` (`CINEMA_CLOSE_METHODS` podle důvodu: × / Esc = `reason: close` s `button`/`key`/`fullscreen`, „Seznam“ `button`/`key`/`pinch`, dílo a kolekce `click`/`key`/`swipe`; počty `cinemaRunCounts`: `swipes` kroky prstem, `keys` kroky ← →, `swipes_missed` tahy vrácené zpět podle `swipeEnd`; `CinemaRun`; nový počet = i metrika v README, hlídá test), `leaving` v `closed`; na telefonu sevření dvou prstů `pinchedIn`, `cinema.swipe.pinch`, ne na přiblížené stránce; druhý prst ruší tah follow-swipe; srdce změněné v promítání galerie použije až po zavření); stránka „Můj výběr“ `/tvorba/vyber/?obrazy=` (`noindex`, mimo mapu webu, bez `obrazy` vlastní oblíbené); události `favorite_add`/`favorite_remove` (`source` = `FAVORITE_SOURCES`) a `favorites_open` (`results`, `own`); prototyp `oblibene.html`. Prototypy zobrazení: `npm run prototypes`
+  (`scripts/lib/prototypes.mjs`, šablony `scripts/prototypes/`, výstup `.prototypes/` mimo git, funkce webu vložené jako text).
+  Hra Detail dne: stránka `/detail-dne/` (od 2026-11-18 veřejná: v menu, v mapě webu, JSON-LD `gamePageLd`, náhled pro sdílení z buildu `gameShareImage`/`scripts/lib/detail-game-share.mjs`, `?uroven=lehka` otevře úroveň `levelFromParam`; na úvodní stránce sekce `GameTeaser.astro` + `src/lib/game-teaser.ts` + `scripts/lib/detail-teaser.mjs`: tři dnešní výřezy přes `windowHtml` z `/detail-dne/dnes.json` `teaserData`, stav hráče `teaserState`, dohraný den jeden řádek; `src/pages/detail-dne/`, hra `src/lib/detail-game.ts`, data při buildu `data.json.ts` → `prepareGame`/`gameData` v `scripts/lib/detail-game-data.mjs`, postup v `localStorage` `GAME_STORE` (`pavla.detailDne.v2`, kola pod `roundKey` „2026-320:easy“), kolo si pamatuje svou hádanku `roundPuzzle`/`keptPuzzle`, plán dnů `game/detail-dne/<rok>.json` + `details.json` (`scripts/lib/game-plan.mjs`, `extendPlan`: každý plný běh pipeline ho prodlouží, dny do zítřka se nikdy nemění, dalších 14 dní znovu z děl teď, nové dílo jedno denně, dílo po 21 dnech, detaily díla s trvalými čísly `planDetails` z bohatšího rozboru `prepareGame` s `places` (ve všech úrovních i místa s mírným překryvem `PLACE_OVERLAP`), odpovědi dál z `ANSWER_CROPS` bez překryvu; rozbor obrázku jen jednou: `game/detail-dne/analysis/<id>.json` s otiskem obrázku a nastavení (`imageFingerprint`, `analysisSettings`, změna rozboru = zvýšit `ANALYSIS_VERSION`), zapisuje jen pipeline (`save`), build a prototypy čtou, podobnost děl se počítá vždy znovu; v `OUTPUT_PATHS`; `data.json` jen letošní a loňský rok, starší `/detail-dne/plan/<rok>.json` načtený na vyžádání `ensureDay`; ve hře `plannedPuzzles`, bez plánu výpočet `dailyPuzzles`; týdenní kontrola `evaluateGamePlan` aspoň 7 dní dopředu a `evaluateGameAnalyses` velikost rozborů; podobnost jen s `GAME_CANDIDATES` nejbližšími díly `candidatePool`, těžká úroveň do plánu i méně matoucí místa `planConfusion`, lehká širší střed `planCentre`), klíč dne `2026-320` = rok a pořadí dne v roce (`dayId`, všude: soubor plánu, adresa `?den=`, GA, Diagnostika; jen nadpis „2026#320“ `dayLabel`), archiv za poloviční kapky, do hodnosti nejvýš 90 💧 za skutečný den = 3 dokonalé archivní dny (`archiveCap`, `ARCHIVE_DAYS_A_DAY`, `archiveRoom`, hráč strop vidí v řádku archivu, pokusech, výsledku a poznámce), hodnosti `gameRanks` (prahy = dny bezchybné hry 1, 3, 6 … 586, pak po 180 dnech, za poslední hvězdičky; `gameRank`), pravidla „Jak se hraje“ `rulesHtml` pod sbírkou (u nadpisů hráčova čísla `rulesMine`, `data-mine`: kapky, série, hodnost a kolik do další) a bublina `statsTitle` nad kapkami, hodnost s číslem vždy v jednom řádku s nadpisem `rankForms`/`fitRank` (na telefonu aspoň číslo, ustoupí slovo „kapek“), čísla kapek po tisících `groupDigits`, bublina stropu `archiveRoomTitle`, krátký řádek stropu ve výsledku `cappedText` (dlaždice dnů s puntíky úrovní, neodehrané žlutě barvou palety `todo`, po dohraném dni odkaz dolů do archivu `unplayedDays`), víc měsíců archivu = sbalitelné měsíce s počtem čekajících dnů `monthGroups`, Moje sbírka jen z odehraných kol (`gameCollection`, `collectionHtml`: obraz s tečkami barev svých výřezů, nic navíc se neukládá; růst sbírky v prototypu `simulatedRounds`), dočasná sekce „Diagnostika“ na konci stránky (skrytá, zapne ji napsané `diag` nebo pět ťuknutí na nadpis, `magicWord`/`tapBurst`, pamatuje se v prohlížeči; `gameDiagnostics`, kopírování `diagnosticsText`, před zveřejněním odebrat), události `game_start`/`game_end`/`share` se `source: game`; testovací obrázky mají ostré tahy, jinak hra nemá odpovědi) a prototyp `detail-dne.html` = tatáž hra (styly `src/styles/detail-game.css`, markup `gamePageHtml`, skript `src/lib/detail-game.ts` přibalený esbuildem `gamePrototypeParts`, data `prototypePlay`; prototyp jen nastaví `GameOptions` a ladí přes `GameControl`, nikdy vlastní kopie kódu hry) (`scripts/lib/detail-game.mjs`, úrovně `gameLevels`, vzhledy jen z katalogu `gameLooks` (5 na úroveň, každý v jediné, nikdy dva dny po sobě `lookForDay`; počty v `LOOK_COUNTS`: 5–10 na úroveň, úrovně se liší nejvýš o 1 a těžší nikdy míň, test; raději ladit a přidávat než vyřazovat, jména i věta `note`, co vzhled dělá s obrazem, jdou i do editoru kvízu a do přehledu vzhledů); co autorka ze hry vyřadí v obsahovém repu (`game: false` = dílo mimo hru, sdílené, web ho vynechá v `gameWorks`; `meta_game_skip` = místa v px fotky, edituje je i `npm run corners`, pro web jen podíly v `game/detail-dne/skips.json` `skipsText`): `scripts/lib/game-exclusions.mjs` v plánu dnů (`excludePrepared`, hádanka dostane `view` = nejvzdálenější pohled `puzzleView`, hra `lastViewOf`), přehled výřezů `export/detail-dne/` obsahového repa `scripts/lib/game-export.mjs` (`writeGameExport`, kreslí se jen při změně otisku, měřítko v px fotky `rulerSvg`/`photoRegion`; samostatně bez pipeline `npm run game-export [-- --out <složka>]`), žádný pohled na okraj ani k podpisu (`gameFrame`), během kola nic neskáče (stavový blok pevné výšky, výsledek pod náhledy, velikost scény `fitStageIn`/`stageFit` sdílená s kvízem), nový obraz scény jen přes `withoutMotion` (hra i kvíz; jinak by přechod ukázal celý hledaný obraz), výpočty předem `prepareGame`, editor kvízu `detail-kviz.html`, vzorek `detail-vzorek.html`; funkce pro stránku samostatné, přes `PROTOTYPE_FUNCTIONS`, bez konstant modulu).
+  Náhledy nabídky jen `optionHtml` (hra i kvíz; po konci kola všech 9 odkazy na díla). Můj Detail dne (vlastní kvíz návštěvníka, `scripts/lib/my-quiz.mjs`): odkaz
+  „Udělat z obrazu Můj Detail dne“ v hlavičce detailů na stránce díla (`.details-block`, štítek „Detaily“ jen s detaily; jen `game` ≠ false) → editor `/detail-dne/muj-kviz/?obraz=` (`src/lib/my-quiz-editor.ts`: úroveň, místo ťuknutím
+  `quizCrop` nebo „Vybrat místo za mě“, zkreslení úrovně, 8 obrazů nabídky `quizOffer` pevně v adrese) → hra `/detail-dne/muj/?…` (`QUIZ_PARAMS`, `quizFromParams`,
+  `src/lib/my-quiz.ts`: adresu hned zkrátí, stav v `sessionStorage` `QUIZ_STORE`, adresa kvízu vždy nové kolo `quizOnOpen`, „Zkopírovat odkaz“, bez kapek), data `/detail-dne/muj/data.json` (`quizPageData`),
+  obě stránky `noindex`, mimo mapu webu; GA `game_start`/`game_end`/`share` se `source: quiz` (`quizEventParams`).
+  Promítání („▶ Promítat“ za počtem děl a „▶“ v liště filtrů, každý výpis s filtry): `src/components/Cinema.astro`,
+  `src/lib/cinema.ts`, logika `scripts/lib/cinema.mjs`, všechny časy a swipe v `site.config.yaml` `cinema` (`cinemaSettings`),
+  data karet `data-cinema` (`cinemaCard`; v popisku ★ výběru autorky a „K prodeji“ / „Rezervováno“ jen u díla na prodej), obrázky `<picture>` AVIF/WebP/JPEG (`cinemaSources`); adresa `?…&cinema=<id>&interval=<s>` (výchozí se nepíše, `cinemaToParams`; jen filtry `filtersToParams`, nikdy `view`/`tile`/`perPage`/`page`),
+  tlačítka jsou odkazy `…&cinema=random` (`CINEMA_RANDOM`: libovolné první dílo; klik otevře na místě a přidá záznam historie), patička (`Oblíbené · Na prodej · Výběr`, Kontakt nemá poslední dva) = `favoritesShowPath(from)` (skript, jen s oblíbenými) / `saleShowPath(from)` (`hasWorksOnSale`) / `featuredShowPath(from)` (`hasFeaturedWorks`), `from` = `CINEMA_LINK_SOURCES`; první otevření v kartě nápověda `cinemaHint` (`sessionStorage`), otevření odkazem pokaždé `fullscreenHint`; F přepíná celou obrazovku (ven = promítání dál v okně, Esc zavře); ? a „?“ v ovládání nápověda znovu; pohyb myši, ťuknutí a vrácený tah drží dílo aspoň nejkratší čas (`lingerMs`); s ovládáním vždy i popisek; vlastní barvy promítání (výchozí `cinema.palette` Noc, `scopedPaletteCss`, paměť zvlášť
+  od webu); prst nahoru = kolekce, dolů = dílo (`vertical` ve follow-swipe); popisky na chvíli / stále / skryté (`CAPTION_MODES`) a čas v paměti
+  (`CINEMA_STORAGE_KEYS`); události `cinema_open`, `cinema_close`. Tah prstem, který jde s prstem (promítání i prohlížeč
+  fotek díla): `src/lib/follow-swipe.ts` + `dragStep`. Prohlížeč fotek díla: barvy jen z palety, 96 % × 90 % okna
+  (`viewerSizes`), F / tlačítko = celá obrazovka (`div.stage`, dialog sám nesmí; Esc v ní nezavře prohlížeč); ← → na
+  stránce díla = předchozí / další dílo (`pageArrow`, `data-page-arrow`). Nové volby nejdřív v prototypu `promitani.html`.
+  Velikost dlaždic `TILE_SIZES` s/m/l (`TILE_WIDTHS`, třídy `tiles-<velikost>`, tlačítka −/+ v `Pager.astro`): `?tile=` jen s
+  `view=tiles` a nevýchozí, paměť `pavla.gallery.tileSize`, odkaz má přednost.
+- **Atributy popisů (dílo, kolekce, fotka) jsou jen v `scripts/lib/schema.mjs`**: pořadí, výchozí hodnota kostry,
+  `missing` (hodnota pro doplnění do existujícího souboru, musí znamenat totéž co chybějící atribut) a technický
+  komentář (česky, typ, hodnoty, příklady). Pipeline z něj staví kostry a při každém běhu srovná všechny popisy
+  (`scripts/lib/metadata-yaml.mjs`): doplní chybějící atributy s `DOPLNIT`, srovná pořadí a technické komentáře,
+  neznámé označí `NEZNÁMÝ`. Povinný atribut s konečnou výchozí hodnotou (`settled: true`: `meta_draft`, `meta_edge`, `game`, `tags`, `meta_instagram`, `meta_pinterest`,
+  `mockups`, `featured`, texty stránek a `heading` úvodu) nikdy nemá `DOPLNIT`. Nepovinný atribut (`commented: true` + `example`: `support`, `details`,
+  `caption`, `private_note`, `price`, `fler`, `instagram`, `meta_instagram_grid`, `meta_game_skip`, `cover`, `aspect`, `focus`) je v souboru zakomentovaný (`# price: 2500`) pod technickým komentářem s `NEPOVINNÉ.`, bez
+  `DOPLNIT`; prázdná hodnota = zakomentovat. Nový atribut = záznam ve schématu (prefix určí skupinu), README obou rep
+  a testovací data; změna znění komentáře = staré znění do `previous`. Atribut s pevnými možnostmi (výčet, `true`/`false`):
+  komentář „<co>, možnosti:“ a pod ním každá možnost na řádku `- <hodnota> - <význam>` (obyčejná pomlčka `-`, nikdy `–`); povolené hodnoty v `options`
+  pole (test hlídá shodu s komentářem), jiná hodnota = chyba (`optionProblems`), i u rozpracovaného díla. `DOPLNIT` nikdy neodstraňovat za lidi.
+  Každý text blokového atributu (`block: true`) pipeline zapíše jako `|` (`blockText`: řádky do `TEXT_WIDTH`, autorčina
+  zalomení zůstanou, jiný styl `>`/`>-`/uvozovky se převede; kontrola hodnoty porovnává význam `normalizeText`), nikdy `>`;
+  `text` v kostře vždy jako blok `|` (aby ho nikdo nemusel psát ručně): dílo `DOPLNIT popisek`, kolekce, rok
+  a „Mimo kolekce“ vzorovou větu (`COLLECTION_SKELETON_TEXT`, `yearSkeletonText`, `UNCOLLECTED_SKELETON_TEXT`; nikdy
+  `DOPLNIT`, ty jsou veřejné hned a `DOPLNIT` by zastavilo běh). Neodsazený text pod atributem hlásí `yamlProblem`
+  přesně (`unindentedText`).
+- Testovacích děl (`pavla/demo-content/`) musí být vždy víc, než je nejmenší počet na stránku (aspoň 15 při 12).
+- Autorství v obrázcích: webové obrázky díla (originál, detaily, mockupy ve všech formátech a náhled pro sdílení) nesou XMP
+  (autorka, název, © rok, kredit, Podmínky užití `xmpRights:WebStatement` + `UsageTerms`, odkaz na stránku díla `dc:relation`; `scripts/lib/image-rights.mjs`, v otisku díla), JSON-LD obrázku
+  díla je `ImageObject` se stejným `creditText` a `copyrightNotice`; nikdy licence. Jiné fotky webu XMP nedostanou.
+- Náhledy pro sdílení (`og:image` + rozměry): dílo = `og-<otisk>.jpg` celý obraz na papíře (nikdy neořezávat),
+  úvodní obraz kolekce/roku/úvodu = ořez vybraného (`aspect`/`focus`), vlastní fotka nebo detail celé na papíře, jinak náhled
+  díla (`coverShareSource`); helpery `*ShareImage` v `src/lib/site.ts`.
+- Mockupy: scény v `mockups/scenes.yaml` (kalibrace px/cm), výběr a vykreslení `scripts/lib/mockups.mjs`; text scén je
+  v otisku jen u díla s mockupy (změna scén nepřegeneruje ostatní).
+- Doba běhu: pod každým přegenerovaným dílem `  ⏱ <krok> <s> · … · total` a na konci `⏱ run: <fáze> …` (`scripts/lib/timing.mjs`,
+  jen log); nový pomalý krok díla = `watch.lap('<krok>')`. Obrázky díla trvají na GitHubu 20–100 s, nejvíc AVIF (`effort: 4`).
+  Zpomalení i velikost rep hlídat: rozbor a plány v dokumentaci obsahového repa.
+- Ořez pozadí (podlaha i světlá zeď / podkladový papír): `meta_corners` díla (`photo` + rohy `tl`/`tr`/`br`/`bl` v px dovnitř, `false` = neořezávat) najde
+  pipeline u každého díla s fotkou bez atributu (i zveřejněného, i `--prepare-only`; `scripts/lib/corners.mjs`,
+  detekce a maska `scripts/lib/edges.mjs`; podlaha `floorDepth`/`looksLikeFloor`, světlé pozadí `backgroundDepth`/
+  `looksLikeBackground` jen s rovnou hranou `straightEdge`, aby se nikdy neodřízl bílý okraj papíru; změna detekce =
+  porovnat výsledky na všech skutečných fotkách před a po a doplnit testy v `edges.test.mjs`), ruční hodnotu nikdy nepřepíše, jiný rozměr fotky = chyba. Vně rohů
+  průhledné s prolnutím (`images.edges`) a obrázek oříznutý na nejmenší obdélník s celým listem (`trimTransparent`;
+  mockup přepočítá rohy i `pavla:sheet` o posun `offset`): web AVIF/WebP průhledné (`transparent` v `info.json`, třída `cutout`:
+  bez `--ph`, stín jen `filter: var(--drop-…)`, nikdy `box-shadow`), JPEG na papíře první palety, og/Instagram na
+  svém pozadí, Fler bílá, mockup jen vnitřní obdélník (průnik s `pavla:sheet`). Náhledy ořezu draftů (všechny tři, `writePreviews`, stejně jako `npm run preview`; kreslí se jen při změně otisku
+  v README draftu nebo chybějícím souboru, kreslení trvá sekundy na draft) do
+  `.previews/` (mimo git; workflow je nikam nenahrávají, žádný artefakt běhu: úložiště Actions účtu má jen 0,5 GB zdarma); zmenšené
+  (`DRAFT_EDGE`, `shrinkPreview`) i v `export/draft/[<kolekce>/]<slug>/` obsahového repa s `README.md` (`draftReadme`,
+  přehled `draftIndex`), i ve větvi, přepsané jen při změně otisku v README; zveřejněním zmizí (`EXPORT_FILES.draft`).
+  Složku má každý draft, s fotkou vždy všechny tři náhledy (i `meta_corners: false` / samé nuly = celá fotka), bez fotky
+  jen README s důvodem; přehled se značkami `noteMarks`.
+  README díla má „Text na webu“ (`textPreviewLines`, formátované jako přehled) a „Stav popisu“ = jeho hlášky ze souhrnu (`workNotes`, stejné skupiny); píše se i při běhu s chybami
+  v popisech (dílo s vlastní chybou bez nových náhledů; přehledy vždy, mazání jen bez chyb), commit zpět i po chybě.
+  `npm run preview -- <fotka|složka>` (`scripts/preview.mjs`): tentýž náhled (`<slug>-<id>-backgrounds.jpg`, i u pipeline) +
+  `<slug>-<id>-frames-tl|tr|br|bl.jpg` (roh fotky 200 × 200 bodů zvětšený 2,5× na 500 × 500, čáry po 5 bodech do 100 a po 10 do 130 středem pixelu od obou krajů, čísla přes čáry, `cornerFramesOf`;
+  v README draftu tabulka 2 × 2 nad `frames.jpg`; nový druh náhledu = do `PREVIEW_KINDS`, `EXPORT_FILES.draft` a zvýšit `DRAFT_VERSION`) +
+  `<slug>-<id>-frames.jpg` (celá neoříznutá fotka v plné velikosti, rámečky čar podíl šířky / výšky od každého kraje z `images.edges.guides`,
+  u každé čáry jen vzdálenost od kraje v px fotky jako `meta_corners`, popisky po schodech) + `<slug>-<id>-cut.jpg`
+  (fotka v plné velikosti bez šrafování, tenké čáry rohů, insetu, konce prolnutí, plné neprůhlednosti a oříznutého obrázku, `CUT_COLOURS`;
+  na každé straně u každé čáry popisek s čísly panelu, rozložené podél strany, nad čarami; u rohů jejich hodnoty; uprostřed panel: schéma,
+  rozměry, odstraněno celkem / z rohů / z inset a prolnutí, nastavení, použité `meta_corners`; žádné SVG `<pattern>`, na velké fotce trvá sekundy) pro libovolné fotky, obsah jen čte,
+  chybějící rohy najde a vypíše jako yaml; `--write` je zapíše jen do popisů zadaných fotek bez `meta_corners`.
+  Oklikání rohů myší: `npm run corners` (`scripts/corners.mjs`, stránka `scripts/corners.html`, server bez socketu `route` v
+  `scripts/lib/corner-editor.mjs`, funkce stránky `EDITOR_FUNCTIONS` vložené jako text), lokální server jen na `127.0.0.1`
+  (`trustedRequest`: Host + `Origin` u zápisu), fotky jen ze seznamu děl; „Zapsat“ po potvrzení přepíše jen `meta_corners` (`replaceCorners`). Druhý režim „Hra: vynechaná místa“: obdélníky `meta_game_skip` myší a zaškrtávátko `game` (`rectFromDrag`, `hitRect`, `moveRect`, zápis `replaceAttribute`, `/api/skip`, `/api/game`).
+  Náhled i výpis ukazují ořez rohů v % fotky (náhled po řádcích „zleva 2,5 % = 93 px“ / „shora …“, i px z `meta_corners`), nad `images.edges.suspicious` (5 %) červeně (jen ten řádek) / `!`, na konci výpisu souhrn podezřelých fotek;
+  `--only-suspicious` = jen podezřelé (ne s `--write`). Souhrn běhu („Nalezené rohy listu“) značí podezřelé `⚠`. Originální fotky obsahového repa pipeline nikdy nemění.
+- Ostatní fotky: `fotky/<název>.jpg` obsahového repa → `public/fotky/<název>/` (obrázky), popis (`alt`, `caption`,
+  `focus`) → `content/fotky/<název>.yaml`; na stránce `<Photo name="…" />`;
+  `aspect` ořízne na poměr stran kolem `focus: [x, y]` (%) z yaml fotky. O mně: `o-mne-uvod` (2:1) a `portret`.
+- Automatika: workflow obsahového repa spouští tuto pipeline a otevírá PR do tohoto repa (větev `obsah/aktualizace`,
+  auto-merge po projití „Kontroly kódu“, větev se po sloučení maže);
+  na jeho ostatních větvích jen `--prepare-only`. Souhrn běhu: `scripts/lib/summary.mjs` (nahoře chyby po souborech, pak „Ke kontrole“, pak „Doporučení“ z `scripts/lib/advice.mjs`
+  včetně štítků `tagAdvice` (jen co jde opravit: dva tvary, vždy spolu, čipy přes 2 řádky) a péče o web `careOfSite` (zveřejněné dílo bez
+  `size_cm` či popisu, detail bez popisku, malá fotka, málo `featured` u stránky, z historie gitu `git-dates.mjs` dlouhý draft
+  a Instagram bez odkazu; obsahové repo proto checkout s `fetch-depth: 0`), pod nimi sbalené „Zbývá doplnit“ (atributy s `DOPLNIT`
+  u komentáře, `todoAdvice`, kromě zveřejněných děl v „Ke kontrole“), pak co automatika udělala, nakonec statistika štítků `tagStats`).
+  Každá hláška o souboru končí kódem `[kód]` (`scripts/lib/codes.mjs`, `CODES`: kód česky bez diakritiky → úroveň a význam);
+  nová hláška = nový kód v `CODES` (test hlídá použití a neznámé kódy), stejný problém = stejný kód; platí i pro týdenní
+  kontrolu (úroveň `health`: kód na konci prvního řádku neúspěšné kontroly, kódy `pageProblems` jsou přímo z registru;
+  `formatReport` vrací `codes`, výstup `codes` jde do titulku issue v obsahovém repu). Nesoulad atributů díla
+  (`consistencyAdvice`: featured bez `meta_pinterest`, odkazy `instagram`/`fler` vs. `meta_instagram`/stav, cena u
+  neprodávaného, mockupy bez rozměru, mřížka bez Instagramu, datum v budoucnu) = doporučení.
+  `export/stranky/README.md` obsahového repa = texty úvodu, stránek ze `stranky/` a roků formátované jako na webu (`pagesReadme`,
+  každý běh bez `--only`, i ve větvi).
+  `export/README.md` obsahového repa = přehled všech děl na jedné stránce (`overviewReadme`, `scripts/lib/overview.mjs`):
+  kolekce abecedně + „Mimo kolekce“, u díla nadpis `<název> ★ · <id> @ <date> [ š x v ]`, odkazy, popis zvlášť, zapnuté
+  detaily po řádcích, přepínače slovem (`draft`, `instagram: <odkaz|->`, `pinterest`, `mockups`), ostatní atributy yaml
+  (i `private_*`, bez `WORK_TOLD`: co je v nadpisu a `meta_corners`, bez výchozího `status: not-for-sale`) a hlášky se značkou úrovně a kódem (`✗`/`⚠`/`💡`/`✎`, bez nich `✓`), nahoře
+  počty kódů; bez obrázků a s minimem formátování (velikost, `OVERVIEW_MAX_BYTES` → `prehled-velky`); píše každý běh bez
+  `--only` (i s chybami a `--prepare-only`), celý, plný běh znovu na konci s `misfits`. Pull request připravuje
+  `scripts/pull-request.mjs` (`scripts/lib/pull-request.mjs`, `OUTPUT_PATHS`); text PR nikdy nejmenuje obsahové repo.
+  „Zkušební běh zpracování“ (`.github/workflows/dry-run.yml`, každou neděli na testovacích datech, nic nepushne)
+  prochází tytéž kroky ve složce testovacího webu `.demo/site` (`SITE_DIR`, git repo s lokálním `origin`, nikdy
+  skutečný web): změna kroků zpracování obsahu = stejná změna ve `dry-run.yml`.
+  Kroky zpracování obsahu a týdenní kontroly jsou sdílená workflow tohoto repa (`workflow_call`):
+  `.github/workflows/process-content.yml` („Zpracování obsahu (sdílené)“, vstup `site-repository`, secret `SITE_TOKEN`)
+  a `.github/workflows/health-check.yml` („Kontrola automatiky (sdílená)“, navíc `CHECK_TOKEN`, `demo-url`). Obsahové repo
+  je volá ze svých obálek (spouštěče, souběh, oprávnění, tokeny); kontext `github` je volajícího (jeho repo, větev, issue).
+  Ani sdílená workflow nejmenují obsahové repo (cesty `content` a `site`).
+  Týdenní kontrola (token, selhané běhy, zkušební běh, nasazení, čekající PR, neznámé atributy, chybějící obrázky
+  nasazeného webu `scripts/lib/site-check.mjs`, texty a JSON-LD jeho stránek `evaluatePageTexts`, vložené skripty všech jeho stránek `evaluateInlineScripts`, velikost obou rep
+  a nasazeného webu proti limitům GitHubu `evaluateSizes` (od 70 % `blizi-se-limit`), minuty Actions soukromých rep
+  `evaluateMinutes` (`CHECK_TOKEN`; `dochazeji-minuty`, `placene-minuty`), první pondělí v měsíci
+  nastavení obou rep proti uloženým exportům `evaluateSettings` (`compareSnapshots`, `nastaveni-se-zmenilo`); hlášky `pageProblems`
+  jsou kódy s anglickým i českým textem `problemText`):
+  `scripts/check-health.mjs` + `scripts/lib/health.mjs`, spouští ji obsahové repo; `--demo-url` = tytéž kontroly
+  nasazeného webu i pro ukázku enginu (`deployedSiteChecks`, hlášky „Ukázkový web:“, `labelledCheck`).
+  Workflow kontroluje `actionlint` (job `workflows` v `check.yml`); po každé úpravě workflow ho spusť i lokálně.
+- Nastavení repa na GitHubu jako kontrolní seznam: `node scripts/repo-settings.mjs <vlastník/repo> --out …`
+  (`gh api`, jen čte; exporty v dokumentaci obsahového repa). Změna nastavení repa = export obnovit.
+- Deploy workflow tohoto repa obrázky negeneruje, jen staví web z `main` a obrázků větve, kterou jmenuje `binary.lock`
+  (`promote`, `unpack`; `contents: write`); „Kontrola kódu“ před buildem `unpack`. Při selhání buildu nebo
+  nasazení job `notify` založí (nebo komentuje) issue „Nasazení webu selhalo“ přidělené vlastníkovi (e-mail), další
+  úspěšné nasazení ho zavře; issue je veřejné, jen odkaz na běh a commit. Stejně „Kontrola kódu“ při pushi do `main`
+  a u PR z `obsah/aktualizace` (jiné PR ne); obojí přes `.github/failure-issue.sh`.
+- Srovnání fotek obrazů (perspektiva, ořez podkladu): `npm run straighten -- <fotka|složka>` (`scripts/straighten.mjs`),
+  originály nikdy nepřepisuje, výstup do `upravene/`; ruční rohy a další výřezy v `<fotka>.orez.yaml`, `--white-balance`, `--width`, `--margin` (výchozí okraj podkladu kolem listu, aby byly vidět okraje papíru).
+  S okrajem zapíše do JPEGu polohu listu (XMP `pavla:sheet`, `scripts/lib/sheet-box.mjs`); pipeline podle ní
+  pro mockupy (web i Fler) ořízne master na holý papír, jinde okraj zůstává (pozadí vně rohů listu řeší ořez pozadí).
+- Vyhledávače (`scripts/lib/seo.mjs`, `Base.astro` props `description`, `type`, `noindex`, `jsonLd`): každá stránka má
+  vlastní titulek a popis (max. 160 znaků) a strukturovaná data schema.org (JSON-LD, `graphLd`): `VisualArtwork`
+  u díla, `CollectionPage` u výpisů, `Person`/`WebSite`/`ProfilePage`/`ContactPage`, všude `BreadcrumbList`.
+  Obraz na prodej uvádí jen dostupnost, **nikdy cenu** (rozhodnutí 2026-10). Nová stránka = popis + JSON-LD
+  + do `STATIC_PAGES` (mapa webu). `robots.txt` (roboti učení umělé inteligence `AI_TRAINING_CRAWLERS` nic) a 404 (`noindex`) generuje web; výhrada vytěžování dat (EU 2019/790 čl. 4) strojově: meta `TDM_RESERVATION` na každé stránce a `/.well-known/tdmrep.json`; ověřovací kódy `site.verification`.
+- Návštěvnost: Google Analytics 4 (`analytics.googleMeasurementId` v `site.config.yaml`, `scripts/lib/analytics.mjs`,
+  značka v `Base.astro`), jen produkční build skutečného webu, nikdy dev ani testovací data; URL i s parametry filtrů.
+  Vlastní události (`EVENTS`: `gallery_filter`, `fler_click`, `instagram_click`, `share`, `email_click`, `message_sent`, `palette_change`, `view_change`, `image_view`, `cinema_open`, `cinema_close`, `game_start`, `game_end`, `code_open`, `more_click`, `app_install`, `favorite_add`, `favorite_remove`, `favorites_open`); nový parametr události = zapsat do README
+  (tabulka událostí + seznam vlastních dimenzí k registraci v GA).
+- Zprávy od návštěvníků: Web3Forms (`messages.accessKey` v `site.config.yaml`, jedna adresa, předmět `[pavla-web] <typ>: …`),
+  formulář na Kontaktu a panel „Napište mi“ na ostatních stránkách (`scripts/lib/messages.mjs`, `message-draft.mjs`,
+  `src/lib/message-form.ts`, `MessageForm.astro`, `MessagePanel.astro`). Testovací data = vždy náhled, nic neodesílá.
+- Bublina nad obrazem díla (atribut `title`, karty galerie a úvodní obrazy s dílem, ne stránka díla ani vlastní fotka):
+  `workTooltip` (`scripts/lib/tooltip.mjs`) přes `workTitle` v `src/lib/site.ts`, všude stejná (název, technika · rozměr · rok,
+  podklad, stav prodeje, zkrácený popis, na konci po prázdném řádku štítky `#štítek` česky abecedně); jen text, štítky
+  v ní nejsou odkazy.
+- Obraz podle kódu: `#` v hlavičce (`CodeJump.astro`, `scripts/lib/code-jump.mjs` `codeFromInput`), vložený kód nebo řádek
+  z Instagramu otevře krátký odkaz `/tvorba/<id>/` (ověřený `HEAD`, neznámý kód = hláška pod polem); klávesa `#`
+  (`opensCodeJump`), na telefonu „Přejít“ a lišta schránky (`isBulkInput`), událost `code_open`.
+- Web jako aplikace (`scripts/lib/app-install.mjs`, `src/lib/app-install.ts`): manifest `display: standalone`, service worker
+  `/sw.js` (`src/pages/sw.js.ts`, `swScript`, verze = verze buildu; stránky a data napřed ze sítě, `/_astro/` z mezipaměti,
+  obrázky a písma stale-while-revalidate, cizí adresy nikdy; neviděná stránka offline = `/offline/` s `noindex`), jen
+  v produkčním buildu (dev ho odregistruje); „Nainstalovat“ v patičce podle `installMode` (dialog prohlížeče / návod
+  iOS / návod nabídkou), „←“ v hlavičce nainstalované aplikace (`backTarget`), událost `app_install`. Změna strategie
+  mezipamětí = test v `app-install.test.mjs` (service worker běží v testu v `vm` s falešnými `caches`). Detail dne offline
+  jednou denně (`gameOfflineFiles`, `buildAssets`); každá událost GA nese `display_mode` (`app`/`browser`). Úvodní obrazovky iOS
+  kreslí build (`scripts/lib/splash.mjs`, `SPLASH_DEVICES`, světlé i tmavé), snímky pro dialog instalace `APP_SCREENSHOTS`
+  (`npm run app-screenshots`; nejsou v gitu: deploy je fotí jednou týdně do mezipaměti Actions a kopíruje do `dist/`;
+  týdenní kontrola hlídá obrázky manifestu `manifestImages`). Přehled vzhledů hry pro autorku: `npm run game-overview`.
+- Patička nese verzi buildu `vRR.MMDD.HHMM` (pražský čas) s bublinou (datum, commit): `scripts/lib/build-version.mjs`.
+- „Kontrola kódu“ (`.github/workflows/check.yml`): u PR a pushe do `main` jen `npm test` + `npm run check:site` + `npm run build`
+  + `npm run check:images` (obrázky, úplnost mapy webu `unlistedPages`, unikátní titulky a popisy a platné JSON-LD
+  `pageProblems`, vložené skripty najdou svůj prvek a `data-view` mřížky je platné nastavení (`keys`, `views`, `tiles`) `inlineScriptProblems`; rychlé). Vložený skript nad prvkem před sebou vždy hledá prvek
+  podle značky (`INLINE_TARGETS`: `viewGridBefore`/`data-view`, `pickBoxBefore`/`data-pick-box`), nikdy `previousElementSibling` skriptu. Stejný název nebo popis dvou děl řeší web sám (`workPageTitle`, `workPageDescription`).
+  U každého PR běží vždy: job `check` je povinná kontrola rulesetu na `main`, na kterou čeká auto-merge aktualizací
+  obsahu (správce má výjimku pro přímé pushe). Job `check` nepřejmenovávat, jinak se auto-merge zasekne.
+  Web z testovacích dat se na GitHubu nestaví (pomalé, nikde se nezveřejňuje): před commitem změn webu nebo pipeline
+  vždy lokálně `npm run demo:build` (a výsledek zkontrolovat).
+
+## Testovací a skutečná data
+- Testovací (demo) data žijí **jen** v `pavla/demo-content/`: vymyšlené obsahové repo se stejnou strukturou jako
+  skutečné (yaml, obrázky vyrobené z receptu `demo-content/images.yaml` přes `npm run demo:images` jen chybějící, nikdy
+  přepsané, tady mimo git, v enginu v gitu; značka `demo-content.yaml`), zpracovávají se přes
+  `npm run demo` do `.demo/` (mimo git). Skutečná data jsou **jen** v obsahovém repu; web v produkci se staví
+  jen z nich (i když jsou prázdná).
+- **Nikdy netvoř testovací/ukázková data v obsahovém repu** (díla, kolekce, fotky, obrázky), ani „dočasně“.
+  Nové testovací případy = nové soubory v `pavla/demo-content/`, díla a kolekce s `demo-` jménem.
+- Pipeline to hlídá (`scripts/lib/demo.mjs`): skutečná data se značkou `demo-content.yaml` nebo s dílem či kolekcí
+  `demo-…` = chyba; testovací data bez značky nebo s dílem či kolekcí bez `demo-` = chyba. Atribut `demo` neexistuje.
+  Kontrolu neobcházej ani nevypínej.
+- Ověřování nových funkcí dělej na testovacích datech (`npm run demo:build`), ne úpravou skutečného obsahu.
+
+## Pravidla
+- Jazyk: česky je vše, co vidí uživatelé a Pavla (texty webu, URL, README, CLAUDE.md, návody, složky obsahového repa).
+  Česky jsou i hlášky pipeline, které se dostanou do souhrnu běhu (chyby kontrol `problems`, `missing`, souhrn
+  `scripts/lib/summary.mjs`): srozumitelně pro Pavlu, bez technické angličtiny, ve tvaru `<soubor>: <co a jak opravit>`.
+  Anglicky je kód (názvy, komentáře, výpis do konzole). Tohle záměrně přebíjí globální pravidla „README anglicky“
+  a „řetězce v kódu anglicky“.
+- Texty na webu jsou česky, s diakritikou, ve 1. osobě autorky.
+- Minimalistický design: papírové tóny, serif nadpisy (Cormorant Garamond), Work Sans text. Obraz má vždy přednost před UI.
+- Barvy jen z palet (`scripts/lib/palettes.mjs`, Papír / Pergamen / Noc, volba v patičce): v CSS vždy proměnné
+  (`var(--paper)`, `var(--shadow-deep)`…), nikdy barva natvrdo; i prvky formulářů (zaškrtávátko v `Base.astro`
+  `appearance: none` z palety, nativní jen ve `forced-colors`); nová paleta = záznam v `PALETTES` (test hlídá kontrast);
+  každé `var(--…)` musí být definované (paleta nebo `--název:` / `setProperty`), hlídá `css-vars.test.mjs`.
+- Vodoznak pro Fler: text `images.fler.watermark` (jméno a místo), nikdy URL ani @handle (pravidla Fleru); světlé písmo webu se stínem (`scripts/lib/watermark.mjs`,
+  `WATERMARK_LOOK` je v otisku díla na prodej).
+- Mockupy musí držet reálné měřítko podle `size_cm`.
+- Před commitem: `npm test`, `npm run check:site`, `npm run build` a `npm run demo:build` musí projít; `npm run check:images`
+  (a pro testovací web `SITE_DIR=.demo/site npm run check:images`) ověří, že žádný obrázek, na který stránky odkazují, nechybí.
+- Odkazy na stránky webu vždy s lomítkem na konci (`/tvorba/`, `/tvorba/kolekce/?…`; GitHub Pages jinak přesměruje, dev server
+  stránku obslouží bez něj): v kódu psát s lomítkem, texty obsahu přes `withTrailingSlash` (`scripts/lib/page-links.mjs`),
+  `check:images` (`slashlessLinks`) odkaz bez lomítka odmítne. Stránky Tvorby a hra Detail dne se otevřou pod hlavičkou (`SKIP_HEADER_SCOPES`, `skipHeaderScript`; hra sama po vykreslení,
+  `scripts/lib/skip-header.mjs`, jen běžné otevření bez kotvy).
+- Mapa webu `/sitemap.xml` (`scripts/lib/sitemap.mjs`): nová stránka v `src/pages` bez dat za sebou = do `STATIC_PAGES`
+  (jinak `check:images` selže; stránka, která do mapy nepatří, musí mít `noindex`).
+- Řádky roků (nad galerií, na přehledu kolekcí) vždy na jeden řádek přes `fitYearRow` (`src/lib/year-row.ts`), roky
+  značené `data-year-item`; čipy štítků česky abecedně.
+- README obou rep (toto technicky, obsahové repo pro Pavlu a pro jeho automatiku) musí **vždy obsahovat kompletní popis všech
+  vlastností**: celou strukturu, každou schopnost webu i pipeline (včetně voleb, parametrů v URL, kontrol a chyb),
+  jak ji nastavit a jak ji lokálně vyzkoušet. Nic, co web nebo pipeline umí, nesmí v README chybět.
+  Uprav je v téže změně jako kód, nikdy „až potom“.
+
+## Plánované rozšíření
+Novinky/blog, kalendář plenérů a později kurzy/workshopy; prodej zatím přes Fler.
+
+## Licence
+- Cizí příspěvky jen se souhlasem s CLA v `CONTRIBUTING.md` (věta v popisu pull requestu); pull requesty vlastníka
+  a automatika ne. Kontrolu CLA (bot, povinná kontrola) nepřidávat bez výjimky pro vlastníka a `obsah/aktualizace`:
+  auto-merge aktualizací obsahu čeká jen na `check`.
+- Kód: `LICENSE.md` = FSL-1.1-MIT (po dvou letech MIT), `package.json` `license`. Obsah webu (obrazy, fotky, texty autorky:
+  `content/`, obrázky `public/` a větví `*_binary`, `game/`, `mockups/`, údaje v `site.config.yaml`) pod ni nespadá, všechna práva
+  vyhrazena (README „Licence“, stránka Podmínky užití); písma `fonts/` OFL. Nový druh obsahu = do výčtu v README „Licence“.

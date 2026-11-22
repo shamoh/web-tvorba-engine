@@ -1,0 +1,843 @@
+---
+import WorkGrid from './WorkGrid.astro';
+import Pager from './Pager.astro';
+import Cinema from './Cinema.astro';
+import { type Work, collectionUrl, colourChoices, config, getCollections, getYears, url } from '../lib/site';
+import { DEFAULT_VIEW, NO_COLLECTION, NO_COLLECTION_TITLE, TILE_SIZE_STORAGE_KEY, VIEW_STORAGE_KEY, czechOrder, statusOptions, yearFilterOptions } from '../../scripts/lib/gallery-filter.mjs';
+import { columnsFor, viewScript, viewSetup } from '../../scripts/lib/view-layout.mjs';
+import { overviewLink, yearCounts, yearOptions } from '../../scripts/lib/collection-filter.mjs';
+import { HEART_ICON, SELECTION_PATH } from '../../scripts/lib/favorites.mjs';
+
+interface Props { works: Work[]; year?: number; collection?: string }
+// `year` set: a year page (/tvorba/2026/), the year filter is replaced by links.
+// `collection` set: a collection page, which shows one collection and has no collection filter.
+const { works, year, collection } = Astro.props;
+const count = (vals: string[]) => {
+  const m = new Map<string, number>();
+  vals.forEach((v) => m.set(v, (m.get(v) ?? 0) + 1));
+  return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'cs'));
+};
+// Tag chips in Czech alphabetical order: easy to find a known one, and a new work never reorders them.
+const tags = count(works.flatMap((w) => w.tags)).sort((a, b) => a[0].localeCompare(b[0], 'cs'));
+// Techniques in Czech alphabetical order, like the collections.
+const techniques = czechOrder(count(works.map((w) => w.technique)), ([t]) => t);
+// The colours of site.config.yaml gallery.colors in their order, each with its works on this page (one colour can be
+// picked, „Barva“); none while no work here has its colours analysed yet.
+const colourCounts = new Map(count(works.flatMap((w) => w.colors)));
+const colours = colourChoices.families.filter((f) => colourCounts.has(f.id)).map((f) => ({ ...f, n: colourCounts.get(f.id)! }));
+// Collections in Czech alphabetical order (easy to find a known one), each with its works on this page;
+// the collection filter is a combobox over this select (src/lib/combobox.ts).
+const inPage = new Map(count(works.flatMap((w) => (w.collection ? [w.collection] : []))));
+const collections = czechOrder(getCollections()).filter((c) => inPage.has(c.slug)).map((c) => ({ slug: c.slug, n: inPage.get(c.slug)!, title: c.title }));
+// "Kolekce: …" in the cinema: each collection of the works here.
+const cinemaCollections = Object.fromEntries(collections.map((c) => [c.slug, { title: c.title, url: collectionUrl(c.slug) }]));
+// The listing in the statistics of the cinema (cinema_open, cinema_close).
+const listing = collection ? 'collection' : year ? 'year' : 'gallery';
+// "žádná" right after "vše": the works in no collection (?collection=none), when some are.
+const uncollected = works.filter((w) => !w.collection).length;
+// Every status option with some works; the browser greys the filter out while none of them narrows (facetDisplay).
+const statuses = statusOptions(works.map((w) => w.status));
+// The author's selection (featured): a switch, greyed out while it changes nothing (all shown works or none).
+const featuredCount = works.filter((w) => w.featured).length;
+const years = getYears();
+// Year options: every year of the site in the gallery; in a collection only the years of its works with counts,
+// greyed out while all shown works are from one year.
+const yearChoices = collection
+  ? yearFilterOptions(works.map((w) => w.year)).map((o) => ({ value: o.value, label: `${o.value} (${o.count})` }))
+  : years.map((y) => ({ value: String(y), label: String(y) }));
+// "Kolekce" next to the years: on a year page the overview filtered to that year, when it offers it.
+const allCollections = getCollections();
+const collectionYears = yearOptions(allCollections.map((c) => yearCounts(c.works).map(([y]) => y))).map((o) => o.year);
+const collectionsHref = overviewLink(url('/tvorba/kolekce/'), year, collectionYears);
+// Page sizes the visitor can pick (the first is the default); the rest of the filtered list is on further
+// pages (?page=2), hidden cards load no images.
+const pageSizes: number[] = config.gallery?.pageSizes ?? [12, 24, 48];
+// The tiles view has page sizes of its own (more small pictures on a page); the script switches between them.
+const tilePageSizes: number[] = config.gallery?.tilePageSizes ?? [36, 72, 144];
+// The view (big pictures by default): a link with the view, the tile size, the page or the page size decides, otherwise
+// the memory; the inline script after the grid (viewScript) shows it before the page is painted.
+const setup = viewSetup({ defaultView: DEFAULT_VIEW, linkKeys: ['view', 'tile', 'page', 'perPage'], keys: { view: VIEW_STORAGE_KEY, tile: TILE_SIZE_STORAGE_KEY }, columns: columnsFor(config, 'gallery') });
+---
+{!collection && (
+  <nav class="years" id="years" aria-label="Roky">
+    <a href={url('/tvorba/')} aria-current={year ? undefined : 'page'}>Vše</a>
+    {years.map((y) => <a href={url(`/tvorba/${y}/`)} data-year-item={y} aria-current={y === year ? 'page' : undefined}>{y}</a>)}
+    {allCollections.length > 0 && <a class="to-collections" href={collectionsHref}>Kolekce</a>}
+  </nav>
+)}
+
+<div class="filter-bar" id="filter-bar" inert>
+  <div class="filter-bar-inner">
+    <span class="eyebrow">Filtry</span>
+    <span class="bar-chips" id="bar-chips" role="group" aria-label="Vybrané filtry"></span>
+    <button type="button" class="bar-reset" data-filters-reset hidden>Zrušit vše</button>
+    <span class="bar-count" id="bar-count"></span>
+    <a class="bar-play" data-cinema-open href="?cinema=random" aria-label="Promítat vybraná díla přes celou obrazovku" title="Promítat vybraná díla přes celou obrazovku">▶</a>
+    <button type="button" class="filter-toggle" id="filter-toggle" aria-expanded="false" aria-controls="filters">Upravit</button>
+  </div>
+</div>
+
+<div class="filters-slot" id="filters-slot">
+<form class="filters" id="filters" aria-label="Filtrovat díla">
+  <div class="selects">
+    <label>Technika
+      <select name="technique"><option value="">vše</option>{techniques.map(([t, n]) => <option value={t} data-label={t}>{t} ({n})</option>)}</select>
+    </label>
+    {!year && yearChoices.length > 0 && (
+      <label>Rok
+        <select name="year"><option value="">vše</option>{yearChoices.map((o) => <option value={o.value} data-label={o.value}>{o.label}</option>)}</select>
+      </label>
+    )}
+    {!collection && allCollections.length > 0 && (
+      <label>Kolekce
+        <select name="collection"><option value="">vše</option>{uncollected > 0 && <option value={NO_COLLECTION} data-label="žádná" data-chip={NO_COLLECTION_TITLE.toLowerCase()}>žádná ({uncollected})</option>}{collections.map((c) => <option value={c.slug} data-label={c.title}>{c.title} ({c.n})</option>)}</select>
+      </label>
+    )}
+    {statuses.length > 0 && (
+      <label>Stav
+        <select name="status">
+          <option value="">vše</option>
+          {statuses.map((o) => <option value={o.value} data-label={o.label}>{o.label} ({o.count})</option>)}
+        </select>
+      </label>
+    )}
+    {/* „Barva“: the ring before the select, empty = all, filled = the picked colour */}
+    {colours.length > 0 && (
+      <label class="with-swatch">Barva
+          <span class="swatch" data-colour-swatch aria-hidden="true"></span>
+          <select name="color"><option value="">vše</option>{colours.map((c) => <option value={c.id} data-label={c.label} data-color={c.color}>{c.label} ({c.n})</option>)}</select>
+      </label>
+    )}
+    {works.length > 0 && (
+      <label class="switch" title="Výběr autorky: obrazy, které sama doporučuji"><input type="checkbox" name="featured" value="1" /> <span>Doporučené (<span data-featured-count>{featuredCount}</span>)</span></label>
+    )}
+  </div>
+  <!-- The selects first (one line on a computer), the tag chips under them, the count and „Promítat“ right after the tags. -->
+  <div class="chips" id="chips" role="group" aria-label="Témata (lze vybrat víc najednou)">
+    <button type="button" data-filter="tag" data-value="" aria-pressed="true">Vše</button>
+    {tags.map(([t, n]) => <button type="button" data-filter="tag" data-value={t} aria-pressed="false">#{t} <small>{n}</small></button>)}
+    <!-- one block after the tags, at the right edge: the box "only my favourites" (a filter, ?favorites=1) and "♥ Moje
+         oblíbené (N)" (the favourites among the shown works, a link to "Můj výběr"; too many for a link = a grey count),
+         how many works, "× Zrušit filtry" while a filter is on, "▶ Promítat" -->
+    <span class="count-group">
+      <label class="mine-filter" data-favorites-filter hidden title="Jen moje oblíbené"><input type="checkbox" name="favorites" value="1" aria-label="Jen moje oblíbené" /></label>
+      <a class="mine-link" data-favorites-link hidden><svg viewBox="0 0 24 24" aria-hidden="true" set:html={HEART_ICON} /><span>Moje oblíbené (<span data-favorites-count>0</span>)</span></a>
+      <span class="muted" id="count" aria-live="polite">{works.length} děl</span>
+      <button type="button" class="reset-link" data-filters-reset hidden><span aria-hidden="true">×</span> Zrušit filtry</button>
+      <a class="play-link" data-cinema-open href="?cinema=random" title="Vybraná díla jedno po druhém přes celou obrazovku"><span aria-hidden="true">▶</span> Promítat</a>
+    </span>
+  </div>
+  <div class="filters-actions">
+    <button type="button" class="filters-reset" data-filters-reset hidden>Zrušit filtry</button>
+    <button type="button" class="filters-done" id="filters-done">Hotovo</button>
+  </div>
+</form>
+</div>
+
+<WorkGrid works={works} place="gallery" eager={3} cinema id="grid" data-selection={url(SELECTION_PATH)} data-listing={listing} data-page-sizes={JSON.stringify({ grid: pageSizes, tiles: tilePageSizes })} data-view={JSON.stringify(setup)} />
+<script is:inline set:html={viewScript} />
+<p class="muted empty" id="empty" hidden>Tomuhle výběru nic neodpovídá.</p>
+<Pager pageSizes={pageSizes} total={works.length} views />
+<Cinema collections={cinemaCollections} />
+
+<script>
+  // Every filter and the page are written to the URL right away (?tag=krajina&status=unsold&page=2), so the
+  // current selection can be copied and shared as a link and opens with the same works.
+  // Tag chips toggle: each picked tag narrows the works further (?tag=krajina&tag=voda = both), "Vše" unpicks them
+  // all. After every change only the chips that would narrow the shown works without emptying them stay
+  // (tagChoices), with their counts among the shown works; picked ones always stay. Without JavaScript the chips
+  // do nothing and every work is shown.
+  // The selects (technique, year, collection, status) and the author's selection switch work the same way: after every
+  // change each option shows how many works it would give with the other filters, and only options that narrow
+  // the works without emptying them are left in the select (facetChoices; the picked one always stays). A filter
+  // with no such option left is hidden until another change brings one back.
+  // Paging happens here too: the filtered list is split into pages, cards of other pages are hidden
+  // (hidden cards load no images). Without JavaScript every work is shown.
+  import {
+    ALL_PAGES, DEFAULT_VIEW, FEATURED_ON, TILE_SIZE_STORAGE_KEY, stepTileSize, tileSizeToRemember, NO_COLLECTION, VIEW_STORAGE_KEY, facetChoices, pageSizeStorageKey, viewPageSizes, withView, facetDisplay, matchesFilters, pageAfterFilterChange, pageSizeOf, pageSizeToRemember, paginate,
+    rememberedPageSize, filtersToParams, stateFromForm, stateFromParams, stateToParams, tagChoices, toggleTag, viewToRemember, withPageSize,
+  } from '../../scripts/lib/gallery-filter.mjs';
+  import { EVENTS, cinemaCloseParams, cinemaLinkMethod, cinemaOpenParams, filterEventParams, trackEvent, viewEventParams } from '../../scripts/lib/analytics.mjs';
+  import { CINEMA_FROM, CINEMA_RANDOM, CINEMA_STORAGE_KEYS, cinemaFirst, cinemaFromParams, cinemaToParams } from '../../scripts/lib/cinema.mjs';
+  import { type CinemaWork, createCinema } from '../lib/cinema';
+  import { rememberListing, revealReturned } from '../lib/page-return';
+  import { fitYearRow } from '../lib/year-row';
+  import { pagerTarget, renderPager } from '../lib/pager';
+  import { balanceGrid, gridCards, showViewOf, viewOf } from '../../scripts/lib/view-layout.mjs';
+  import { exactId, normalizeQuery } from '../../scripts/lib/search.mjs';
+  import { selectCombobox } from '../lib/combobox';
+  import { BAR_START, activeFilters, filteredCount, scrollBar, withoutFilter, withoutFilters, worksCount } from '../../scripts/lib/filter-bar.mjs';
+  import { FAVORITES_LINK_MAX, NO_FAVORITES_TEXT, OVER_LINK_TITLE, SELECTION_PARAM, favoritesLinkState, showSelectionLink, shownFavorites } from '../../scripts/lib/favorites.mjs';
+  import { LISTING_LIST_TITLE, SELECTION_LIST_TITLE } from '../../scripts/lib/cinema.mjs';
+  import { FAVORITES_ON } from '../../scripts/lib/gallery-filter.mjs';
+  import { favorites, onFavoritesChange } from '../lib/favorites';
+
+  // The year links stay on one line, older years behind "2017–2003 ▾" (src/lib/year-row.ts).
+  const yearRow = document.getElementById('years');
+  if (yearRow) fitYearRow(yearRow);
+  const form = document.getElementById('filters') as HTMLFormElement;
+  const grid = document.getElementById('grid') as HTMLElement & { viewSetup?: any; viewState?: { view: string; tile: string } };
+  // The cards in their order (the columns of the layout reorder them in the page, balanceGrid).
+  const cards = gridCards(grid) as HTMLAnchorElement[];
+  const chipGroup = document.getElementById('chips')!;
+  const chips = [...form.querySelectorAll<HTMLButtonElement>('[data-filter="tag"]')];
+  const tagChips = chips.filter((b) => b.dataset.value);
+  const tagNames = tagChips.map((b) => b.dataset.value!);
+  const tagsOf = (card: HTMLElement) => card.dataset.tags!.split('|').filter(Boolean);
+  const workOf = (c: HTMLElement) => {
+    const d = c.dataset;
+    return {
+      search: d.search!, tags: tagsOf(c), technique: d.technique!, colors: (d.colors ?? '').split(' ').filter(Boolean), year: d.year!,
+      collection: d.collection!, status: d.status!, featured: d.featured === '1', favorite: false,
+    };
+  };
+  const works = cards.map(workOf);
+  // which works are the visitor's favourites (the filter ?favorites=1), again after every change of them
+  const markFavorites = () => { const liked = new Set(favorites()); cards.forEach((c, i) => { works[i].favorite = liked.has(c.dataset.id!); }); };
+  markFavorites();
+  // The search in titles and descriptions next to the heading (SearchField.astro, on every page with a gallery).
+  const searchInput = document.getElementById('works-search') as HTMLInputElement | null;
+  // "Enter otevře obraz" under the field: shown exactly when Enter would open a work (the same exactId).
+  const searchHint = document.getElementById('works-search-hint');
+  const cardIds = cards.map((c) => c.dataset.id!);
+  const syncSearchHint = () => {
+    if (searchHint) searchHint.hidden = !(searchInput && document.activeElement === searchInput && exactId(searchInput.value, cardIds));
+  };
+  const countEl = document.getElementById('count')!;
+  // "Zrušit filtry" next to the count, in the open panel and "Zrušit vše" in the bar: all filters off (withoutFilters)
+  const resets = [...document.querySelectorAll<HTMLButtonElement>('[data-filters-reset]')];
+  const emptyEl = document.getElementById('empty')!;
+  // only the own favourites without any (also the shortcut "Oblíbené" of the app): how to add some
+  const emptyText = emptyEl.textContent;
+  // "▶ Promítat" next to the count and in the bar (the cinema, at the end): links to the show of these filters
+  // (?…&cinema=random), so they can be copied; a plain click opens it here
+  const playButtons = [...document.querySelectorAll<HTMLAnchorElement>('[data-cinema-open]')];
+  const pager = document.getElementById('pager')!;
+  // "♥ Moje oblíbené (N)": the favourites among all the works of the filters (every page), in their order, a link to
+  // "Můj výběr" with them (favoritesLinkState); more than fit a link = a grey count with a tooltip; none = nothing
+  const mineLink = document.querySelector<HTMLAnchorElement>('[data-favorites-link]')!;
+  const mineCount = mineLink.querySelector<HTMLElement>('[data-favorites-count]')!;
+  let matchingIds: string[] = [];
+  function renderMine() {
+    const mine = favoritesLinkState(shownFavorites(favorites(), matchingIds), { page: grid.dataset.selection!, param: SELECTION_PARAM, max: FAVORITES_LINK_MAX });
+    mineLink.hidden = mine.kind === 'none';
+    mineCount.textContent = String(mine.count);
+    mineLink.classList.toggle('off', mine.kind === 'over');
+    if (mine.href) { mineLink.href = mine.href; mineLink.title = 'Obrazy, které se mi líbí, z těch zobrazených; odkaz jde poslat dál'; mineLink.removeAttribute('aria-disabled'); }
+    else { mineLink.removeAttribute('href'); mineLink.title = OVER_LINK_TITLE; mineLink.setAttribute('aria-disabled', 'true'); }
+  }
+  // the box before it: only the favourites (a filter like "Doporučené", it works over the cap of the link too); shown while
+  // some of the works of the other filters are favourites, or while it is on (to be turned off)
+  const favoritesFilter = document.querySelector<HTMLElement>('[data-favorites-filter]')!;
+  const favoritesBox = favoritesFilter.querySelector('input')!;
+  function renderFavoritesFilter() {
+    favoritesBox.checked = state.favorites === FAVORITES_ON;
+    const [choice] = facetChoices(works, state, 'favorites', [FAVORITES_ON]);
+    favoritesFilter.hidden = !favoritesBox.checked && choice.count === 0;
+  }
+  // a heart changed during a show of favourites: the list follows when the show closes (apply() would rewrite its address)
+  let favoritesChangedInShow = false;
+  onFavoritesChange(() => {
+    markFavorites();
+    // with the filter on a work taken out of the favourites leaves the list at once
+    if (state.favorites && cinema.isOpen) favoritesChangedInShow = true;
+    else if (state.favorites) apply();
+    else { renderMine(); renderFavoritesFilter(); }
+  });
+  // Page sizes of each view (big pictures, tiles); `pageSizes` = those of the current view.
+  const sizes: { grid: number[]; tiles: number[] } = JSON.parse(grid.dataset.pageSizes!);
+  const perPageLabel = document.getElementById('per-page');
+  const perPageSelect = perPageLabel?.querySelector('select') ?? null;
+  const featuredBox = form.elements.namedItem('featured') as HTMLInputElement | null;
+  const select = (name: string) => form.elements.namedItem(name) as HTMLSelectElement | null;
+  // Filters without a select on this page (year on a year page, collection on a collection page) are off.
+  const selects = (['technique', 'year', 'collection', 'status', 'color'] as const).filter((k) => select(k));
+  // The swatch of the picked colour next to „Barva“ (its shade from the option, data-color); empty with "vše".
+  const colourSwatch = form.querySelector<HTMLElement>('[data-colour-swatch]');
+  // Every option of each select as built ("vše" first); apply() puts back only the offered ones (removing them
+  // instead of hiding, which Safari on iOS ignores).
+  const allOptions = Object.fromEntries(selects.map((k) => [k, [...select(k)!.options]]));
+  const featuredCount = form.querySelector<HTMLElement>('[data-featured-count]');
+  // The collection filter as a combobox over its select ("vše" and "žádná" stay on top while typing).
+  const collectionSelect = select('collection');
+  const collectionCombo = collectionSelect
+    ? selectCombobox(collectionSelect, { keep: collectionSelect.querySelector(`option[value="${NO_COLLECTION}"]`) ? 2 : 1, placeholder: 'vše' })
+    : null;
+  const FEATURED_TITLE = featuredBox?.closest('label')?.title ?? '';
+  const params = new URLSearchParams(location.search);
+  // What the visitor picked earlier is remembered in this browser: the view (big pictures or tiles) and the page
+  // size of each view (not "Zobrazit vše", that one is one-off). It never overrides a link (?view, ?perPage, ?page),
+  // and apply() writes it to the URL, so a copied link still shows the same works. Storage may be blocked (private
+  // mode), then nothing is remembered.
+  const stored = (key: string) => ({
+    get: () => { try { return localStorage.getItem(key); } catch { return null; } },
+    set: (v: string | null) => {
+      try { v === null ? localStorage.removeItem(key) : localStorage.setItem(key, v); } catch { /* ignore */ }
+    },
+  });
+  const viewStorage = stored(VIEW_STORAGE_KEY);
+  const cinemaRoot = document.getElementById('cinema')!;
+  const cinemaConf = JSON.parse(cinemaRoot.dataset.settings!);
+  const intervalStorage = stored(CINEMA_STORAGE_KEYS.interval);
+  /** The interval a show opened here runs at: the remembered one, else the default. */
+  const cinemaInterval = () => cinemaFromParams(new URLSearchParams(), cinemaConf, intervalStorage.get()).interval;
+  /**
+   * This listing with the show (`id`: its work, CINEMA_RANDOM = any): only its filters, the show needs no view nor page
+   * (a link to it keeps the visitor's own view of the gallery); id null = the show closed: the gallery as shown.
+   */
+  const cinemaHref = (id: string | null, interval: number) => {
+    const p = cinemaToParams(id ? filtersToParams(state) : stateToParams(state), { id, interval }, cinemaConf);
+    return p.size ? `?${p}` : location.pathname;
+  };
+  const viewButtons = [...document.querySelectorAll<HTMLButtonElement>('#view button[data-view]')];
+  const sizeStorage = (view: string) => stored(pageSizeStorageKey(view));
+  // The view and tile size as the inline script after the grid showed them (viewOf: a link decides, then the memory).
+  const tileStorage = stored(TILE_SIZE_STORAGE_KEY);
+  const setup = grid.viewSetup ?? JSON.parse(grid.dataset.view!);
+  const shown = grid.viewState ?? viewOf(location.search, viewStorage.get(), tileStorage.get(), setup);
+  const view = shown.view;
+  let pageSizes = viewPageSizes(view, sizes);
+  let state = { ...stateFromParams(params, pageSizes), view };
+  state.tile = shown.tile;
+  const tileSteps = [...document.querySelectorAll<HTMLButtonElement>('#tile-size button[data-tile-step]')];
+  if (perPageSelect) state.perPage = rememberedPageSize(params, sizeStorage(view).get(), pageSizes) ?? state.perPage;
+  /** The options of "Na stránku": the page sizes of the current view. */
+  function fillPageSizes() {
+    if (!perPageSelect) return;
+    perPageSelect.replaceChildren(...pageSizes.map((n) => new Option(String(n), String(n))));
+  }
+  fillPageSizes();
+  for (const k of ['year', 'collection'] as const) if (!select(k)) state[k] = '';
+  // A year or status option not offered here (nothing behind it, e.g. an old link) is off, like a missing filter.
+  for (const k of ['year', 'status', 'color'] as const) {
+    const s = select(k);
+    if (!s || ![...s.options].some((o) => o.value === state[k])) state[k] = '';
+  }
+  if (!featuredBox) state.featured = '';
+  if (!searchInput) state.q = '';
+  // A tag without a chip here (no work of this page has it, e.g. an old link) is off.
+  state.tag = state.tag.filter((t) => tagNames.includes(t));
+
+
+  const href = (page: number | typeof ALL_PAGES) => {
+    const p = stateToParams({ ...state, page });
+    return p.size ? `?${p}` : location.pathname;
+  };
+
+  /** Shows the works of the current state and writes it to the URL; returns how many works match. */
+  function apply() {
+    const matching = cards.filter((_, i) => matchesFilters(works[i], state));
+    matchingIds = matching.map((c) => c.dataset.id!);
+    renderMine();
+    renderFavoritesFilter();
+    const { page, pages, start, end } = paginate(matching.length, state.page, pageSizeOf(state, pageSizes));
+    state.page = page;
+    showViewOf(grid, setup, state);
+    const visible = new Set(matching.slice(start, end));
+    for (const c of cards) c.hidden = !visible.has(c);
+    // The shown cards in columns of about the same height.
+    balanceGrid(grid, setup.columns);
+    const shown = matching.length;
+    // The visitor can switch paging off for this visit ("Zobrazit vše", ?page=all) and back on.
+    renderPager(pager, page, pages, matching.length, href);
+    chips[0].setAttribute('aria-pressed', String(state.tag.length === 0));
+    const choices = tagChoices(tagNames, matching.map(tagsOf), state.tag);
+    // A chip that would not narrow the shown works stays, greyed and disabled (every shown work has it, or none).
+    tagChips.forEach((b, i) => {
+      const { count, picked, offered } = choices[i];
+      b.disabled = !offered;
+      b.title = offered ? '' : count ? 'Mají ho všechna zobrazená díla' : 'Nemá ho žádné zobrazené dílo';
+      b.setAttribute('aria-pressed', String(picked));
+      // A picked chip shows no count: all the shown works have it.
+      b.querySelector('small')!.textContent = picked ? '' : String(count);
+    });
+    // No chips only when the works of this page have no tags at all.
+    // no tags on this page: no "Vše" chip either, the count and „Promítat“ stay in the row
+    chips[0].hidden = tagChips.length === 0;
+    for (const k of selects) {
+      const [all, ...options] = allOptions[k];
+      const choices = facetChoices(works, state, k, options.map((o) => o.value));
+      options.forEach((o, i) => { o.textContent = `${o.dataset.label} (${choices[i].count})`; });
+      // No option narrows the shown works: the filter stays greyed and disabled, showing the value they all share.
+      const { off, common } = facetDisplay(choices);
+      const s = select(k)!;
+      if (off) s.replaceChildren(common >= 0 ? options[common] : all);
+      else s.replaceChildren(all, ...options.filter((_, i) => choices[i].offered));
+      s.value = off ? (common >= 0 ? options[common].value : '') : state[k];
+      s.disabled = off;
+      const label = s.closest('label')!;
+      label.classList.toggle('off', off);
+      label.title = off ? 'Všechna zobrazená díla mají stejnou hodnotu, není z čeho vybírat' : '';
+    }
+    // the swatch of the picked colour (its shade from site.config.yaml, data-color of the option); none with "vše"
+    if (colourSwatch) {
+      const picked = allOptions.color?.find((o) => o.value && o.value === select('color')!.value);
+      if (picked) colourSwatch.style.setProperty('--swatch', picked.dataset.color!);
+      colourSwatch.classList.toggle('picked', Boolean(picked));
+    }
+    if (featuredBox) {
+      featuredBox.checked = state.featured === FEATURED_ON;
+      const [choice] = facetChoices(works, state, 'featured', [FEATURED_ON]);
+      featuredCount!.textContent = String(choice.count);
+      // Greyed and disabled while it changes nothing: all shown works are in the selection, or none.
+      const { off } = facetDisplay([choice]);
+      const label = featuredBox.closest('label')!;
+      featuredBox.disabled = off;
+      label.classList.toggle('off', off);
+      label.title = !off ? FEATURED_TITLE : choice.count ? 'Všechna zobrazená díla jsou doporučená' : 'Žádné zobrazené dílo není doporučené';
+    }
+    // The field keeps what the visitor types; only a change from elsewhere (the "×" in the bar) rewrites it.
+    if (searchInput && normalizeQuery(searchInput.value) !== state.q) searchInput.value = state.q;
+    if (perPageSelect) perPageSelect.value = String(pageSizeOf(state, pageSizes));
+    // The page size matters only when the shown works do not fit the smallest page of the view.
+    if (perPageLabel) perPageLabel.hidden = matching.length <= pageSizes[0];
+    // "12 z 58 děl" while a filter is on, and "Zrušit filtry" (panel, open panel, bar with two filters or more)
+    const active = activeFilters(state, optionLabel).length;
+    countEl.textContent = filteredCount(shown, cards.length, active > 0);
+    for (const b of resets) b.hidden = b.classList.contains('bar-reset') ? active < 2 : active === 0;
+    renderBar(shown);
+    // "▶ Promítat" only with something to show
+    for (const b of playButtons) {
+      b.hidden = shown === 0;
+      b.href = cinemaHref(CINEMA_RANDOM, cinemaInterval());
+    }
+    collectionCombo?.sync();
+    emptyEl.hidden = shown > 0;
+    emptyEl.textContent = state.favorites && !favorites().length ? NO_FAVORITES_TEXT : emptyText;
+    const p = stateToParams(state);
+    history.replaceState(null, '', p.size ? `?${p}` : location.pathname);
+    // Links back here (← Tvorba, the year, the collection on a work page) return to these filters and this page.
+    rememberListing(p);
+    return matching.length;
+  }
+
+  // The thin filter bar: once the form is scrolled away, scrolling up slides in a line with the active filters as
+  // chips, each with "×" to turn it off, the number of works and "Upravit", which opens this same form as a panel
+  // (below the bar, on a phone from the bottom); scrolling down slides the bar away (scrollBar). A change in the open
+  // panel or a "×" jumps to the start of the results, right below the bar, which stays.
+  const bar = document.getElementById('filter-bar')!;
+  const slot = document.getElementById('filters-slot')!;
+  const barChips = document.getElementById('bar-chips')!;
+  const barCount = document.getElementById('bar-count')!;
+  const toggle = document.getElementById('filter-toggle') as HTMLButtonElement;
+  const done = document.getElementById('filters-done') as HTMLButtonElement;
+  // The text of a picked option in the bar: its data-chip when the option alone would be unclear ("mimo kolekce").
+  function optionLabel(key: string, value: string) {
+    const option = allOptions[key]?.find((o) => o.value === value);
+    return option?.dataset.chip ?? option?.dataset.label ?? value;
+  }
+  function renderBar(count: number) {
+    const items = activeFilters(state, optionLabel);
+    barChips.replaceChildren(...(items.length ? items.map(({ key, value, text }) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'bar-chip';
+      b.dataset.key = key;
+      b.dataset.value = value;
+      b.setAttribute('aria-label', `Zrušit filtr ${text}`);
+      b.append(text, Object.assign(document.createElement('span'), { textContent: '×', ariaHidden: 'true' }));
+      return b;
+    }) : [Object.assign(document.createElement('span'), { className: 'bar-all', textContent: 'Všechna díla' })]));
+    barCount.textContent = worksCount(count);
+  }
+  let barState = BAR_START;
+  let panelOpen = false;
+  // A scroll the page makes itself never slides the bar in: the pager hides it, a jump to the results keeps it.
+  let quietUntil = 0;
+  let quietKeeps = false;
+  const quiet = (keep: boolean) => { quietUntil = performance.now() + 900; quietKeeps = keep; };
+  // The form counts as on screen only below the bar (when shown), so the results right under the bar keep it.
+  const formOnScreen = () => slot.getBoundingClientRect().bottom > (bar.classList.contains('shown') ? bar.offsetHeight : 0);
+  const showBar = (on: boolean) => { bar.classList.toggle('shown', on); bar.inert = !on; };
+  function onScroll() {
+    if (panelOpen) return;
+    const y = Math.min(Math.max(0, scrollY), document.documentElement.scrollHeight - innerHeight);
+    if (performance.now() < quietUntil) barState = { ...BAR_START, y, turn: y, visible: quietKeeps && !formOnScreen() };
+    else barState = scrollBar(barState, y, formOnScreen());
+    // Keyboard focus in the bar keeps it, unless the form itself is back on screen.
+    showBar(barState.visible || (bar.classList.contains('shown') && bar.contains(document.activeElement) && !formOnScreen()));
+  }
+  let ticking = false;
+  addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { ticking = false; onScroll(); });
+  }, { passive: true });
+  function openPanel() {
+    panelOpen = true;
+    slot.style.minHeight = `${slot.offsetHeight}px`; // the page keeps its place while the form floats
+    form.style.setProperty('--bar-h', `${bar.offsetHeight}px`);
+    form.classList.add('floating');
+    toggle.setAttribute('aria-expanded', 'true');
+    toggle.textContent = 'Zavřít';
+    form.querySelector<HTMLElement>('button:not([hidden]), select')?.focus({ preventScroll: true });
+  }
+  function closePanel(focusToggle: boolean) {
+    if (!panelOpen) return;
+    panelOpen = false;
+    form.classList.remove('floating');
+    slot.style.minHeight = '';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.textContent = 'Upravit';
+    barState = { ...barState, visible: !formOnScreen(), y: scrollY, turn: scrollY };
+    showBar(barState.visible);
+    // Keyboard focus back to the bar, or into the form when that is on screen again (the bar then hides).
+    if (focusToggle) (barState.visible ? toggle : form.querySelector<HTMLElement>('button:not([hidden]), select'))?.focus({ preventScroll: true });
+  }
+  toggle.addEventListener('click', () => (panelOpen ? closePanel(true) : openPanel()));
+  done.addEventListener('click', () => closePanel(true));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panelOpen) closePanel(true); });
+  document.addEventListener('pointerdown', (e) => {
+    if (panelOpen && !form.contains(e.target as Node) && !bar.contains(e.target as Node)) closePanel(false);
+  });
+  /** After a change in the open panel (or any, `always`): to the start of the results, right below the bar. */
+  function toResults(always = false) {
+    if (!panelOpen && !always) return;
+    quiet(true);
+    scrollTo({ top: grid.getBoundingClientRect().top + scrollY - bar.offsetHeight - 16 });
+  }
+
+  // "×" on a chip of the bar: that filter off; the keyboard focus moves to the next chip, or to "Upravit".
+  barChips.addEventListener('click', (e) => {
+    const chip = (e.target as HTMLElement).closest<HTMLButtonElement>('.bar-chip');
+    if (!chip) return;
+    const at = [...barChips.children].indexOf(chip);
+    state = withoutFilter(state, { key: chip.dataset.key!, value: chip.dataset.value! });
+    trackFilter(apply());
+    toResults(true);
+    const next = barChips.querySelectorAll<HTMLButtonElement>('.bar-chip')[at] ?? barChips.querySelector<HTMLButtonElement>('.bar-chip:last-of-type') ?? toggle;
+    next.focus({ preventScroll: true });
+  });
+
+  // "Zrušit filtry" / "Zrušit vše": every filter off at once (the year or collection of its own page stays, it is
+  // the address); from the bar the focus moves to "Upravit", the button itself is gone.
+  for (const b of resets) {
+    b.addEventListener('click', () => {
+      state = withoutFilters(state);
+      trackFilter(apply());
+      if (b.classList.contains('bar-reset')) {
+        toResults(true);
+        toggle.focus({ preventScroll: true });
+      } else toResults();
+    });
+  }
+
+  // Statistics: every filter change (not paging, not the page size) with the active filters and the result count.
+  const trackFilter = (results: number) => trackEvent(EVENTS.filter, filterEventParams(state, results));
+
+  // A new filter starts again on the first page.
+  chips.forEach((b) => b.addEventListener('click', () => { state.tag = b.dataset.value ? toggleTag(state.tag, b.dataset.value) : []; state.page = pageAfterFilterChange(state.page); trackFilter(apply()); toResults(); }));
+  form.addEventListener('change', () => {
+    // Greyed (disabled) filters only show the value all works share: never read as a choice (stateFromForm).
+    state = stateFromForm(state, [
+      ...selects.map((k) => ({ key: k, value: select(k)!.value, off: select(k)!.disabled })),
+      ...(featuredBox ? [{ key: 'featured', value: featuredBox.checked ? FEATURED_ON : '', off: featuredBox.disabled }] : []),
+      { key: 'favorites', value: favoritesBox.checked ? FAVORITES_ON : '', off: false },
+    ]);
+    state.page = pageAfterFilterChange(state.page);
+    trackFilter(apply());
+    toResults();
+  });
+  // The search filters as the visitor types (back to page 1, no jump: the field stays where it is); statistics only
+  // once the query is done (Enter, leaving the field), not for every letter.
+  searchInput?.addEventListener('input', () => {
+    state.q = normalizeQuery(searchInput.value);
+    state.page = pageAfterFilterChange(state.page);
+    apply();
+    syncSearchHint();
+  });
+  searchInput?.addEventListener('focus', syncSearchHint);
+  searchInput?.addEventListener('blur', syncSearchHint);
+  // Enter on the exact id of a shown work (from the Instagram post or the pin) opens its page; the gallery stays in
+  // the history with the query (?q=<id>), so Back returns to it. Never while typing, never for a part of an id.
+  searchInput?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    const id = exactId(searchInput.value, cardIds);
+    const card = id ? (cards.find((c) => c.dataset.id === id) as HTMLAnchorElement | undefined) : undefined;
+    if (!card) return;
+    e.preventDefault();
+    location.assign(card.href);
+  });
+  searchInput?.addEventListener('change', () => trackFilter(cards.filter((_, i) => matchesFilters(works[i], state)).length));
+  // Picking a page size (under the grid) starts again on page 1 with paging on, from the top of the works.
+  perPageSelect?.addEventListener('change', () => {
+    state = withPageSize(state, Number(perPageSelect.value), pageSizes);
+    sizeStorage(state.view).set(pageSizeToRemember(Number(perPageSelect.value), pageSizes));
+    apply();
+    quiet(false);
+    slot.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  // Switching the view keeps the filters; the page size becomes that of the view (remembered or its default) and the
+  // page the one with the first work shown so far (withView).
+  for (const b of viewButtons) {
+    b.addEventListener('click', () => {
+      const next = b.dataset.view ?? DEFAULT_VIEW;
+      if (next === state.view) return;
+      state = withView(state, next, sizes, sizeStorage(next).get());
+      pageSizes = viewPageSizes(state.view, sizes);
+      fillPageSizes();
+      viewStorage.set(viewToRemember(state.view));
+      apply();
+      trackEvent(EVENTS.view, viewEventParams('gallery', state));
+      quiet(false);
+    });
+  }
+  // Smaller or larger tiles: only the width of the columns changes, the works and the page stay.
+  for (const b of tileSteps) {
+    b.addEventListener('click', () => {
+      state.tile = stepTileSize(state.tile, Number(b.dataset.tileStep));
+      tileStorage.set(tileSizeToRemember(state.tile));
+      apply();
+      trackEvent(EVENTS.view, viewEventParams('gallery', state));
+      quiet(false);
+    });
+  }
+  pager.addEventListener('click', (e) => {
+    const page = pagerTarget(e);
+    if (page === null) return; // let "open in new tab" work
+    e.preventDefault();
+    state.page = page;
+    apply();
+    quiet(false);
+    slot.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  apply();
+  // Another width: other columns, laid out again; the titles under big pictures may wrap differently once the web
+  // fonts are in.
+  let gridWidth = grid.clientWidth;
+  let relayout = false;
+  addEventListener('resize', () => {
+    if (relayout) return;
+    relayout = true;
+    requestAnimationFrame(() => {
+      relayout = false;
+      if (grid.clientWidth === gridWidth) return;
+      gridWidth = grid.clientWidth;
+      balanceGrid(grid, setup.columns);
+    });
+  });
+  document.fonts?.ready.then(() => { if (state.view === 'grid') balanceGrid(grid, setup.columns); });
+
+  // Back from a work page (← Tvorba, its year or collection): to the card of that work, when on the shown page.
+  revealReturned(cards, 'id');
+
+  // The cinema ("▶ Promítat", src/lib/cinema.ts): every work of the current filters (not only this page) over the whole
+  // screen. The address keeps it with the filters (?…&cinema=<id>&interval=45, the default interval left out), so the
+  // show can be sent as a link and opens on that work; opening by the button adds a history entry (Back closes it),
+  // the page of a work or a collection reached from it leaves the address as it is (Back returns to the show).
+  const listing = grid.dataset.listing!;
+  // history entries added by opening the cinema carry this mark: closing it goes back instead of adding another
+  const CINEMA_OPENED = 'site-cinema';
+  const cinemaWorks = (): CinemaWork[] => cards.filter((_, i) => matchesFilters(works[i], state))
+    .map((c) => ({ id: c.dataset.id!, collection: c.dataset.collection!, ...JSON.parse(c.dataset.cinema!) }));
+  const cinema = createCinema(cinemaRoot, cinemaConf, JSON.parse(cinemaRoot.dataset.collections!), {
+    shown: (id, interval) => history.replaceState(history.state, '', cinemaHref(id, interval)),
+    closed: (reason, run, leaving) => {
+      trackEvent(EVENTS.cinemaClose, cinemaCloseParams({ listing, reason, ...run }));
+      // to a work, a collection or "Můj výběr": the address stays (Back returns to the show)
+      if (leaving) return;
+      const opened = reason !== 'back' && history.state?.[CINEMA_OPENED];
+      if (favoritesChangedInShow) { favoritesChangedInShow = false; apply(); }
+      // Back itself has moved already
+      if (reason === 'back') return;
+      if (opened) history.back();
+      else history.replaceState(history.state, '', cinemaHref(null, 0));
+    },
+    shared: (method) => trackEvent(EVENTS.share, { method, source: 'cinema', work_id: cinema.current ?? '' }),
+    // "Seznam": a show of the own favourites = its works as "Můj výběr" (to send on); any other (or favourites too many
+    // for that link) = this listing with its filters, the show closes
+    list: (ids) => {
+      const selection = state.favorites !== FAVORITES_ON ? null : showSelectionLink(ids, favorites(), {
+        page: grid.dataset.selection!, param: SELECTION_PARAM, max: FAVORITES_LINK_MAX, onlyFavorites: [...filtersToParams(state).keys()].every((k) => k === 'favorites'),
+      });
+      return selection
+        ? { href: selection, title: SELECTION_LIST_TITLE }
+        : { href: new URL(cinemaHref(null, 0), location.href).href, title: LISTING_LIST_TITLE };
+    },
+  });
+  // `tracked`: the method of cinema_open when another than `method` (a link of the site, cinemaLinkMethod)
+  function openCinema(firstId: string | null, interval: number, method: 'button' | 'link', tracked: string = method) {
+    const list = cinemaWorks();
+    if (!cinema.open(list, cinemaFirst(firstId), interval, method)) return false;
+    trackEvent(EVENTS.cinema, cinemaOpenParams({ listing, results: list.length, interval, method: tracked }));
+    return true;
+  }
+  for (const b of playButtons) {
+    b.addEventListener('click', (e) => {
+      // with a modifier key the browser opens the link elsewhere (a new tab), where it starts the show itself
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const interval = cinemaInterval();
+      if (!openCinema(null, interval, 'button')) return;
+      history.pushState({ ...history.state, [CINEMA_OPENED]: true }, '', cinemaHref(cinema.current, interval));
+    });
+  }
+  // Back / Forward: the show follows the address
+  addEventListener('popstate', () => {
+    const wanted = cinemaFromParams(new URLSearchParams(location.search), cinemaConf, intervalStorage.get());
+    if (!wanted.id && cinema.isOpen) cinema.close('back');
+    else if (wanted.id && !cinema.isOpen) openCinema(wanted.id, wanted.interval, 'link');
+  });
+  // A link with the show (apply() above has written the address without it): open it on its work; a work not among
+  // these (filtered out, gone) starts anywhere, no works = no show. A link of the site names itself by ?from= (counted
+  // apart in cinema_open; the address written above is without it).
+  const linked = cinemaFromParams(params, cinemaConf, intervalStorage.get());
+  if (linked.id && openCinema(linked.id, linked.interval, 'link', cinemaLinkMethod(params.get(CINEMA_FROM)))) history.replaceState(history.state, '', cinemaHref(cinema.current, linked.interval));
+</script>
+
+<style>
+  .years { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: -8px 0 28px; font-family: var(--serif); font-size: 1.25rem; }
+  .years a { flex: none; text-decoration: none; color: var(--ink-soft); }
+  .years a[aria-current='page'] { color: var(--ink); border-bottom: 1px solid var(--ink); }
+  .years.one-line { flex-wrap: nowrap; overflow: hidden; }
+  .years [hidden] { display: none; }
+  /* Made by the script (src/lib/year-row.ts), so :global. */
+  .years :global(.year-more) {
+    font: inherit; color: var(--ink-soft); background: transparent; border: 0; padding: 0; cursor: pointer; white-space: nowrap;
+  }
+  .years :global(.year-more:hover) { color: var(--ink); }
+  /* Unfolded: "▴ méně" in the small sans text, the arrow in the accent colour, unlike the serif years. */
+  /* The arrow keeps the serif size of the years in both states ("▾" turned upside down when unfolded). */
+  .years :global(.year-more .arrow) { color: var(--accent); display: inline-block; font-family: var(--serif); font-size: 1.25rem; line-height: 1; }
+  .years :global(.year-more.open) { font-family: var(--sans); font-size: 0.9rem; align-self: center; }
+  .years :global(.year-more.open .arrow) { transform: rotate(180deg); margin-right: 4px; }
+  .filter-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 30; background: var(--paper);
+    border-bottom: 1px solid var(--line); box-shadow: var(--shadow-soft);
+    transform: translateY(-110%); visibility: hidden; transition: transform .25s ease, visibility 0s linear .25s;
+  }
+  .filter-bar.shown { transform: none; visibility: visible; transition: transform .25s ease; }
+  .filter-bar-inner {
+    max-width: var(--max); margin: 0 auto; padding: 8px var(--gutter);
+    display: flex; gap: 12px; align-items: center; font-size: 0.9rem;
+  }
+  .filter-bar .eyebrow { flex: none; }
+  /* The chips stay on one line: more than fit scroll sideways, the bar never grows. The chips are made by the
+     script, so their rules are :global (scoped ones would not reach them). */
+  .bar-chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  .bar-chips::-webkit-scrollbar { display: none; }
+  .bar-chips :global(.bar-chip) {
+    flex: none; font: inherit; font-size: 0.82rem; color: var(--paper); background: var(--ink); cursor: pointer;
+    border: 1px solid var(--ink); border-radius: 99px; padding: 3px 10px; white-space: nowrap;
+  }
+  .bar-chips :global(.bar-chip span) { margin-left: 6px; opacity: .7; }
+  .bar-chips :global(.bar-chip:hover span) { opacity: 1; }
+  .bar-chips :global(.bar-all) { white-space: nowrap; }
+  .bar-count { flex: none; color: var(--ink-soft); white-space: nowrap; }
+  .bar-reset, .reset-link {
+    flex: none; font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap;
+  }
+  .bar-reset:hover, .reset-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .bar-reset[hidden], .reset-link[hidden], .filters-reset[hidden] { display: none; }
+  /* The count, "× Zrušit filtry" while a filter is on and „Promítat“: one block after the tag chips, always at the right
+     edge (on the line of the last chips when it fits whole there, otherwise on a line of its own), a little lower than
+     the chips, so it reads as a block of its own and not as one more chip. */
+  .count-group {
+    margin-left: auto; padding-left: 16px; align-self: flex-end; margin-top: 12px;
+    display: flex; gap: 12px; align-items: center; white-space: nowrap; font-size: 0.9rem;
+  }
+  .reset-link { font-size: 0.9rem; }
+  /* "♥ Moje oblíbené (N)" before the count: a link to "Můj výběr"; too many for a link = grey with a dashed border and a tooltip */
+  .mine-link {
+    flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--ink); text-decoration: none;
+    border: 1px solid var(--line); border-radius: 99px; padding: 3px 12px 3px 10px; white-space: nowrap;
+  }
+  .mine-link svg { width: 14px; height: 14px; fill: var(--heart); stroke: var(--heart); stroke-width: 2; stroke-linejoin: round; }
+  .mine-link:hover { border-color: var(--ink); }
+  .mine-link.off { color: var(--ink-soft); border-style: dashed; cursor: help; }
+  .mine-link.off:hover { border-color: var(--line); }
+  .mine-link[hidden] { display: none; }
+  .mine-filter { display: inline-flex; align-items: center; margin-right: -6px; cursor: pointer; }
+  .mine-filter[hidden] { display: none; }
+  /* "▶ Promítat": the works of the filters over the whole screen (Cinema.astro); in the bar only "▶". */
+  .play-link, .bar-play {
+    flex: none; font: inherit; font-size: 0.9rem; color: var(--ink); background: transparent; cursor: pointer; text-decoration: none;
+    border: 1px solid var(--line); border-radius: 99px; padding: 3px 12px; white-space: nowrap;
+  }
+  .play-link:hover, .bar-play:hover { border-color: var(--ink); }
+  .play-link span { font-size: 0.8em; margin-right: 2px; }
+  .bar-play { padding: 3px 10px; font-size: 0.8rem; }
+  .play-link[hidden], .bar-play[hidden] { display: none; }
+  .filter-toggle, .filters-done {
+    flex: none; font: inherit; font-size: 0.88rem; color: var(--ink); background: transparent; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 99px; padding: 5px 14px;
+  }
+  /* "Zrušit filtry" and "Hotovo" under the open panel only (in place, the link after the count does it). */
+  .filters-actions { display: none; align-self: flex-end; gap: 10px; }
+  .filters-reset {
+    flex: none; font: inherit; font-size: 0.88rem; color: var(--ink-soft); background: transparent; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 99px; padding: 5px 14px;
+  }
+  .filters.floating {
+    position: fixed; z-index: 29; top: var(--bar-h); left: 0; right: 0; margin: 0 auto; max-width: var(--max);
+    max-height: calc(100vh - var(--bar-h) - 24px); overflow: auto; background: var(--paper);
+    padding: 20px var(--gutter); border-bottom: 1px solid var(--line); box-shadow: var(--shadow-deep);
+  }
+  .filters.floating .filters-actions { display: flex; }
+  .filters.floating .reset-link { display: none; }
+  /* On a phone the open filters come from the bottom, within reach of the thumb, above "Napište mi". */
+  @media (max-width: 700px) {
+    .filters.floating { top: auto; bottom: 0; z-index: 45; max-height: 75vh; border-radius: 12px 12px 0 0; border-top: 1px solid var(--line); }    /* a phone: with "♥ Moje oblíbené" the block may wrap, the count and „Promítat“ stay together at the right edge */
+    .count-group { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .filter-bar, .filter-bar.shown { transition: none; } }
+  /* less room above and under the line between the filters and the works */
+  .filters { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  /* The tag chips: compact (the same type as the selects, less air), the count group right after the last one. */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chips > button {
+    font: inherit; font-size: 0.88rem; line-height: 1.3; color: var(--ink); background: transparent; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 99px; padding: 2px 10px;
+  }
+  .chips[hidden], .chips button[hidden] { display: none; }
+  /* A chip or a filter that would change nothing now: greyed and disabled, but in place (facetDisplay). */
+  .chips > button:disabled { opacity: .4; cursor: default; }
+  .selects label.off { opacity: .45; }
+  .selects label.off select, .selects label.off input { cursor: default; }
+  .chips > button small:empty { display: none; }
+  .chips > button small { color: var(--ink-soft); margin-left: 2px; }
+  .chips > button[aria-pressed='true'] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .chips > button[aria-pressed='true'] small { color: inherit; opacity: .7; }
+  .selects { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; font-size: 0.9rem; }
+  .selects label { display: flex; gap: 6px; align-items: center; color: var(--ink-soft); }
+  .selects select { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); padding: 4px 8px; border-radius: 2px; }
+  /* Closed, a select is at most this wide and cuts a long option ("…"); opened, the list shows every option whole.
+     So the filters stay on one line on a computer whatever the names (SELECT_CHARS in scripts/lib/advice.mjs). */
+  .selects select { max-width: 11em; text-overflow: ellipsis; }
+  .selects select[name='collection'] { max-width: 13em; }
+  /* „Barva“: a ring before the select, empty for "vše", filled with the picked colour (--swatch set by the script from
+     the option, a shade of site.config.yaml gallery.colors) */
+  .with-swatch { gap: 6px; }
+  .swatch { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-soft); flex: none; }
+  .swatch.picked { background: var(--swatch); box-shadow: 0 0 0 1px var(--line); }
+  .selects select[name='color'] { max-width: 9em; }
+  /* The collection combobox (src/lib/combobox.ts, made by the script, so :global): looks like the selects, as wide as
+     the collection select was; the list under it is as wide as its longest name needs and shows every name whole. */
+  .selects :global(.combo) { position: relative; display: inline-flex; }
+  .selects :global(.combo-input) {
+    font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 2px;
+    padding: 4px 22px 4px 8px; width: 13em; text-overflow: ellipsis;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%), linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+    background-position: calc(100% - 12px) 55%, calc(100% - 8px) 55%; background-size: 4px 4px; background-repeat: no-repeat;
+  }
+  /* The hint "vše" of an emptied field: lighter, so it is not mistaken for typed text (Enter picks it). */
+  .selects :global(.combo-input::placeholder) { color: var(--ink-soft); opacity: 1; }
+  .selects :global(.combo-input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .selects :global(.combo-input:disabled) { cursor: default; }
+  .selects :global(.combo-list) {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 50; margin: 0; padding: 4px 0; list-style: none;
+    min-width: 100%; width: max-content; max-width: min(28rem, 90vw); max-height: 18rem; overflow-y: auto;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 2px; box-shadow: var(--shadow-soft);
+  }
+  .selects :global(.combo-list[hidden]) { display: none; }
+  .selects :global(.combo-list li) { padding: 5px 12px; color: var(--ink); cursor: pointer; }
+  /* The option the arrows are on: clearly marked (shade and an accent bar), the typed text stays as it is. */
+  .selects :global(.combo-list li:hover) { background: var(--paper-2); }
+  .selects :global(.combo-list li.active) { background: var(--paper-2); box-shadow: inset 3px 0 0 var(--accent); }
+  .selects :global(.combo-list li[aria-selected='true']) { font-weight: 500; }
+  .selects label[hidden] { display: none; }
+  .selects .switch { color: var(--ink); cursor: pointer; }
+  /* „Kolekce“: the way to the overview of collections, in the type of the headings (as „Tvorba“ and „Kolekce“ over
+     their pages), bigger than the years */
+  .years .to-collections { margin-left: auto; font-family: var(--serif); font-size: 1.6rem; line-height: 1; color: var(--ink); align-self: center; }
+</style>

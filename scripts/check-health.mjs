@@ -1,0 +1,211 @@
+#!/usr/bin/env node
+// Health check of the content automation, run weekly by a workflow of the content repository.
+// Env: TOKEN (the PAVLA_TOKEN secret), RUNS_TOKEN + REPO (token with actions:read on the content repository and its
+// name, e.g. github.token and github.repository), CONTENT_DIR (a checkout of the content repository, optional),
+// CHECK_TOKEN (optional: a read-only fine-grained token of the owner for both repositories, account permission
+// Plan and repository permissions Actions, Administration, Environments, Pages, Secrets, Variables, Webhooks: the minutes of
+// Actions and the monthly comparison of the settings),
+// SETTINGS_DIR (the stored exports of the settings, <repo name>.json), `--settings` compares them on any day.
+// The images and the page texts of the deployed site are checked at site.url of site.config.yaml (`--site-url <url>` overrides it,
+// e.g. a locally served build). `--demo-url <url>`: the same checks of the deployed test site (the demo of the engine on
+// GitHub Pages), its messages start with DEMO_LABEL.
+// Exit code 1 when something needs attention; the report goes to stdout, the run page and the step output.
+
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { collectSettings, compareSnapshots, settingsSnapshot } from './lib/repo-settings.mjs';
+import { findUnknownAttributes, findUnknownTechniques, findUntranslatedTags } from './lib/content.mjs';
+import { checkSiteImages, evaluateSiteImages } from './lib/site-check.mjs';
+import { evaluatePageTexts } from './lib/page-check.mjs';
+import { evaluateInlineScripts } from './lib/inline-targets.mjs';
+import { readSiteConfig, siteDirectory } from './lib/site-dir.mjs';
+import { siteAddress } from './lib/site-url.mjs';
+import {
+  DEMO_LABEL, DRY_RUNS, evaluateCheckToken, evaluateDeploy, evaluateGameAnalyses, evaluateGamePlan, evaluateMinutes, evaluatePullRequest, evaluateRuns, evaluateSettings, evaluateSizes, evaluateToken, evaluateUnknownAttributes, evaluateUnknownTechniques, evaluateUntranslatedTags, formatReport, httpFailure, labelledCheck,
+} from './lib/health.mjs';
+
+const config = readSiteConfig(siteDirectory());
+// The repository of the site (site.repository of site.config.yaml), e.g. "shamoh/pavla".
+const SITE_REPO = config.site.repository;
+if (!SITE_REPO) throw new Error('site.config.yaml: site.repository (owner/name of the repository of the site) is missing');
+const PR_BRANCH = 'obsah/aktualizace';
+
+// The repository of the site is public: its data is read without a token, so these checks do not depend on PAVLA_TOKEN.
+const api = (path, token) => fetch(`https://api.github.com${path}`, {
+  headers: { ...(token && { Authorization: `Bearer ${token}` }), Accept: 'application/vnd.github+json', 'User-Agent': 'site-health-check' },
+});
+/** The failure of an answer, with its reason and the permission a refused token lacks. */
+const failure = async (res) => new Error(httpFailure(res.status, await res.text(), res.headers.get('x-accepted-github-permissions')));
+const json = async (path, token) => {
+  const res = await api(path, token);
+  if (!res.ok) throw await failure(res);
+  return res.json();
+};
+/** A GraphQL query: its `data`; a failure of the request or of the query throws. */
+const graphql = async (query, token) => {
+  const res = await fetch('https://api.github.com/graphql', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'site-health-check' },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw await failure(res);
+  const body = await res.json();
+  if (body.errors?.length) throw new Error(`GraphQL: ${body.errors[0].message}`);
+  return body.data;
+};
+/** Runs a check; an API failure becomes a failed check with the given Czech label. */
+const guarded = async (label, fn) => {
+  try {
+    return await fn();
+  } catch (e) {
+    return { ok: false, message: `Nepodařilo se načíst ${label} (${e.message}). [nacteni-selhalo]` };
+  }
+};
+
+const args = process.argv.slice(2);
+const arg = (name, fallback) => (args.includes(name) ? Number(args[args.indexOf(name) + 1]) : fallback);
+const textArg = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+
+let token;
+if (!process.env.TOKEN) token = evaluateToken({ status: 0, siteRepo: SITE_REPO });
+else {
+  const res = await api(`/repos/${SITE_REPO}`, process.env.TOKEN);
+  token = evaluateToken({ status: res.status, expiration: res.headers.get('github-authentication-token-expiration'), warnDays: arg('--days', 14), siteRepo: SITE_REPO });
+}
+
+const runs = await guarded('běhy „Zpracování obsahu“', async () => {
+  const data = await json(`/repos/${process.env.REPO}/actions/workflows/publish.yml/runs?branch=main&per_page=30`, process.env.RUNS_TOKEN);
+  return evaluateRuns(data.workflow_runs, { days: arg('--run-days', 7) });
+});
+
+// The weekly dry run of the workflow on the test data runs in the public repository of the site (.github/workflows/dry-run.yml).
+const dryRun = await guarded('zkušební běhy zpracování', async () => {
+  const data = await json(`/repos/${SITE_REPO}/actions/workflows/dry-run.yml/runs?branch=main&per_page=30`);
+  return evaluateRuns(data.workflow_runs, { days: arg('--run-days', 7), workflow: DRY_RUNS });
+});
+
+const deploy = await guarded('stav nasazení webu', async () => {
+  const head = await json(`/repos/${SITE_REPO}/commits/main`);
+  const data = await json(`/repos/${SITE_REPO}/actions/workflows/deploy.yml/runs?branch=main&per_page=30`);
+  return evaluateDeploy({ sha: head.sha, date: head.commit.committer.date }, data.workflow_runs);
+});
+
+const pr = await guarded('pull requesty webu', async () => {
+  const owner = SITE_REPO.split('/')[0];
+  const pulls = await json(`/repos/${SITE_REPO}/pulls?state=open&head=${owner}:${encodeURIComponent(PR_BRANCH)}`);
+  return evaluatePullRequest(pulls, { days: arg('--pr-days', 1) });
+});
+
+const unknown = process.env.CONTENT_DIR
+  ? await guarded('popisy obrazů', async () => evaluateUnknownAttributes(await findUnknownAttributes(process.env.CONTENT_DIR)))
+  : evaluateUnknownAttributes(null);
+const techniques = process.env.CONTENT_DIR
+  ? await guarded('techniky obrazů', async () => evaluateUnknownTechniques(await findUnknownTechniques(process.env.CONTENT_DIR), { siteRepo: SITE_REPO }))
+  : evaluateUnknownTechniques(null);
+// every work, also those not on Instagram or Pinterest yet: the translation is there before it goes there
+const translations = process.env.CONTENT_DIR
+  ? await guarded('překlady štítků', async () => evaluateUntranslatedTags(await findUntranslatedTags(process.env.CONTENT_DIR, {
+    Instagram: config.instagramPost?.en, Pinterest: config.pinterestKeywords?.en,
+  }), { siteRepo: SITE_REPO }))
+  : evaluateUntranslatedTags(null);
+
+/** The checks of a deployed site at `siteUrl` (in this order in the report): images, page texts, inline scripts, plan of the game. */
+async function deployedSiteChecks(siteUrl) {
+  // Every image the pages of the deployed site refer to exists (a deploy without images, a pipeline that removed some).
+  let site = null;
+  const siteImages = await guarded('obrázky webu', async () => {
+    // a failed image is asked again twice, 3 s apart: one hiccup of GitHub Pages is no missing image
+    site = await checkSiteImages(siteUrl, fetch, { retries: 2, retryDelayMs: 3000 });
+    return evaluateSiteImages(site);
+  });
+  // The same pages have their own titles and descriptions and valid structured data (as npm run check:images checks
+  // a build); not checked when the site could not be read.
+  const pageTexts = evaluatePageTexts(site?.html ?? null);
+  // Their inline scripts find their elements and every data-view is valid JSON (as npm run check:images checks a build),
+  // on all pages read, also those with noindex.
+  const inlineScripts = evaluateInlineScripts(site?.html ?? null);
+  // The plan of the days of the game Detail dne reaches at least a week ahead (no game page = not checked).
+  const gamePlan = await guarded('plán hry Detail dne', async () => {
+    const res = await fetch(siteAddress(siteUrl, 'detail-dne/data.json'));
+    if (res.status === 404) return evaluateGamePlan(null);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return evaluateGamePlan(await res.json());
+  });
+
+  return [siteImages, pageTexts, inlineScripts, gamePlan];
+}
+const siteChecks = await deployedSiteChecks(textArg('--site-url') ?? config.site.url);
+// the deployed test site, once the engine has it on GitHub Pages (the workflow passes its address)
+const demoChecks = textArg('--demo-url') ? (await deployedSiteChecks(textArg('--demo-url'))).map((c) => labelledCheck(c, DEMO_LABEL)) : [];
+
+// The kept analyses of the pictures of the game (game/detail-dne/analysis/ on main of the public repository of the site, not in
+// the sparse checkout): their sizes from the tree of main.
+const gameAnalyses = await guarded('rozbory obrázků hry Detail dne', async () => {
+  const tree = await json(`/repos/${SITE_REPO}/git/trees/main?recursive=1`);
+  if (tree.truncated) return evaluateGameAnalyses(null);
+  return evaluateGameAnalyses(tree.tree.filter((e) => e.type === 'blob' && /^game\/detail-dne\/analysis\/[^/]+\.json$/.test(e.path)).map((e) => e.size), undefined, { siteRepo: SITE_REPO });
+});
+
+// Sizes against the limits of GitHub: `size` of a repository is in KiB (its whole history), the deployed site is its
+// last Pages artifact (packed, the images inside barely shrink). A size that cannot be read is only listed as such.
+const sizes = await guarded('velikosti rep a webu', async () => {
+  const repoBytes = async (repo, auth) => (await json(`/repos/${repo}`, auth).catch(() => null))?.size * 1024 || null;
+  const pagesBytes = async () => (await json(`/repos/${SITE_REPO}/actions/artifacts?name=github-pages&per_page=1`)
+    .catch(() => null))?.artifacts?.[0]?.size_in_bytes ?? null;
+  return evaluateSizes({
+    site: await repoBytes(SITE_REPO), content: process.env.REPO ? await repoBytes(process.env.REPO, process.env.RUNS_TOKEN) : null, pages: await pagesBytes(),
+  }, undefined, { siteRepo: SITE_REPO });
+});
+
+// Minutes of GitHub Actions of this month (the billing usage report of the owner's account): only private repositories
+// use the free minutes; a repository its public page does not show is private.
+const checkToken = process.env.CHECK_TOKEN;
+let checkTokenState = evaluateCheckToken({ status: 0 });
+if (checkToken) {
+  const res = await api(`/repos/${SITE_REPO}`, checkToken);
+  checkTokenState = evaluateCheckToken({ status: res.status, expiration: res.headers.get('github-authentication-token-expiration'), warnDays: arg('--days', 14), siteRepo: SITE_REPO });
+}
+const minutes = checkToken
+  ? await guarded('minuty GitHub Actions', async () => {
+    const owner = SITE_REPO.split('/')[0];
+    const now = new Date();
+    const data = await json(`/users/${owner}/settings/billing/usage?year=${now.getUTCFullYear()}&month=${now.getUTCMonth() + 1}`, checkToken);
+    const items = data.usageItems ?? [];
+    const names = [...new Set(items.map((i) => i.repositoryName).filter(Boolean))];
+    const hidden = new Set();
+    for (const name of names) if ((await api(`/repos/${owner}/${name}`)).status === 404) hidden.add(name);
+    return evaluateMinutes(items, (name) => hidden.has(name), { now });
+  })
+  : evaluateMinutes(null, () => false);
+
+// Monthly (the first Monday: the 1st to the 7th day; `--settings` any day): the settings of both repositories against
+// their stored exports (scripts/repo-settings.mjs --out …, SETTINGS_DIR/<repo name>.json).
+const monthly = args.includes('--settings') || new Date().getUTCDate() <= 7;
+const settings = !monthly ? evaluateSettings(null, { reason: 'jen první pondělí v měsíci' })
+  : !checkToken || !process.env.SETTINGS_DIR ? evaluateSettings(null, { reason: 'chybí secret CHECK_TOKEN nebo uložené exporty' })
+    : await guarded('nastavení rep', async () => {
+      // GET: the JSON, null for 404, {} for 204 (a feature switched on without a body)
+      const get = async (p) => {
+        const res = await api(p, checkToken);
+        if (res.status === 404) return null;
+        if (!res.ok) throw await failure(res);
+        return res.status === 204 ? {} : res.json();
+      };
+      const results = [];
+      for (const repo of [SITE_REPO, process.env.REPO].filter(Boolean)) {
+        const file = path.join(process.env.SETTINGS_DIR, `${repo.split('/')[1]}.json`);
+        const saved = await fs.readFile(file, 'utf8').then(JSON.parse, () => null);
+        const current = await collectSettings(repo, get, (query) => graphql(query, checkToken));
+        results.push(saved ? { repo, diffs: compareSnapshots(saved, settingsSnapshot(current), current.errors) } : { repo, noSnapshot: true });
+      }
+      return evaluateSettings(results, { siteRepo: SITE_REPO });
+    });
+
+const report = formatReport(token, checkTokenState, runs, dryRun, deploy, pr, unknown, techniques, translations, ...siteChecks, ...demoChecks, gameAnalyses, sizes, minutes, settings);
+console.log(report.text);
+if (process.env.GITHUB_STEP_SUMMARY) await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, report.text);
+// codes: "[token-vyprsi] [obrazky-chybi]" for the title of the issue (e-mails filtered by code)
+if (process.env.GITHUB_OUTPUT) {
+  await fs.appendFile(process.env.GITHUB_OUTPUT, `report<<EOF\n${report.text}EOF\ncodes=${report.codes.map((c) => `[${c}]`).join(' ')}\n`);
+}
+if (!report.ok) process.exitCode = 1;

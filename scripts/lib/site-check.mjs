@@ -1,0 +1,184 @@
+// Check of a site: every image a page refers to exists. It walks the site from its home page and from every page of
+// its map (sitemap.xml, so pages no link leads to are seen too) along its own links, and asks for every image found
+// in src, srcset, href and content (og:image) of the pages. `fetchFn` is injected: fetch for the deployed site
+// (weekly health check, scripts/check-health.mjs), distFetch for a build in dist/ (npm run check:images).
+
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { sitemapUrls } from './sitemap.mjs';
+import { feedImages } from './pinterest.mjs';
+import { siteAddress, siteBase, siteRoot } from './site-url.mjs';
+
+const IMAGE_RE = /\.(avif|webp|jpe?g|png|gif|svg)$/i;
+const ATTR_RE = /\b(src|srcset|href|content)="([^"]*)"/g;
+
+/** A page URL without query and hash, always with a trailing slash ("/kontakt" and "/kontakt/" are one page). */
+const pageKey = (url) => {
+  const u = new URL(url);
+  u.search = '';
+  u.hash = '';
+  if (!u.pathname.endsWith('/')) u.pathname += '/';
+  return u.href;
+};
+
+/**
+ * What a page refers to on its own site (`origin`): { pages: [URL], images: [URL] }, each once.
+ * Images: paths ending in an image extension (only srcset lists several, separated by commas; other values may
+ * contain commas themselves, e.g. a font URL); pages: links (href) without an extension.
+ * Query and hash are dropped (gallery filters are one page).
+ */
+export function pageReferences(html, pageUrl, origin) {
+  const pages = new Set();
+  const images = new Set();
+  for (const [, attr, value] of html.matchAll(ATTR_RE)) {
+    for (const part of attr === 'srcset' ? value.split(',') : [value]) {
+      const candidate = part.trim().split(/\s+/)[0];
+      if (!candidate) continue;
+      let url;
+      try {
+        url = new URL(candidate, pageUrl);
+      } catch {
+        continue;
+      }
+      if (url.origin !== origin) continue;
+      if (IMAGE_RE.test(url.pathname)) {
+        url.search = '';
+        url.hash = '';
+        images.add(url.href);
+      } else if (attr === 'href' && !/\.[a-z0-9]+$/i.test(url.pathname)) {
+        pages.add(pageKey(url.href));
+      }
+    }
+  }
+  return { pages: [...pages], images: [...images] };
+}
+
+/**
+ * Walks the site from `siteUrl` (its home page and the pages of its sitemap.xml) and checks every image its pages
+ * refer to. Returns { pages, images (counts), sitemap (pages listed in it, 0 without one), missing: [{ image, page }],
+ * brokenPages: [{ page, status }], html: [{ path, html }] (every page read, for the checks of their texts) }.
+ * `fetchFn(url, { method })` like fetch; images are asked for with HEAD, `concurrency` at a time; an image that fails
+ * (any status but ok, or no answer = status 0) is asked again up to `retries` times after `retryDelayMs`, and only
+ * then counts as missing (the deployed site: a short hiccup of the host is no missing image; a built site needs none). A page listed in the sitemap counts as linked from "sitemap.xml", an image
+ * of the feed for Pinterest (/pinterest.xml) from "pinterest.xml", an icon or screenshot of the manifest (/site.webmanifest)
+ * from "site.webmanifest" (`screenshots`: false leaves its screenshots out: a build has none, the deploy adds them, manifestImages).
+ */
+export async function checkSiteImages(siteUrl, fetchFn, { maxPages = 1000, concurrency = 8, retries = 0, retryDelayMs = 3000, screenshots = true } = {}) {
+  const origin = new URL(siteUrl).origin;
+  const queue = [pageKey(siteRoot(siteUrl))];
+  const map = await fetchFn(siteAddress(siteUrl, 'sitemap.xml'), { method: 'GET' });
+  const listed = map.ok ? sitemapUrls(await map.text()).filter((u) => new URL(u).origin === origin).map(pageKey) : [];
+  for (const p of listed) if (!queue.includes(p)) queue.push(p);
+  const seen = new Set(queue);
+  const imageFrom = new Map();
+  // the pins of the feed for Pinterest (scripts/lib/pinterest.mjs) are images of the site too
+  const feed = await fetchFn(siteAddress(siteUrl, 'pinterest.xml'), { method: 'GET' });
+  if (feed.ok) {
+    for (const i of feedImages(await feed.text())) if (new URL(i).origin === origin && !imageFrom.has(i)) imageFrom.set(i, 'pinterest.xml');
+  }
+  // the icons, the icons of the shortcuts and the screenshots of the manifest (installing the site as an app)
+  const manifestUrl = siteAddress(siteUrl, 'site.webmanifest');
+  const manifest = await fetchFn(manifestUrl, { method: 'GET' });
+  if (manifest.ok) {
+    let parsed = null;
+    try { parsed = JSON.parse(await manifest.text()); } catch { /* not JSON: nothing to check */ }
+    for (const i of manifestImages(parsed, manifestUrl, { screenshots })) if (new URL(i).origin === origin && !imageFrom.has(i)) imageFrom.set(i, 'site.webmanifest');
+  }
+  const brokenPages = [];
+  const html = [];
+  while (queue.length && seen.size <= maxPages) {
+    const page = queue.shift();
+    const res = await fetchFn(page, { method: 'GET' });
+    if (!res.ok) {
+      brokenPages.push({ page, status: res.status });
+      continue;
+    }
+    const text = await res.text();
+    html.push({ path: new URL(page).pathname, html: text });
+    const { pages, images } = pageReferences(text, page, origin);
+    for (const p of pages) {
+      if (!seen.has(p)) {
+        seen.add(p);
+        queue.push(p);
+      }
+    }
+    for (const i of images) if (!imageFrom.has(i)) imageFrom.set(i, page);
+  }
+  const missing = [];
+  const all = [...imageFrom.keys()];
+  for (let i = 0; i < all.length; i += concurrency) {
+    await Promise.all(all.slice(i, i + concurrency).map(async (image) => {
+      const head = () => fetchFn(image, { method: 'HEAD' }).catch(() => ({ ok: false, status: 0 }));
+      let res = await head();
+      for (let n = 0; !res.ok && n < retries; n++) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        res = await head();
+      }
+      if (!res.ok) missing.push({ image, page: imageFrom.get(image), status: res.status });
+    }));
+  }
+  missing.sort((a, b) => a.image.localeCompare(b.image));
+  return { pages: seen.size - brokenPages.length, images: all.length, sitemap: listed.length, missing, brokenPages, html };
+}
+
+/**
+ * Images a web app manifest refers to, as absolute URLs (relative to the manifest at `manifestUrl`): its icons, the icons of
+ * its shortcuts and, unless `screenshots` is false, its screenshots.
+ */
+export function manifestImages(manifest, manifestUrl, { screenshots = true } = {}) {
+  if (!manifest || typeof manifest !== 'object') return [];
+  const sources = [
+    ...(manifest.icons ?? []),
+    ...(manifest.shortcuts ?? []).flatMap((s) => s.icons ?? []),
+    ...(screenshots ? manifest.screenshots ?? [] : []),
+  ].map((i) => i?.src).filter(Boolean);
+  return [...new Set(sources.map((src) => new URL(src, manifestUrl).href))];
+}
+
+/**
+ * fetchFn over a built site in `distDir` (like GitHub Pages serves it): "/a/" and "/a" are /a/index.html, anything
+ * else the file itself; a missing file is 404. For npm run check:images, no server needed.
+ */
+export function distFetch(distDir, siteUrl) {
+  // the pages of a site in a folder of its host (site.url with a path) lie in dist/ without that folder
+  const base = siteUrl ? siteBase(siteUrl) : '/';
+  return async (url) => {
+    const pathname = decodeURIComponent(new URL(url).pathname);
+    if (!`${pathname}/`.startsWith(base)) return { ok: false, status: 404, text: async () => '' };
+    let rel = pathname.slice(base.length - 1) || '/';
+    if (rel.endsWith('/')) rel += 'index.html';
+    else if (!path.extname(rel)) rel += '/index.html';
+    const file = path.join(distDir, rel);
+    if (!file.startsWith(path.resolve(distDir))) return { ok: false, status: 400, text: async () => '' };
+    const text = await fs.readFile(file, 'utf8').catch(() => null);
+    return text === null ? { ok: false, status: 404, text: async () => '' } : { ok: true, status: 200, text: async () => text };
+  };
+}
+
+/** Czech noun after a number: 1 obrázek, 2–4 obrázky, 0 and 5+ obrázků. */
+const count = (n, [one, few, many]) => `${n} ${n === 1 ? one : n >= 2 && n <= 4 ? few : many}`;
+const IMAGES = ['obrázek', 'obrázky', 'obrázků'];
+const PAGES = ['stránce', 'stránkách', 'stránkách'];
+
+/** Czech result of checkSiteImages for the health report (at most `limit` items listed). */
+export function evaluateSiteImages(result, { limit = 10 } = {}) {
+  if (result === null) return { ok: true, message: 'Obrázky na webu nebyly zkontrolovány.' };
+  const path = (url) => new URL(url).pathname;
+  const problems = [];
+  if (result.missing.length) {
+    problems.push(`Na webu chybí ${count(result.missing.length, IMAGES)}, na které odkazují jeho stránky: [obrazky-chybi]`);
+    const status = (m) => (m.status === undefined ? '' : m.status === 0 ? ', bez odpovědi' : `, HTTP ${m.status}`);
+    problems.push(...result.missing.slice(0, limit).map((m) => `- ${path(m.image)} (stránka ${path(m.page)}${status(m)})`));
+    if (result.missing.length > limit) problems.push(`- … a dalších ${result.missing.length - limit}`);
+  }
+  if (result.brokenPages.length) {
+    problems.push(`Nedostupné stránky webu (${result.brokenPages.length}): [stranky-nedostupne]`);
+    problems.push(...result.brokenPages.slice(0, limit).map((p) => `- ${path(p.page)} (HTTP ${p.status})`));
+  }
+  if (problems.length) {
+    problems.push('Nejspíš se nasadil web bez obrázků nebo pipeline nějaké smazala; spusť `npm run images` a zkontroluj pull request.');
+    return { ok: false, message: problems.join('\n') };
+  }
+  const map = result.sitemap ? `, z mapy webu ${result.sitemap}` : ', bez mapy webu';
+  return { ok: true, message: `Všechny obrázky na webu existují (${count(result.images, IMAGES)} na ${count(result.pages, PAGES)}${map}).` };
+}

@@ -1,0 +1,602 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Picture from '../../../components/Picture.astro';
+import Img from '../../../components/Img.astro';
+import FeaturedStar from '../../../components/FeaturedStar.astro';
+import { collectionUrl, config, getGamePage, detailCaption, detailCaptionHtml, getCollection, workPinImage, workShareImage, getWorks, messages, site, statusLabel, formatSize, formatPrice, textHtml, url, workUrl, workImagePath, workDetails, type Work } from '../../../lib/site';
+import { isOnSale, relatedWorks, wantsMockups, workCodeHint, workShortPath } from '../../../../scripts/lib/works.mjs';
+import WorkCard from '../../../components/WorkCard.astro';
+import SimilarTile from '../../../components/SimilarTile.astro';
+import { galleryStatePath, similarLabel, similarLinkTitle, similarWorks, worksCount } from '../../../../scripts/lib/similar.mjs';
+import { workDistance } from '../../../../scripts/lib/affinity.mjs';
+import { EVENTS, MORE_METHODS } from '../../../../scripts/lib/analytics.mjs';
+import { galleryFilterPath, galleryLinkTitle } from '../../../../scripts/lib/gallery-filter.mjs';
+import { pinDescription } from '../../../../scripts/lib/pinterest.mjs';
+import { shareLinks } from '../../../../scripts/lib/share.mjs';
+import { absolute, artworkLd, breadcrumbLd, graphLd, workPageDescription, workPageLd, workPageTitle } from '../../../../scripts/lib/seo.mjs';
+import { defaultType, mailtoLink, workContext } from '../../../../scripts/lib/messages.mjs';
+import { MOCKUPS_NOTE, mockupCaption, mockupsHeading, viewId, workCaption } from '../../../../scripts/lib/work-viewer.mjs';
+import { cinemaSettings } from '../../../../scripts/lib/cinema.mjs';
+import { keepTogether } from '../../../../scripts/lib/typography.mjs';
+import { HEART_ICON, favoriteLabel } from '../../../../scripts/lib/favorites.mjs';
+
+export function getStaticPaths() {
+  const works = getWorks();
+  return works.map((work, i) => ({ params: { section: String(work.year), work: work.key }, props: { work, prev: works[i - 1], next: works[i + 1] } }));
+}
+interface Props { work: Work; prev?: Work; next?: Work }
+const { work, prev, next } = Astro.props;
+const date = work.date.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
+
+const collection = getCollection(work.collection);
+// Every shown work: another with the same title or description gets what tells them apart in <title> and the
+// meta description (workPageTitle, workPageDescription), so no two pages look the same in search results.
+const allWorks = getWorks();
+// "Související obrazy": its `related` and the works that name it there (both ways), published ones only
+const related = relatedWorks(work, allWorks);
+// "Podobné obrazy": a filter of the gallery from its technique and tags, its works most alike first (colours, mood,
+// technique, tags: workDistance), without the related ones, as small tiles
+const similar = similarWorks(work, allWorks, { exclude: related.map((w) => w.id), rank: workDistance });
+const collectionTitle = (slug: string) => getCollection(slug)?.title ?? slug;
+
+// Everything the viewer can step through: the work itself, its details, then its mockups.
+const base = workImagePath(work);
+// caption: plain (title, alt, the viewer), html: formatted under the thumbnail
+const details = workDetails(work).map((d, i) => ({ ...d, caption: detailCaption(work, d.name) || `detail ${i + 1}`, html: detailCaptionHtml(work, d.name) || `detail ${i + 1}` }));
+// Mockups only when the author asked for them (mockups: true), whether or not the work is for sale.
+const mockups = wantsMockups(work) ? work.image.mockups ?? [] : [];
+// Each has its own address #<id> (scripts/lib/work-viewer.mjs).
+const views = [
+  { id: viewId({ kind: 'main' }), label: workCaption(work), prefix: '', image: work.image },
+  ...details.map((d) => ({ id: viewId({ kind: 'detail', name: d.name }), label: `${work.title} · ${d.caption}`, prefix: `detail-${d.name}-`, image: d })),
+  ...mockups.map((m) => ({ id: viewId({ kind: 'mockup', name: m.scene }), label: `${work.title} · ${mockupCaption(m.label)}`, prefix: `mockup-${m.scene}-`, image: m })),
+].map((v) => ({
+  id: v.id,
+  label: v.label,
+  width: v.image.width,
+  height: v.image.height,
+  src: url(`${base}/${v.prefix}${v.image.widths[v.image.widths.length - 1]}.jpg`),
+  srcset: v.image.widths.map((w) => `${url(`${base}/${v.prefix}${w}.webp`)} ${w}w`).join(', '),
+  // the surroundings of the sheet are transparent (meta_corners): a shadow along the paper, no background
+  cutout: !!v.image.transparent,
+}));
+// Landscape mockups are stacked, portrait ones sit side by side.
+const mockupsWide = mockups.every((m) => m.width >= m.height);
+// For search engines: the work as a work of art by the author, and where it lies on the site.
+const share = workShareImage(work);
+const path = `/tvorba/${work.year}/${work.key}/`;
+// A message from this page is about the work: a question, or interest in buying when it is for sale.
+const message = workContext({ ...work, onSale: isOnSale(work.status) }, path);
+// Without the form: an e-mail with the same subject as a message would have.
+const mail = site.email && mailtoLink(site.email, defaultType(message), message, messages.subjectTag);
+// "Sdílet": links to share the work (Pinterest saves its pin, or the share image, with a link to this page)
+const pageUrl = absolute(site, path);
+const shares = shareLinks({
+  url: pageUrl, media: absolute(site, workPinImage(work).src), title: work.title,
+  description: [work.title, pinDescription(work, work.year, config.pinterestKeywords?.en)].filter(Boolean).join(' – '),
+});
+// Small line icons of the services (own drawings in the colour of the text, nothing loaded from them)
+const ICONS: Record<string, string> = {
+  pinterest: '<circle cx="12" cy="12" r="9.5"/><path d="M10.2 19.6l1.9-8.1M10.9 13.6c.4 1 1.3 1.5 2.4 1.5 2.1 0 3.4-2 3.4-4.4 0-2.5-2-4.3-4.6-4.3-3 0-4.8 2.1-4.8 4.4 0 .9.3 1.7.9 2.2"/>',
+  facebook: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M15.5 8.5h-1.7c-1 0-1.8.8-1.8 1.8V21M9.8 13h5"/>',
+  whatsapp: '<path d="M4.5 19.5l1.2-3.6A8.2 8.2 0 1 1 8.4 18.6z"/><path d="M9.3 9.2c.3 2 2.2 4.2 4.6 4.9l1-1"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1-1"/>',
+  copy: '<rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5V5.5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/>',
+  instagram: '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17" cy="7" r=".6" fill="currentColor"/>',
+  // a picture with a close-up framed in it: the game Detail dne
+  quiz: '<rect x="3" y="4.5" width="18" height="15" rx="1.5"/><rect x="11" y="8.5" width="6" height="6" stroke-dasharray="2 1.5"/>',
+};
+const icon = (name: string, size = 20) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+const jsonLd = graphLd(
+  artworkLd(work, site, { path, image: absolute(site, share.src) }),
+  // the page about the work, with the pages of its related works ("Související obrazy")
+  workPageLd(site, { path, name: workPageTitle(work, allWorks), relatedPaths: related.map((w) => `/tvorba/${w.year}/${w.key}/`) }),
+  breadcrumbLd(site, [
+    { name: 'Úvod', path: '/' },
+    { name: 'Tvorba', path: '/tvorba/' },
+    collection ? { name: collection.title, path: `/tvorba/kolekce/${collection.slug}/` } : { name: String(work.year), path: `/tvorba/${work.year}/` },
+    { name: work.title, path },
+  ]),
+);
+// The text of the work (`text`, formatted) as HTML paragraphs.
+const story = textHtml(work.text);
+---
+<Base title={workPageTitle(work, allWorks)} description={workPageDescription(work, allWorks, site)} image={share} type="article" jsonLd={jsonLd} message={message}>
+  <p class="back"><a href={url('/tvorba/')} title={galleryLinkTitle('all')} data-return data-return-focus={work.id}>← Tvorba</a> · <a href={url(`/tvorba/${work.year}/`)} title={galleryLinkTitle('year', work.year)} data-return data-return-focus={work.id}>{work.year}</a></p>
+  <article class="work">
+    <a class="zoom" href={views[0].src} data-view="0" title="Zvětšit">
+      <Picture work={work} sizes="(max-width: 900px) 100vw, 64vw" eager />
+    </a>
+    {(story.length > 0 || work.tags.length > 0) && (
+      <div class="story">
+        {story.map((p) => <p class="desc" set:html={p} />)}
+        {work.tags.length > 0 && (
+          <p class="tags">{work.tags.map((t) => <a href={url(galleryFilterPath('tag', t))} title={galleryLinkTitle('tag', t)}>#{t}</a>)}</p>
+        )}
+      </div>
+    )}
+    <div class="info">
+      <div class="head">
+        <div class="title"><h1>{keepTogether(work.title)}</h1><span class="marks"><FeaturedStar featured={work.featured} /><button type="button" class="heart" data-heart={work.id} data-heart-source="work" data-work-title={work.title} aria-pressed="false" aria-label={favoriteLabel(false)} title={favoriteLabel(false)}><svg viewBox="0 0 24 24" aria-hidden="true" set:html={HEART_ICON} /></button></span></div>
+        <dl>
+          <dt>Technika</dt><dd><a href={url(galleryFilterPath('technique', work.technique))} title={galleryLinkTitle('technique', work.technique)}>{work.technique}</a></dd>
+          {work.support && <><dt>Podklad</dt><dd>{work.support}</dd></>}
+          {work.size_cm && <><dt>Rozměr</dt><dd>{formatSize(work.size_cm)}</dd></>}
+          <dt>Vzniklo</dt><dd>{date}</dd>
+          {collection && <><dt>Kolekce</dt><dd><a href={collectionUrl(collection.slug)} title={galleryLinkTitle('collection', collection.title)} data-return data-return-focus={work.id}>{keepTogether(collection.title)}</a></dd></>}
+          <dt>Kód</dt><dd class="code-row">
+            <a class="code" href={url(workShortPath(work.id))} title={workCodeHint(work.id, site.url)}>{work.id}</a>
+            <button type="button" class="copy" data-copy={work.id} data-copy-what="Kód" title="Zkopírovat kód" aria-label="Zkopírovat kód" hidden set:html={icon('copy', 15)} />
+            <span class="muted copied" data-copy-status role="status"></span>
+          </dd>
+        </dl>
+      </div>
+      {work.status !== 'not-for-sale' && (
+        <div class="buy">
+          <span class:list={['badge', { available: work.status === 'available' }]}>{statusLabel[work.status]}</span>
+          {work.status === 'available' && work.price && <span class="price">{formatPrice(work.price)}</span>}
+          {work.status === 'available' && (
+            <span class="actions">
+              {work.fler && <a class="btn small" href={work.fler} data-track={EVENTS.fler} data-work-id={work.id} data-work-title={work.title}>Koupit na Fleru</a>}
+              {messages.mode && <button type="button" class="btn small ghost" data-message-open={defaultType(message)} title="Zeptat se na obraz">Zeptat se</button>}
+              {!messages.mode && mail && <a class="btn small ghost" href={mail} data-track={EVENTS.email} data-work-id={work.id} data-work-title={work.title} title="Napsat autorce o obraze">Napsat</a>}
+            </span>
+          )}
+        </div>
+      )}
+      <div class="share">
+        <span class="eyebrow">Sdílet</span>
+        {shares.map((l) => (
+          <a class="icon" href={l.href} rel="noopener" target="_blank" title={l.label} aria-label={l.label}
+            data-track={EVENTS.share} data-method={l.method} data-work-id={work.id} data-work-title={work.title} set:html={icon(l.method)} />
+        ))}
+        <button type="button" class="icon" data-share-link data-url={pageUrl} data-title={work.title} title="Zkopírovat odkaz" aria-label="Zkopírovat odkaz"
+          data-track={EVENTS.share} data-method="copy" data-work-id={work.id} data-work-title={work.title} set:html={icon('link')} />
+        <span class="muted copied" data-share-status role="status"></span>
+        {work.instagram && (
+          <a class="elsewhere" href={work.instagram} rel="noopener" title="Obraz na Instagramu" data-track={EVENTS.instagram} data-work-id={work.id} data-work-title={work.title}>
+            <Fragment set:html={icon('instagram')} />Na Instagramu
+          </a>
+        )}
+      </div>
+      {/* the details of the work and the way to the quiz of a visitor made of it (Můj Detail dne): one head line, the label
+          only with details, the link on the right also without them */}
+      {(details.length > 0 || work.game !== false) && (
+        <section class="details-block" aria-label={details.length > 0 ? 'Detaily obrazu' : 'Můj Detail dne'}>
+          <div class="details-head">
+            {details.length > 0 && <span class="eyebrow">Detaily</span>}
+            {work.game !== false && (
+              <a class="my-quiz" href={url(`/detail-dne/muj-kviz/?obraz=${work.id}`)} rel="nofollow" title="Udělej si z obrazu kvíz s výřezem a pošli ho dál">
+                <Fragment set:html={icon('quiz')} />{getGamePage().workLink}
+              </a>
+            )}
+          </div>
+          {details.length > 0 && (
+            <div class="details">
+              {/* the thumbnail opens the viewer; the caption under it is no part of that link, so links in it work */}
+              {details.map((d, i) => (
+                <figure>
+                  <a class="thumb" href={views[i + 1].src} data-view={i + 1} title={`Zvětšit: ${d.caption}`}><Img base={base} prefix={`detail-${d.name}-`} image={d} alt={`${work.title}: ${d.caption}`} sizes="(max-width: 900px) 33vw, 12vw" /></a>
+                  <figcaption class="muted" set:html={d.html} />
+                </figure>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+      {mockups.length > 0 && (
+        <section class="mockups" aria-label="Vizualizace obrazu v interiéru">
+          {/* the heading over a line, the mockups, under them a footnote: made-up pictures, the work has no frame */}
+          <p class="eyebrow">{mockupsHeading(isOnSale(work.status))}</p>
+          <div class:list={['mockup-grid', { wide: mockupsWide }]}>
+            {mockups.map((m, i) => (
+              <a href={views[1 + details.length + i].src} data-view={1 + details.length + i} title={`Zvětšit: ${mockupCaption(m.label)}`}>
+                <Img base={base} prefix={`mockup-${m.scene}-`} image={m} alt={`${work.title}: ${mockupCaption(m.label)}`} sizes="(max-width: 900px) 100vw, 30vw" />
+                <span class="muted">{mockupCaption(m.label)}</span>
+              </a>
+            ))}
+          </div>
+          <p class="note">{MOCKUPS_NOTE}</p>
+        </section>
+      )}
+    </div>
+  </article>
+  {related.length > 0 && (
+    <section class="related" aria-label="Související obrazy">
+      <p class="eyebrow">Související obrazy</p>
+      <div class="more-grid">{related.map((w) => <WorkCard work={w} track={MORE_METHODS.related} />)}</div>
+    </section>
+  )}
+  {similar && (
+    <section class="similar" aria-label="Podobné obrazy">
+      <p class="eyebrow">Podobné obrazy</p>
+      <p class="similar-filter">
+        <a href={url(galleryStatePath(similar.state))} title={similarLinkTitle(similar.state, collectionTitle)} data-track={EVENTS.more} data-method={MORE_METHODS.similarFilter}>{keepTogether(similarLabel(similar.state, collectionTitle))} ({worksCount(similar.total)}) →</a>
+      </p>
+      <div class="similar-grid">{similar.works.map((w) => <SimilarTile work={w} />)}</div>
+    </section>
+  )}
+  <dialog class="viewer" id="viewer" aria-label="Prohlížení obrázků" data-views={JSON.stringify(views)} data-work-id={work.id} data-work-title={work.title} data-swipe={JSON.stringify(cinemaSettings(config).swipe)}>
+    {/* everything of the viewer: what goes to the whole screen (a dialog itself cannot) */}
+    <div class="stage">
+    <figure>
+      <div class="frame">
+        <img id="viewer-img" alt="" draggable="false" />
+        {/* the neighbour a finger brings in beside the picture (src/lib/follow-swipe.ts) */}
+        <img class="side" alt="" draggable="false" hidden />
+      </div>
+      <figcaption><span id="viewer-label"></span> <span class="muted" id="viewer-count"></span></figcaption>
+    </figure>
+    {views.length > 1 && (
+      <>
+        <button type="button" class="nav prev" data-step="-1" aria-label="Předchozí">‹</button>
+        <button type="button" class="nav next" data-step="1" aria-label="Další">›</button>
+      </>
+    )}
+    {/* the whole screen (F): shown only where the browser can (an iPhone cannot for pages) */}
+    <button type="button" class="full-toggle" aria-label="Celá obrazovka (F)" title="Celá obrazovka (F)" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" /></svg>
+    </button>
+    <button type="button" class="close" aria-label="Zavřít">×</button>
+    </div>
+  </dialog>
+  <nav class="pager" aria-label="Další díla">
+    {prev ? <a href={workUrl(prev)} data-page-arrow="prev" aria-keyshortcuts="ArrowLeft" title="Předchozí obraz (←)">← {keepTogether(prev.title)}</a> : <span />}
+    {next && <a href={workUrl(next)} data-page-arrow="next" aria-keyshortcuts="ArrowRight" title="Další obraz (→)">{keepTogether(next.title)} →</a>}
+  </nav>
+</Base>
+<script>
+  import { applyCopyButtons, applyShareButtons } from '../../../lib/share-button';
+  import { startHearts } from '../../../lib/favorites';
+  import { pageArrow } from '../../../../scripts/lib/work-viewer.mjs';
+  applyShareButtons();
+  applyCopyButtons();
+  // the heart of the favourites at the title (src/lib/favorites.ts)
+  startHearts();
+  // ← / → on the page: the previous / next work, as the links at the bottom (pageArrow: never while typing, with a
+  // modifier or in an open dialog; ↑ ↓ keep scrolling the page)
+  document.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented) return;
+    const target = e.target instanceof Element ? e.target : null;
+    const editable = Boolean(target?.closest('input, textarea, select, [contenteditable]'));
+    const dir = pageArrow({ key: e.key, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey, editable, dialogOpen: Boolean(document.querySelector('dialog[open]')) });
+    const link = dir && document.querySelector<HTMLAnchorElement>(`[data-page-arrow="${dir}"]`);
+    if (!link) return;
+    e.preventDefault();
+    location.assign(link.href);
+  });
+</script>
+<script>
+  // Viewer: a dialog over the page that steps through the work, its details and its mockups; F (or its button) takes
+  // it to the whole screen and back, with the caption over the bottom of the picture as in the cinema.
+  // Without JavaScript the links simply open the largest image.
+  // The picture shown is in the address (#obraz, #detail-<name>, #mockup-<scene>; scripts/lib/work-viewer.mjs):
+  // opening adds a history entry (Back closes the viewer), stepping replaces it, a link with it opens that picture,
+  // an unknown one is dropped from the address.
+  import { autoHide, hashId, viewIndex, viewerSizes } from '../../../../scripts/lib/work-viewer.mjs';
+  import { followSwipe } from '../../../lib/follow-swipe';
+  import { EVENTS, imageEventParams, trackEvent } from '../../../../scripts/lib/analytics.mjs';
+  type View = { id: string; label: string; src: string; srcset: string; width: number; height: number; cutout: boolean };
+  const dialog = document.getElementById('viewer') as HTMLDialogElement;
+  // the picture shown and the one a swipe brings in; they swap places after each swipe
+  let img = document.getElementById('viewer-img') as HTMLImageElement;
+  let side = dialog.querySelector<HTMLImageElement>('img.side')!;
+  const label = document.getElementById('viewer-label')!;
+  const count = document.getElementById('viewer-count')!;
+  const views: View[] = JSON.parse(dialog.dataset.views!);
+  const ids = views.map((v) => v.id);
+  let current = 0;
+  const work = { id: dialog.dataset.workId!, title: dialog.dataset.workTitle! };
+  // every picture shown is an image_view, with how it got there (IMAGE_METHODS)
+  const track = (method: string) => trackEvent(EVENTS.image, imageEventParams(work, ids[current], method));
+  // The arrows fade a few seconds after opening or the last move of the mouse; a tap on the picture shows or hides
+  // them (autoHide). The close button, the caption and the count stay.
+  const arrows = [...dialog.querySelectorAll<HTMLButtonElement>('[data-step]')];
+  const controls = autoHide((on) => dialog.classList.toggle('idle', !on));
+  // set while the viewer closes because of the history (Back), so closing does not change it again
+  let closingFromHistory = false;
+
+  const address = (id = '') => location.pathname + location.search + (id ? `#${id}` : '');
+  // history entries added by opening the viewer carry this mark: closing it goes back instead of adding another
+  const OPENED = 'site-viewer';
+
+  function open(i: number) {
+    show(i);
+    controls.show();
+    history.pushState({ ...history.state, [OPENED]: true }, '', address(ids[current]));
+    dialog.showModal();
+    track('open');
+  }
+  function step(i: number, method: string) {
+    show(i);
+    history.replaceState(history.state, '', address(ids[current]));
+    track(method);
+  }
+  // The address names a picture: show it (also opened by a link or Back/Forward), otherwise the viewer is closed.
+  // `method`: link = the page opened with it, history = Back/Forward (counted only when another picture shows).
+  function follow(method: 'link' | 'history') {
+    const i = viewIndex(location.hash, ids);
+    if (i >= 0) {
+      const shown = dialog.open && ids[current] === ids[i];
+      show(i);
+      if (!shown) track(method);
+      if (!dialog.open) {
+        dialog.showModal();
+        controls.show();
+      }
+      return;
+    }
+    if (dialog.open) {
+      closingFromHistory = true;
+      dialog.close();
+    }
+    // an unknown picture: the page as it is, without the hash (anchors of elements on the page keep working)
+    const id = hashId(location.hash);
+    if (location.hash && !(id && document.getElementById(id))) history.replaceState(history.state, '', address());
+  }
+
+  /** Picture `v` in the image element `el`. */
+  function fill(el: HTMLImageElement, v: View) {
+    el.srcset = v.srcset;
+    el.sizes = viewerSizes(v.width / v.height, isFull());
+    el.src = v.src;
+    el.width = v.width;
+    el.height = v.height;
+    el.alt = v.label;
+    el.classList.toggle('cutout', v.cutout);
+  }
+  function show(i: number) {
+    current = (i + views.length) % views.length;
+    const v = views[current];
+    fill(img, v);
+    label.textContent = v.label;
+    count.textContent = views.length > 1 ? `${current + 1} / ${views.length}` : '';
+  }
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-view]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return; // let "open in new tab" work
+      e.preventDefault();
+      open(Number(a.dataset.view));
+    }),
+  );
+  arrows.forEach((b) => {
+    // a hidden arrow first only shows itself (a tap at the edge of a phone), it does not step
+    b.addEventListener('click', () => {
+      if (!controls.visible) { controls.show(); return; }
+      step(current + Number(b.dataset.step), 'arrow');
+      controls.show();
+    });
+    b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') controls.hold(true); });
+    b.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') controls.hold(false); });
+    // reached by the keyboard (Tab)
+    b.addEventListener('focus', () => { if (b.matches(':focus-visible')) controls.show(); });
+  });
+  dialog.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') controls.show(); });
+  dialog.querySelector('.close')!.addEventListener('click', () => dialog.close());
+  // A click on the backdrop (outside the figure) closes the viewer; not the click that ends a swipe (follow-swipe
+  // swallows that one).
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog || e.target === dialog.querySelector('.stage')) dialog.close();
+  });
+  dialog.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') step(current + 1, 'key');
+    if (e.key === 'ArrowLeft') step(current - 1, 'key');
+    if ((e.key === 'f' || e.key === 'F') && !(e.metaKey || e.ctrlKey || e.altKey)) { e.preventDefault(); toggleFull(); }
+  });
+  // The whole screen: F or the button, in and out; Esc in it only leaves it (the browser does), the viewer stays.
+  const fullButton = dialog.querySelector<HTMLButtonElement>('.full-toggle')!;
+  const stage = dialog.querySelector<HTMLElement>('.stage')!;
+  const isFull = () => document.fullscreenElement === stage;
+  let leftFull = 0; // when the whole screen was left: the Esc that left it does not close the viewer too
+  fullButton.hidden = !(stage.requestFullscreen && document.fullscreenEnabled);
+  function toggleFull() {
+    if (fullButton.hidden) return;
+    if (isFull()) document.exitFullscreen().catch(() => {});
+    else stage.requestFullscreen().catch(() => {});
+  }
+  fullButton.addEventListener('click', toggleFull);
+  document.addEventListener('fullscreenchange', () => {
+    const full = isFull();
+    if (!full) leftFull = Date.now();
+    dialog.classList.toggle('full', full);
+    const name = full ? 'Zpět do okna (F)' : 'Celá obrazovka (F)';
+    fullButton.setAttribute('aria-label', name);
+    fullButton.title = name;
+    if (dialog.open) fill(img, views[current]); // the sizes of the new space
+  });
+  dialog.addEventListener('cancel', (e) => {
+    if (isFull() || Date.now() - leftFull < 500) e.preventDefault();
+  });
+  // Swipe (a finger or the mouse): the picture moves with it and its neighbour slides in beside it (to the left =
+  // next); let go far enough or with a flick and it steps (src/lib/follow-swipe.ts, site.config.yaml cinema.swipe),
+  // otherwise both slide back. The viewer keeps sideways moves to itself (touch-action in the CSS), otherwise the
+  // phone takes the gesture and cancels the pointer.
+  followSwipe({
+    surface: dialog,
+    shown: () => img,
+    neighbour: (dir) => {
+      if (views.length < 2) return null;
+      fill(side, views[(current + dir + views.length) % views.length]);
+      side.hidden = false;
+      return side;
+    },
+    stepped: (dir) => {
+      // the neighbour stays where it slid to and becomes the picture shown (already loaded, no flash)
+      img.classList.add('side');
+      img.hidden = true;
+      side.classList.remove('side');
+      [img, side] = [side, img];
+      step(current + dir, 'swipe');
+    },
+    settled: (near) => { if (near) near.hidden = true; },
+    // a tap (finger or pen) on the picture shows or hides the arrows
+    tapped: (e) => { if (e.pointerType !== 'mouse' && (e.target as Element).closest('img')) controls.toggle(); },
+    ignore: (e) => Boolean((e.target as Element).closest('button')),
+    swipe: JSON.parse(dialog.dataset.swipe!),
+  });
+  // However it closes (×, Esc, the backdrop), the address drops the picture: back to the entry before opening,
+  // or (opened by a link) the same entry without the hash.
+  dialog.addEventListener('close', () => {
+    controls.hide();
+    if (isFull()) document.exitFullscreen().catch(() => {});
+    if (closingFromHistory) {
+      closingFromHistory = false;
+      return;
+    }
+    if (history.state?.[OPENED]) history.back();
+    else history.replaceState(history.state, '', address());
+  });
+  window.addEventListener('popstate', () => follow('history'));
+  follow('link');
+</script>
+<style>
+  .back { margin: -12px 0 24px; font-size: 0.9rem; }
+  .related, .similar { margin-top: clamp(40px, 6vw, 72px); }
+  .similar-filter { margin: -4px 0 20px; font-size: 0.95rem; }
+  .similar-filter a { color: var(--ink-soft); }
+  .similar-filter a:hover { color: var(--ink); }
+  /* the related works: cards in three columns; the similar ones: six small pictures in one row (two under each column
+     of the related ones, the same gap), three in a row on a phone */
+  .more-grid { columns: 3 260px; column-gap: 28px; }
+  .similar-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 28px; align-items: start; }
+  @media (max-width: 640px) { .similar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; } }
+  .back a { text-decoration: none; color: var(--ink-soft); }
+  /* The picture with its story (description, tags) under it on the left, everything else on the right; a narrow
+     screen puts them one under another: picture, title and facts, story, price, sharing, details, mockups. */
+  .work {
+    display: grid; grid-template-columns: 1.8fr 1fr; grid-template-rows: auto 1fr;
+    column-gap: clamp(24px, 5vw, 64px); row-gap: 8px; align-items: start;
+  }
+  .zoom { grid-column: 1; grid-row: 1; }
+  .story { grid-column: 1; grid-row: 2; max-width: 68ch; }
+  .info { grid-column: 2; grid-row: 1 / span 2; }
+  .zoom { display: block; cursor: zoom-in; }
+  .zoom :global(picture) { box-shadow: var(--shadow-deep); }
+  .zoom :global(picture.cutout) { box-shadow: none; filter: var(--drop-deep); }
+  /* The heading with the star of the author's selection beside it, outside the <h1> (its text is the title only): the
+     block has the size and margins of a heading, the title fills it on the left and the star keeps to the right edge,
+     level with the first line, however long the title is (never alone on a line of its own). */
+  .info .title { display: flex; align-items: first baseline; gap: 0.3em; font-family: var(--serif); font-size: clamp(2.2rem, 5vw, 3.6rem); line-height: 1.15; margin: 0 0 0.4em; }
+  .info .title h1 { flex: 1; font-size: inherit; margin: 0; }
+  /* The star and under it the heart of the favourites (src/lib/favorites.ts; in the place of the star without one): one
+     column at the right edge, the star level with the first line as before. The heart is hidden without JavaScript. */
+  .info .title .marks { flex: none; display: flex; flex-direction: column; align-items: center; gap: 0.1em; font-size: 0.6em; position: relative; top: -0.42em; }
+  .info .title :global(.star) { margin-left: 0; font-size: 1em; vertical-align: baseline; }
+  .info .title .heart { display: none; padding: 0.15em; margin: -0.15em; border: 0; background: none; color: var(--heart); cursor: pointer; line-height: 0; font: inherit; }
+  :global(html.hearts) .info .title .heart { display: block; }
+  .info .title .heart svg { width: 0.95em; height: 0.95em; overflow: visible; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; transition: transform .15s ease; }
+  .info .title .heart.on svg { fill: currentColor; }
+  .info .title .heart:hover svg { transform: scale(1.12); }
+  .info .title .heart:global(.beat) svg { animation: heart-beat .35s ease; }
+  @keyframes heart-beat { 40% { transform: scale(1.35); } }
+  @media (prefers-reduced-motion: reduce) { .info .title .heart svg { transition: none; } .info .title .heart:global(.beat) svg { animation: none; } }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 20px; font-size: 0.93rem; margin: 0 0 20px; }
+  dt { color: var(--ink-soft); }
+  /* the permanent code of the work: a quiet catalogue number, a link to its short address */
+  .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; letter-spacing: 0.06em; color: var(--ink-soft); text-decoration: none; }
+  .code:hover { color: var(--accent); }
+  .code-row { display: flex; align-items: center; gap: 6px; }
+  .copy { display: inline-flex; padding: 2px; border: 0; background: none; color: var(--ink-soft); cursor: pointer; border-radius: 4px; }
+  .copy:hover, .copy:focus-visible { color: var(--accent); }
+  .copy[hidden] { display: none; }
+  .code-row .copied { font-size: 0.85em; }
+  .code-row .copied:empty { display: none; }
+  dd { margin: 0; }
+  .desc { white-space: pre-line; }
+  .details-block { margin: 20px 0; }
+  .details-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-height: 34px; margin-bottom: 10px; font-size: 0.88rem; }
+  .details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .details figure { display: flex; flex-direction: column; gap: 6px; margin: 0; font-size: 0.8rem; line-height: 1.3; }
+  .details .thumb { display: block; aspect-ratio: 1; overflow: hidden; cursor: zoom-in; }
+  .details :global(picture), .details :global(img) { width: 100%; height: 100%; }
+  .details :global(img) { object-fit: cover; }
+  .buy { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 22px 0 0; }
+  .price { font-family: var(--serif); font-size: 1.5rem; line-height: 1; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+  .btn.small { padding: 7px 16px; }
+  .btn.ghost { border-color: var(--line); }
+  button.btn { background: transparent; color: var(--ink); font: inherit; font-size: 0.92rem; cursor: pointer; }
+  button.btn:hover { background: var(--ink); color: var(--paper); }
+  .share { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 20px 0 0; font-size: 0.88rem; }
+  .share .eyebrow { margin-right: 4px; }
+  .share .icon {
+    display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0;
+    border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--ink-soft); cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .share .icon:hover { color: var(--accent); border-color: var(--accent); }
+  .share .copied:empty { display: none; }
+  /* on the right of the head of the details, like "Na Instagramu" in the line of sharing */
+  .my-quiz { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--ink); text-decoration: none; }
+  .my-quiz :global(svg) { flex: none; color: var(--ink-soft); }
+  .my-quiz:hover, .my-quiz:hover :global(svg) { color: var(--accent); }
+  .share .elsewhere { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--ink-soft); text-decoration: none; }
+  .share .elsewhere:hover { color: var(--accent); }
+  .story .desc { margin: 18px 0 0; }
+  .tags { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.9rem; margin: 12px 0 0; }
+  .tags a { color: var(--accent); text-decoration: none; }
+  .mockups { margin-top: 36px; }
+  .mockups .eyebrow { margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  /* a footnote to all the mockups: smaller and softer than their captions, under a short thin rule */
+  .mockups .note { margin: 18px 0 0; font-size: 0.74rem; color: var(--ink-soft); }
+  .mockups .note::before { content: ''; display: block; width: 3em; margin-bottom: 6px; border-top: 1px solid var(--line); }
+  .mockup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .mockup-grid.wide { grid-template-columns: 1fr; }
+  .mockup-grid a { display: flex; flex-direction: column; gap: 6px; text-decoration: none; font-size: 0.82rem; cursor: zoom-in; }
+  /* pan-y: sideways moves are the swipe of the viewer, not a scroll or a back gesture of the phone; pinch zoom stays */
+  /* Over the whole window in the paper of the palette (every colour from the palette): the picture as large as fits,
+     the caption under it; in the whole screen (.full, F) the picture fills it and the caption lies over its bottom. */
+  .viewer {
+    border: 0; padding: 0; overflow: hidden; touch-action: pan-y pinch-zoom; color: var(--ink);
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
+  }
+  .viewer[open] { position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; }
+  .viewer::backdrop { background: transparent; }
+  .viewer .stage { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .viewer.full .stage { background: var(--paper); }
+  .viewer figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  /* as large as the screen allows with a little room around it: 96 % of the width, 90 % of the height, and always
+     room for the caption under it (a low screen: a phone on its side) */
+  .viewer img { display: block; max-width: 96vw; max-height: min(90dvh, 100dvh - 64px); width: auto; height: auto; box-shadow: var(--shadow-deep); background: var(--paper-2); }
+  .viewer img.cutout { box-shadow: none; background: none; filter: var(--drop-deep); }
+  .viewer.full img { max-width: 100vw; max-height: 100dvh; }
+  /* the neighbour of a swipe: over the picture's place, moved aside by the script */
+  .viewer .frame { position: relative; }
+  .viewer img.side { position: absolute; inset: 0; margin: auto; }
+  .viewer img[hidden] { display: none; }
+  .viewer figcaption { color: var(--ink); font-size: 0.9rem; text-align: center; padding: 0 16px; }
+  .viewer figcaption .muted { color: var(--ink-soft); margin-left: 8px; }
+  .viewer.full figcaption {
+    position: absolute; left: 0; right: 0; bottom: 0; text-align: left; font-size: 1.05rem;
+    padding: 40px max(16px, 3vw) calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, color-mix(in srgb, var(--paper) 70%, transparent) 45%, transparent);
+    /* the caption on the left, "1 / 5" at the right edge of the screen */
+    display: flex; align-items: baseline; justify-content: space-between; gap: 24px;
+  }
+  .viewer.full figcaption .muted { margin-left: 0; flex: none; }
+  .viewer button {
+    position: fixed; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
+    color: var(--ink); background: color-mix(in srgb, var(--paper) 75%, transparent); border: 1px solid var(--line);
+    font: 300 2.4rem/1 var(--sans); width: 52px; height: 52px; border-radius: 50%;
+  }
+  .viewer button:hover { background: var(--paper); border-color: var(--ink); }
+  .viewer button[hidden] { display: none; }
+  .viewer .nav { transition: opacity .4s; }
+  .viewer.idle .nav { opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { .viewer .nav { transition: none; } }
+  .viewer .prev { left: 16px; top: 50%; transform: translateY(-50%); }
+  .viewer .next { right: 16px; top: 50%; transform: translateY(-50%); }
+  .viewer .close { right: 16px; top: 16px; font-size: 2rem; }
+  .viewer .full-toggle { right: 80px; top: 16px; }
+  .pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--line); font-family: var(--serif); font-size: 1.2rem; }
+  .pager a { text-decoration: none; }
+  @media (max-width: 900px) {
+    .work { grid-template-columns: 1fr; grid-template-rows: none; }
+    .info { display: contents; }
+    .zoom, .story, .info > * { grid-column: 1; grid-row: auto; }
+    .zoom { order: 1; } .head { order: 2; } .story { order: 3; } .buy { order: 4; } .share { order: 5; } .details-block { order: 6; } .mockups { order: 7; }
+    .head .title { margin-top: 16px; }
+    .story .desc { margin-top: 0; }
+  }
+</style>

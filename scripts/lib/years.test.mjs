@@ -1,0 +1,48 @@
+import { test, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import YAML from 'yaml';
+import { YEAR_FIELDS, prepareYears } from './years.mjs';
+import { schemaKeysIn } from './metadata-yaml.mjs';
+import { YEAR_SCHEMA, yearSkeletonText } from './schema.mjs';
+
+let dir;
+const file = (name) => path.join(dir, 'roky', name);
+beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'years-')); });
+afterEach(() => fs.rm(dir, { recursive: true, force: true }));
+
+test('prepareYears: a skeleton for each year with works, every attribute, a sample text of that year in a block', async () => {
+  const r = await prepareYears(dir, ['2026', '2025', '2026']);
+  assert.deepEqual(r.created, ['roky/2025.yaml', 'roky/2026.yaml']);
+  assert.deepEqual(r.problems, []);
+  const text = await fs.readFile(file('2026.yaml'), 'utf8');
+  assert.deepEqual(schemaKeysIn(text, YEAR_SCHEMA), YEAR_FIELDS);
+  assert.equal(YAML.parse(text).text, 'Můj oblíbený rok, rok 2026.\n');
+  assert.ok(text.includes('\ntext: |\n  Můj oblíbený rok, rok 2026.\n'));
+  assert.match(text, /\n# description: /, 'the description for search engines commented out');
+  assert.equal(YAML.parse(await fs.readFile(file('2025.yaml'), 'utf8')).text, yearSkeletonText('2025'));
+  assert.match(text, /# DOPLNIT Pár vět o roce/);
+  assert.deepEqual(r.years.map((y) => y.year), ['2025', '2026']);
+  // idempotent
+  const again = await prepareYears(dir, ['2025', '2026']);
+  assert.deepEqual([again.created, again.updated], [[], []]);
+});
+
+test('prepareYears keeps a text of a year without works and reads it', async () => {
+  await fs.mkdir(path.join(dir, 'roky'));
+  await fs.writeFile(file('2024.yaml'), 'text: |\n  Rok plenérů.\n');
+  const r = await prepareYears(dir, ['2025']);
+  assert.deepEqual(r.years.map((y) => [y.year, y.data.text]), [['2024', 'Rok plenérů.\n'], ['2025', yearSkeletonText('2025')]]);
+  assert.ok(r.updated.some((u) => u.startsWith('roky/2024.yaml')), 'brought in line with the schema');
+});
+
+test('prepareYears reports stray files and bad names; a text that is not text is a problem of textProblems', async () => {
+  await fs.mkdir(path.join(dir, 'roky'));
+  await fs.writeFile(file('letos.yaml'), 'description: x\n');
+  await fs.writeFile(file('2026.yaml'), 'text: [a, b]\n');
+  const { problems } = await prepareYears(dir, []);
+  assert.match(problems.join('\n'), /roky\/letos\.yaml: sem patří jen popisy roků \(2026\.yaml\) a jejich úvodní fotky/);
+  assert.doesNotMatch(problems.join('\n'), /2026\.yaml: text/, 'checked with every description (allTextProblems)');
+});

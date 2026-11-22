@@ -1,0 +1,158 @@
+# Rohy obrazu na fotce: všechno vně čtyřúhelníku (pozadí: podlaha, zeď, podkladový papír) bude na webu průhledné.
+# Najde je pipeline, smíš je upravit. photo = [šířka, výška] fotky; tl/tr/br/bl = levý horní, pravý horní, pravý
+# dolní, levý dolní roh jako [px vodorovně, px svisle] od toho rohu fotky směrem dovnitř, např. tl: [40, 25].
+# false = nic neořezávat. Po výměně fotky za jinou velikost atribut smaž, pipeline rohy najde znovu.
+meta_corners:
+  photo: [1700, 2400]
+  tl: [0, 0]
+  tr: [0, 0]
+  br: [0, 0]
+  bl: [0, 0]
+
+# Rozpracovaný obraz, možnosti:
+# - true - rozpracovaný, na webu se nezobrazí
+# - false - zveřejnit
+meta_draft: false
+
+# Hrana obrazu ve scénách ateliéru pro Instagram a v mockupech, možnosti:
+# - deckle - papír s roztřepenou hranou (akvarel na ručním nebo trhaném papíru)
+# - cut - papír s čistou rovnou hranou (ořezaný list, karton)
+# - canvas - plátno na rámu: čistá zaoblená hrana, tlusté asi 2 cm, rovné; v mockupech bez pasparty
+meta_edge: deckle
+
+# Fotky pro Fler, možnosti:
+# - true - připravit, dokud obraz nemá odkaz fler (export/fler: originál a mockupy s podpisem)
+# - false - žádné (cena a stav prodeje na webu Fler nepotřebují, obraz se může prodávat i napřímo)
+meta_fler: false
+
+# NEPOVINNÉ. Místa obrazu, ze kterých hra Detail dne nikdy nevezme výřez a kam ani neoddálí pohled (kroužková vazba skicáku,
+# hřbet, páska, klip): každé na řádku jako [zleva, shora, šířka, výška] v pixelech fotky (jako meta_corners),
+# např. - [1840, 0, 260, 3000]. Nejlíp v editoru npm run corners; kde jsou, ukazuje export/detail-dne/.
+# meta_game_skip: [[1840, 0, 260, 3000]]
+
+# Fotky pro Instagram, možnosti:
+# - true - připravit, dokud obraz nemá odkaz instagram (export/instagram: s popiskem na 3 pozadích, ve 3 scénách ateliéru, panorama pro karusel, příběh, detailní fotky)
+# - false - žádné
+meta_instagram: false
+
+# NEPOVINNÉ. Mřížka na profilu Instagramu (obraz rozřezaný na dlaždice), sloupce x řádky, např. 3x3, 2x1, 3x1, 1x2, 3x4
+# (od 1x1 do 5x5; jen spolu s meta_instagram: true a jen pro aplikaci v telefonu, web na počítači má 4 sloupce).
+# meta_instagram_grid: 3x3
+
+# Pin na Pinterest, možnosti:
+# - true - připravit (obrázek pinu na webu, Pinterest si ho sám vezme z kanálu /pinterest.xml)
+# - false - žádný
+meta_pinterest: false
+
+# NEPOVINNÉ. Verze pinu na Pinterestu (celé číslo od 1, bez něj 1). Pinterest pozná pin podle adresy obrázku, ta zůstává stejná.
+# Když chceš obraz připnout znovu (nová fotka, opravený název), zvyš číslo o 1; starý pin pak na Pinterestu smaž.
+# meta_pinterest_version: 2
+
+# Trvalý kód obrazu: podle něj web pozná obraz i po přejmenování (krátká adresa /tvorba/<id>/).
+# Generuje ho pipeline, NIKDY neměnit. Hodí se napsat tužkou na zadní stranu obrazu.
+id: at44z
+
+# Den vzniku ve tvaru 2026-06-14. Rok z něj určuje rok obrazu na webu (stránka roku, adresa).
+date: 2019-03-22
+
+# NEPOVINNÉ. Popis pro vyhledávače a náhled odkazu (Google, Facebook, WhatsApp): jedna nebo dvě věty, nejvýš
+# 160 znaků, bez formátování; na stránce se neukáže. Prázdné = začátek textu.
+# description: Jedna nebo dvě věty pro Google, nejvýš 160 znaků.
+
+# NEPOVINNÉ. Popisky detailních fotek ze složky se jménem obrazu (vedle tohoto souboru): { název fotky: popisek, … }.
+# V tomto pořadí se detaily ukážou na stránce obrazu, fotky bez popisku za nimi podle názvu.
+# Formátování:
+#   - **slovo** = tučně,
+#   - *slovo* = kurzívou,
+#   - [text](/tvorba/) = odkaz na stránku tohoto webu (adresa začíná /),
+#   - [text](k3f9a) = odkaz na jiný obraz podle jeho kódu id, [](k3f9a) = s jeho názvem jako textem odkazu
+#     (rozpracovaný obraz zůstane bez odkazu),
+#   - [text](https://…) = odkaz na jiný web, [text](mailto:…) = odkaz na e-mail.
+# details: { 1-mlha: Ranní mlha nad vodou }
+
+# Výběr autorky, možnosti:
+# - true - ve výběru: přepínač „Doporučené“ v galerii; z 10 nejnovějších vybraných se náhodně střídají
+#   obrazy nahoře na úvodní stránce, stránce roku a na úvodu kolekce (bez cover)
+# - false - ne
+featured: false
+
+# NEPOVINNÉ. Odkaz na obraz na Fleru (https://www.fler.cz/…). U obrazu na prodej s ním web ukáže tlačítko „Koupit na Fleru“.
+# fler: https://www.fler.cz/zbozi/…
+
+# Obraz ve hře Detail dne, možnosti:
+# - true - hra z něj může brát výřezy a nabízet ho mezi obrazy k hádání
+# - false - do hry nepatří (např. akt): ani jako hádanka, ani v nabídce obrazů, ani ve vlastním kvízu
+game: true
+
+# NEPOVINNÉ. Odkaz na příspěvek s obrazem na Instagramu (https://www.instagram.com/p/…), až ho zveřejníš. Web ho ukáže u obrazu.
+# instagram: https://www.instagram.com/p/…
+
+# Mockupy (obraz v rámu v interiéru), možnosti:
+# - true - na webu, u obrazu na prodej i pro Fler
+# - false - žádné
+mockups: false
+
+# NEPOVINNÉ. Cena v Kč, např. 2500. Povinná u available a reserved.
+price: 3400
+
+# NEPOVINNÉ. Související obrazy podle kódu id, např. [k3f9a, chqmf]: stránka obrazu je ukáže dole pod „Související obrazy“.
+# Platí oběma směry, u druhého obrazu ho psát nemusíš. Rozpracovaný obraz se ukáže, až bude zveřejněný.
+# related: [k3f9a, chqmf]
+
+# Šířka × výška v cm, např. [30, 40]. Povinné u zveřejněného obrazu.
+# Podle rozměrů se dělají mockupy ve skutečné velikosti. Nejčastější možnosti jsou:
+# - [38, 29] - Baohong
+# - [20, 20] - Khadi malý
+# - [30, 30] - Khadi velký
+# - [42, 30] - Canson Montval A3
+# - [21, 30] - Canson Montval A4
+# - [41, 30] - Canson XL A3
+# - [43, 31] - Chamoix A3
+size_cm: [30, 42]
+
+# Stav obrazu, možnosti:
+# - available - k prodeji (s cenou price)
+# - reserved - rezervováno (s cenou price)
+# - sold - prodáno, na webu „V soukromé sbírce“
+# - gifted - darováno, na webu „V soukromé sbírce“ (stejně jako prodané)
+# - not-for-sale - není na prodej, na webu bez štítku
+status: reserved
+
+# NEPOVINNÉ. Podklad, např. papír. Bez něj se na webu nezobrazí. Nejčastější možnosti jsou:
+# - papír Baohong Cold Pressed (300 g), 100% bavlna
+# - ruční papír Khadi (320 g), 100% bavlna
+# - papír Canson Montval Cold Pressed (300 g), 100% celulóza
+# - papír Canson XL Aquarelle (300 g), 100% celulóza
+# - akvarelový karton Chamoix (220 g)
+# support: papír Canson XL Aquarelle (300 g), 100% celulóza
+
+# Štítky pro filtr v galerii, např. [krajina, voda, plenér]. Prázdné = [].
+tags: [město, noc, kostel, světla]
+
+# Technika, podle ní se filtruje v galerii. Nejčastější možnosti jsou:
+# - akvarel
+# - brush pen
+# - tisk z výšky
+# - kresba tužkou
+technique: akvarel a tuš
+
+# Pár vět o obraze, zobrazí se na jeho stránce.
+# Piš ho pod „text: |“, každý řádek odsazený dvěma mezerami:
+#   - řádky zalamuj, kde chceš: na webu se spojí mezerou (příliš dlouhé zalomí automatika),
+#   - prázdný řádek = nový odstavec,
+#   - prázdné "" = bez textu.
+# Formátování:
+#   - **slovo** = tučně,
+#   - *slovo* = kurzívou,
+#   - [text](/tvorba/) = odkaz na stránku tohoto webu (adresa začíná /),
+#   - [text](k3f9a) = odkaz na jiný obraz podle jeho kódu id, [](k3f9a) = s jeho názvem jako textem odkazu
+#     (rozpracovaný obraz zůstane bez odkazu),
+#   - [text](https://…) = odkaz na jiný web, [text](mailto:…) = odkaz na e-mail.
+text: |
+  Věž kostela proti poslednímu světlu.
+
+# Název obrazu, jak ho uvidí návštěvníci webu.
+title: Kostel za soumraku
+
+# NEPOVINNÉ. Soukromá poznámka, zůstane jen v tomto repu, na web se nikdy nedostane.
+# private_note: kde obraz visí, komu patří

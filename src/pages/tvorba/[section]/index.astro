@@ -1,0 +1,61 @@
+---
+// One dynamic route for two kinds of pages under /tvorba/<section>/:
+//   /tvorba/2026/   works from one year
+//   /tvorba/k3f9a/  permanent short link of a work, redirects to its current detail URL
+import Base from '../../../layouts/Base.astro';
+import WorkGallery from '../../../components/WorkGallery.astro';
+import SearchField from '../../../components/SearchField.astro';
+import Cover from '../../../components/Cover.astro';
+import { coverShareImage, getWorks, getYear, getYears, site, workUrl, type Work } from '../../../lib/site';
+import { breadcrumbLd, collectionPageLd, graphLd, yearPageDescription } from '../../../../scripts/lib/seo.mjs';
+
+export function getStaticPaths() {
+  const works = getWorks();
+  return [
+    ...getYears().map((year) => ({ params: { section: String(year) }, props: { year, works: works.filter((w) => w.year === year) } })),
+    ...works.map((work) => ({ params: { section: work.id }, props: { redirect: work } })),
+  ];
+}
+type Props = { year: number; works: Work[]; redirect?: undefined } | { redirect: Work; year?: undefined; works?: undefined };
+const { year, works, redirect } = Astro.props;
+const target = redirect && workUrl(redirect);
+// Year page: the author's text about the year (optional) and its cover (roky/<year>.yaml of the content repository).
+const yearPage = year ? getYear(year) : undefined;
+const yearDescription = yearPageDescription(yearPage, year, site);
+const jsonLd = year ? graphLd(
+  collectionPageLd(site, { path: `/tvorba/${year}/`, name: `Tvorba ${year}`, description: yearDescription, items: works!, itemPath: (w: Work) => `/tvorba/${w.year}/${w.key}/` }),
+  breadcrumbLd(site, [{ name: 'Úvod', path: '/' }, { name: 'Tvorba', path: '/tvorba/' }, { name: String(year), path: `/tvorba/${year}/` }]),
+) : null;
+---
+{redirect ? (
+  <html lang="cs">
+    <head>
+      <meta charset="utf-8" />
+      <title>{redirect.title}</title>
+      <meta http-equiv="refresh" content={`0; url=${target}`} />
+      <link rel="canonical" href={new URL(target!, site.url).href} />
+      <meta name="robots" content="noindex" />
+    </head>
+    <body><a href={target}>{redirect.title}</a></body>
+  </html>
+) : (
+  <Base title={`Tvorba ${year}`} description={yearDescription} image={coverShareImage(yearPage!.cover)} jsonLd={jsonLd}>
+    <header class="intro">
+      <div>
+        <h1>Tvorba {year}</h1>
+        {yearPage?.paragraphs.map((p) => <p class="desc" set:html={p} />)}
+        <SearchField id="works-search" hint="Enter otevře obraz" label={`Hledat v názvech a popisech obrazů roku ${year}`} placeholder="Hledat v názvech a popisech…" />
+      </div>
+      {yearPage?.cover ? <Cover cover={yearPage.cover} sizes="(max-width: 900px) 100vw, 45vw" eager /> : null}
+    </header>
+    <WorkGallery works={works!} year={year} />
+  </Base>
+)}
+<style>
+  .intro { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 5vw, 64px); align-items: center; margin-bottom: 48px; }
+  .intro h1 { margin-top: 0.1em; }
+  /* The search in the works of this page, under the heading and its text (SearchField.astro). */
+  .intro :global(.search) { margin-top: 12px; }
+  .desc { white-space: pre-line; font-size: 1.05rem; }
+  @media (max-width: 900px) { .intro { grid-template-columns: 1fr; } }
+</style>

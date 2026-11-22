@@ -1,0 +1,295 @@
+// Prototype pages for trying out how the works are shown (and the cameras of the Instagram scenes) (npm run prototypes, scripts/prototypes.mjs): standalone HTML
+// files over the site data (content/ and public/ of the site, or of the test data with SITE_DIR=.demo/site) that take their
+// pictures straight from public/ and the calculations of the site as their source text, so a prototype always shows
+// what the site would. The templates are in scripts/prototypes/*.html, with placeholders filled here.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { buildSync } from 'esbuild';
+import YAML from 'yaml';
+import { COPIES_DIR } from './site-content.mjs';
+import { formatSizeCm, isOnSale } from './works.mjs';
+import { balanceColumns, columnCount, columnPlan, columnsFor, orderColumns } from './view-layout.mjs';
+import { homeRecent } from './home-view.mjs';
+import { MARK_ICONS, SALE_ICONS, tileMarksFor } from './tile-marks.mjs';
+import { FAVORITES_LINK_MAX, FAVORITES_STORE, SELECTION_PARAM, ownSelection, readFavorites, selectionFromSearch, selectionLink, shownFavorites, toggleFavorite } from './favorites.mjs';
+import {
+  aimRotation, cameraAngles, cameraFromAngles, circleRatio, facingDeg, fitCamera, fitCameraToLines, insidePolygon, ledgeDepth, lineMisfit, lineY,
+  planPlacement, polygonDistance, project, quadFits, sceneCamera, sceneWindow, segmentDistance, tiltDeg, unit, unproject, workQuad,
+} from './instagram.mjs';
+import { CINEMA_STORAGE_KEYS, captionMode, cinemaFromParams, intervalLabel, cinemaSettings, cinemaToParams, dragStep, fitBox, imageWidth, shuffledOrder, wrapIndex } from './cinema.mjs';
+import { VIEWER_TEXT_MAX, autoHide } from './work-viewer.mjs';
+import { ownText } from './rich-text.mjs';
+import { summarize } from './seo.mjs';
+import { PALETTES, paletteCss, scopedPaletteCss } from './palettes.mjs';
+import { DEFAULT_STORAGE_PREFIX, STORAGE_PREFIX_GLOBAL, storagePrefixOf, withStoragePrefix } from './storage-prefix.mjs';
+import { SAMPLE_PICKS, SAMPLE_SIZE, gameData, prepareGame } from './detail-game-data.mjs';
+import { gamePageHtml } from './detail-game-page.mjs';
+import { AFFINITY_WEIGHTS, GAME_AFFINITY_SCALE, GAME_AFFINITY_WEIGHTS, techniqueFamily, workDistance } from './affinity.mjs';
+import { COLOUR_ANALYSIS_SIZE, analyseColours, balancePalette, colourBins, colourDistance, colourSettings, familyShares, nearestFamily, oklabToOklch, paletteDistance, paletteMood, paperOf, rgbToOklab, workPalette } from './colors.mjs';
+import {
+  GAME_EPOCH, applyGuess, roundKey, roundOrder, chooseDecoys, dailyPuzzles, drawPixels, dropsFor, effectSettings, effectStrength, effectStyle, waveRipple, finishRound, frameSource, gameDay, gameFrame, gameHash, gameHint, gameLevels, gameLooks, dropsWord, lookForDay, lookKey, windowHtml,
+  gameRandom, gameRank, gameRanks, archiveRoom, gameShareText, gameShuffle, newProgress, newRound, puzzleForLevel, winTitle,
+  collectionHtml, gameCollection, roundPuzzle, simulatedRounds,
+} from './detail-game.mjs';
+
+
+export { SAMPLE_PICKS, SAMPLE_SIZE, prepareGame };
+
+/** The prototypes: published file name → template in scripts/prototypes/. */
+export const PROTOTYPES = {
+  'zarovnani-sloupcu.html': 'columns.html',
+  'znacky-dlazdic.html': 'marks.html',
+  'kamera-scen.html': 'scene-camera.html',
+  'promitani.html': 'cinema.html',
+  'detail-dne.html': 'detail-game.html',
+  'detail-efekty.html': 'detail-effects.html',
+  'detail-kviz.html': 'detail-quiz.html',
+  'detail-vzorek.html': 'detail-sample.html',
+  'barvy.html': 'colors.html',
+  'oblibene.html': 'favorites.html',
+};
+
+/** The functions of the site a prototype calculates with, copied into it by their source text (self-contained ones). */
+export const PROTOTYPE_FUNCTIONS = [
+  columnCount, balanceColumns, columnPlan, orderColumns,
+  project, unproject, lineY, ledgeDepth, circleRatio, aimRotation, cameraFromAngles, cameraAngles, lineMisfit, fitCameraToLines,
+  // where the pipeline puts a work in a scene and the 4:5 window it cuts
+  unit, tiltDeg, facingDeg, insidePolygon, segmentDistance, polygonDistance, quadFits, workQuad, planPlacement, sceneWindow,
+  // the cinema (autoHide always gets its `ms`: its default is a constant of its module)
+  cinemaFromParams, cinemaToParams, captionMode, intervalLabel, shuffledOrder, wrapIndex, dragStep, fitBox, imageWidth, autoHide,
+  // the game "Detail dne"
+  gameLevels, gameLooks, lookForDay, windowHtml, dropsWord, gameHash, gameRandom, gameShuffle, gameDay, chooseDecoys, puzzleForLevel, dailyPuzzles, effectStrength, effectSettings, effectStyle, waveRipple, lookKey, frameSource, drawPixels, gameFrame, gameHint, newRound, applyGuess,
+  dropsFor, winTitle, gameRanks, gameRank, archiveRoom, newProgress, roundKey, roundOrder, finishRound, gameShareText,
+  // "Moje sbírka" and a made-up player for it (how it looks after a week, a month, a year)
+  roundPuzzle, gameCollection, collectionHtml, simulatedRounds,
+  // the colours of the works (scripts/lib/colors.mjs, a prototype)
+  rgbToOklab, oklabToOklch, paperOf, balancePalette, nearestFamily, familyShares, paletteMood, paletteDistance, colourDistance,
+  // how alike two works are (scripts/lib/affinity.mjs), always called with its weights (its default is a constant of the module)
+  techniqueFamily, workDistance,
+  // the favourite works of a visitor (scripts/lib/favorites.mjs, a prototype so far)
+  readFavorites, toggleFavorite, shownFavorites, selectionLink, selectionFromSearch, ownSelection,
+];
+
+/**
+ * The colours of `works` (scripts/lib/colors.mjs) from their smallest WebP in public/ of `dataRoot` (with its
+ * transparency: the surroundings of a cut-out work stay out): { <id>: { palette (workPalette), histogram
+ * (colourHistogram, balanced by its paper: paperFromEdge, null = not balanced) } }. A picture that cannot be read has none.
+ */
+export async function prototypeColors(works, dataRoot) {
+  const { default: sharp } = await import('sharp');
+  const out = {};
+  for (const work of works) {
+    try {
+      const file = path.join(dataRoot, 'public', work.folder, `${Math.min(...work.widths)}.webp`);
+      const { data, info } = await sharp(file).resize(COLOUR_ANALYSIS_SIZE, COLOUR_ANALYSIS_SIZE, { fit: 'inside' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const pixels = { data, width: info.width, height: info.height, channels: info.channels };
+      // the analysis the pipeline keeps in info.json, and a palette of 8 colours to show
+      const analysis = analyseColours(pixels);
+      out[work.id] = { palette: workPalette(pixels), paper: analysis.paper, histogram: colourBins(analysis).map(({ lab, weight }) => ({ lab, weight })) };
+    } catch (error) {
+      console.warn(`colours: ${work.folder}: ${error.message}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * The works of the site data at `dataRoot` (content/tvorba/[<collection>/]<slug>.yaml + public/tvorba/<year>/<slug>-<id>/info.json),
+ * newest first, as much as a prototype needs: date, year, title, technique · size (and each apart), its text (plain, shortened as in the
+ * viewer of a work), tags, collection (slug and title, '' without), featured, on sale, the picture's ratio, whether it
+ * is cut out, its widths and folder (relative to public/). Works without pictures are left out, like on the site.
+ */
+export function prototypeWorks(dataRoot) {
+  const works = [];
+  const root = path.join(dataRoot, COPIES_DIR, 'tvorba');
+  if (!fs.existsSync(root)) return works;
+  const collectionTitle = (dir) => {
+    const index = path.join(dir, '_index.yaml');
+    return fs.existsSync(index) ? String(YAML.parse(fs.readFileSync(index, 'utf8'))?.title ?? '') : '';
+  };
+  (function walk(dir) {
+    const collection = dir === root ? '' : path.relative(root, dir).split(path.sep).join('/');
+    const title = collection ? collectionTitle(dir) || collection : '';
+    for (const name of fs.readdirSync(dir).sort()) {
+      const file = path.join(dir, name);
+      if (fs.statSync(file).isDirectory()) walk(file);
+      else if (name.endsWith('.yaml') && !name.startsWith('_')) {
+        const data = YAML.parse(fs.readFileSync(file, 'utf8')) ?? {};
+        if (!data.id || !data.date) continue;
+        const folder = `tvorba/${String(data.date).slice(0, 4)}/${name.replace(/\.yaml$/, '')}-${data.id}`;
+        const infoPath = path.join(dataRoot, 'public', folder, 'info.json');
+        if (!fs.existsSync(infoPath)) continue;
+        const info = JSON.parse(fs.readFileSync(infoPath, 'utf8'));
+        works.push({
+          id: data.id,
+          date: String(data.date),
+          year: Number(String(data.date).slice(0, 4)),
+          title: data.title ?? data.id,
+          sub: [data.technique, data.size_cm ? formatSizeCm(data.size_cm) : ''].filter(Boolean).join(' · '),
+          technique: String(data.technique ?? ''),
+          size: data.size_cm ? formatSizeCm(data.size_cm) : '',
+          sizeCm: Array.isArray(data.size_cm) ? data.size_cm : null,
+          text: summarize(ownText(data.text), VIEWER_TEXT_MAX),
+          tags: Array.isArray(data.tags) ? data.tags.map(String) : [],
+          collection,
+          collectionTitle: title,
+          featured: data.featured === true,
+          forSale: isOnSale(data.status),
+          ratio: info.height / info.width,
+          transparent: Boolean(info.transparent),
+          widths: info.widths,
+          folder,
+        });
+      }
+    }
+  })(root);
+  return works.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
+ * The settings of site.config.yaml (`config`) a prototype starts from: the counts of the home page, columns and marks of
+ * each place, the cinema; and the palettes of the site. The names of the browser have the prefix of the site (site.storagePrefix).
+ */
+export function prototypeConfig(config) {
+  const prefix = storagePrefixOf(config);
+  const named = (name) => withStoragePrefix(name, prefix);
+
+  return {
+    recent: homeRecent(config?.home?.recent),
+    columns: { home: columnsFor(config, 'home'), gallery: columnsFor(config, 'gallery') },
+    marks: { home: tileMarksFor(config, 'home'), gallery: tileMarksFor(config, 'gallery') },
+    icons: Object.fromEntries(['star', ...SALE_ICONS].map((icon) => [icon, `<svg viewBox="0 0 24 24">${MARK_ICONS[icon]}</svg>`])),
+    cinema: cinemaSettings(config),
+    cinemaKeys: Object.fromEntries(Object.entries(CINEMA_STORAGE_KEYS).map(([key, name]) => [key, named(name)])),
+    // the palettes of the site: their CSS (data-palette on <html>) and the switcher
+    paletteCss: paletteCss(),
+    // the palettes of the cinema, on its own element (Cinema.astro)
+    cinemaPaletteCss: scopedPaletteCss('.cinema'),
+    palettes: PALETTES.map((p) => ({ id: p.id, label: p.label })),
+    // the colours of the filter „Barva“ (site.config.yaml gallery.colors, a prototype so far)
+    colours: colourSettings(config),
+    // the weights of how alike two works are: the similar works and the game (scripts/lib/affinity.mjs)
+    affinity: { similar: AFFINITY_WEIGHTS, game: GAME_AFFINITY_WEIGHTS, gameScale: GAME_AFFINITY_SCALE },
+    // the favourites: where the browser keeps them, the parameter of "Můj výběr" and the most works in its link
+    favorites: { store: named(FAVORITES_STORE), param: SELECTION_PARAM, linkMax: FAVORITES_LINK_MAX },
+  };
+}
+
+/** The path from a page in `outDir` to the public/ of `dataRoot`, as used in the page (forward slashes). */
+export const publicPath = (outDir, dataRoot) => path.relative(path.resolve(outDir), path.resolve(dataRoot, 'public')).split(path.sep).join('/') || '.';
+
+/**
+ * The page of `template` with its placeholders filled: `/*DATA*\/{}` = `data` as JSON (safe inside <script>), and
+ * `/*FUNCTIONS*\/` = the source of PROTOTYPE_FUNCTIONS. A missing placeholder is an error (a template out of date). `parts` = more
+ * placeholders a template may have (name → text, `/*<name>*\/`, gamePrototypeParts); one in the page without its part is an error.
+ */
+export function fillTemplate(template, data, parts = {}) {
+  const json = JSON.stringify(data).replace(/</g, '\\u003c');
+  const fills = [['/*DATA*/{}', json], ['/*FUNCTIONS*/', PROTOTYPE_FUNCTIONS.map(String).join('\n')]];
+  let page = template;
+  for (const [placeholder, value] of fills) {
+    if (!page.includes(placeholder)) throw new Error(`prototype template without ${placeholder}`);
+    page = page.replace(placeholder, () => value);
+  }
+  for (const name of template.match(/\/\*[A-Z][A-Z_]+\*\//g) ?? []) {
+    const key = name.slice(2, -2);
+    if (key === 'DATA' || key === 'FUNCTIONS') continue;
+    if (parts[key] === undefined) throw new Error(`prototype template with ${name} and nothing to fill it with`);
+    page = page.replace(name, () => parts[key]);
+  }
+  return page;
+}
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/**
+ * What the prototype of the game Detail dne (detail-dne.html) takes from the site, so it plays the same game: its look
+ * (`GAME_CSS` = src/styles/detail-game.css), its markup (`GAME_HTML` = gamePageHtml) and its script (`GAME_SCRIPT` =
+ * src/lib/detail-game.ts bundled with what it imports, the global `DetailGame` with startGame, its names of the browser with
+ * the prefix `prefix` of the site as on the site).
+ */
+export function gamePrototypeParts(root = ROOT, prefix = DEFAULT_STORAGE_PREFIX) {
+  const { outputFiles } = buildSync({
+    entryPoints: [path.join(root, 'src', 'lib', 'detail-game.ts')], bundle: true, write: false, format: 'iife', globalName: 'DetailGame',
+    platform: 'browser', target: 'es2022', charset: 'utf8', define: { 'import.meta.env.BASE_URL': '"/"', [STORAGE_PREFIX_GLOBAL]: JSON.stringify(prefix) }, logLevel: 'silent',
+    // modules of Node imported by the shared libraries for their other functions: empty in the browser, as Vite does on the site
+    external: ['node:*'], banner: { js: 'var require = () => ({});' },
+  });
+  return {
+    GAME_CSS: fs.readFileSync(path.join(root, 'src', 'styles', 'detail-game.css'), 'utf8'),
+    GAME_HTML: gamePageHtml(),
+    // safe inside <script>: no closing tag of it in the code
+    GAME_SCRIPT: outputFiles[0].text.replace(/<\/script/gi, '<\\/script'),
+  };
+}
+
+/**
+ * The data the game takes on the site (gameData, as /detail-dne/data.json) from `game` (prepareGame of the works of the site, with
+ * the plan of the days `plan` when there is one) and the works of the prototypes: the pages of the works on the site `site`.
+ */
+export function prototypePlay({ works, game, site }) {
+  const withPages = works.map((w) => ({ ...w, url: `${site.replace(/\/$/, '')}/${w.folder}/` }));
+  return gameData({ works: withPages, prepared: game.prepared, site, plan: game.plan ?? null });
+}
+
+/** The settings of a scene the placement of a work (planPlacement) and its 4:5 window (sceneWindow) take. */
+const PLACEMENT_KEYS = ['maxShiftCm', 'maxSlideCm', 'minTiltDeg', 'maxTiltDeg', 'tiltSign', 'maxExtraTiltDeg', 'propMarginPx', 'cropTop', 'minFill', 'maxZoom', 'minArea', 'maxAreaZoom'];
+
+// unrounded: the prototype places a work exactly as the pipeline does (a rounded camera can tip a borderline placement)
+const setupOf = (cam) => ({
+  focalMm: cam.focalMm, zenithDeg: cam.zenithDeg, azimuthDeg: cam.azimuthDeg, rollDeg: cam.rollDeg, distanceCm: cam.distanceCm,
+  sheetCenter: cam.sheetCenter, sheetDeg: cam.sheetDeg ?? 0,
+});
+
+/**
+ * The Instagram scenes (loadInstagramScenes, with imageSize) as the prototype of their cameras needs them: what
+ * scenes.yaml says (with the edges of the support `lines`), the pictures (relative to `outDir`), the camera the
+ * pipeline uses (`camera`, where from: `source` = camera | lines | corners), the one fitted to the drawn corners
+ * (`fitted`) and, with lines, the one from the lines (`fromLines`), all as camera setups.
+ */
+export function prototypeScenes(scenes, outDir) {
+  const rel = (file) => path.relative(path.resolve(outDir), file).split(path.sep).join('/');
+  return scenes.map((scene) => {
+    const fitted = fitCamera(scene.corners, scene.sheetCm, scene.imageSize, { focalMm: scene.focalMm, circles: scene.circles, mode: scene.mode });
+    const cam = sceneCamera(scene);
+    const fromLines = scene.lines ? fitCameraToLines(scene, fitted) : null;
+    return {
+      name: scene.name, label: scene.label, mode: scene.mode, sheetCm: scene.sheetCm, imageSize: scene.imageSize,
+      corners: scene.corners, circles: scene.circles ?? [], center: scene.center ?? null, ledge: scene.ledge ?? null,
+      axis: scene.axis ?? null, sinkPx: scene.sinkPx ?? 0, focalMm: scene.focalMm ?? null, prompt: scene.prompt ?? null,
+      front: scene.front ?? [], props: scene.props ?? [], bounds: scene.bounds ?? null,
+      // what planPlacement and sceneWindow read, as the pipeline has it
+      ...Object.fromEntries(PLACEMENT_KEYS.filter((k) => scene[k] !== undefined).map((k) => [k, scene[k]])),
+      lines: { x: scene.lines?.x ?? [], y: scene.lines?.y ?? [] },
+      image: rel(scene.path), sheetImage: rel(scene.sheetPath),
+      camera: setupOf(cam), source: cam.source, fitted: setupOf(fitted),
+      fromLines: fromLines && setupOf({ ...fromLines.setup, sheetDeg: fromLines.sheetDeg }),
+    };
+  });
+}
+
+
+/**
+ * Writes every prototype into `outDir` from the templates in `templatesDir`; returns the written files. `game` = prepareGame of the
+ * works (with `plan`, the plan of the days as the site has it, when there is one).
+ */
+export function writePrototypes({ dataRoot, outDir, templatesDir, config, scenes = [], game = { prepared: {}, sample: [] }, colors = {}, root = ROOT }) {
+  const works = prototypeWorks(dataRoot);
+  const site = config?.site?.url ?? '';
+  const data = {
+    works, public: publicPath(outDir, dataRoot), config: prototypeConfig(config), scenes: prototypeScenes(scenes, outDir),
+    game: { prepared: game.prepared, sample: game.sample, epoch: GAME_EPOCH, site },
+    play: prototypePlay({ works, game, site }),
+    colors,
+  };
+  // the prefix of the names of the browser (site.storagePrefix): /*STORAGE_PREFIX*/ of the templates, as a JS string
+  const prefix = storagePrefixOf(config);
+  const parts = { ...gamePrototypeParts(root, prefix), STORAGE_PREFIX: JSON.stringify(prefix) };
+  fs.mkdirSync(outDir, { recursive: true });
+  return Object.entries(PROTOTYPES).map(([name, template]) => {
+    const file = path.join(outDir, name);
+    fs.writeFileSync(file, fillTemplate(fs.readFileSync(path.join(templatesDir, template), 'utf8'), data, parts));
+    return file;
+  });
+}

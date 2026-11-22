@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="cs" data-palette="papir">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Detail dne</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Work+Sans:wght@300;400;500&display=swap&subset=latin-ext" rel="stylesheet" />
+<style id="palettes"></style>
+<style>
+  /* The base of every page of the site (src/layouts/Base.astro), as much as the game takes from it. */
+  :root { --serif: 'Cormorant Garamond', Georgia, serif; --sans: 'Work Sans', system-ui, sans-serif; --gutter: clamp(16px, 4vw, 48px); }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 300 17px/1.65 var(--sans); }
+  main { width: 100%; margin: 0 auto; padding: 16px var(--gutter) 80px; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 400; line-height: 1.15; letter-spacing: 0.005em; }
+  h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); margin: 0.2em 0 0.4em; }
+  h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); }
+  a { color: inherit; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  p { max-width: 62ch; }
+
+  /* The tuning of the prototype, under the game (not part of the site). */
+  #tuning { max-width: 1040px; margin: 24px auto 0; border: 1px dashed var(--line); padding: 10px 14px; font-size: .86rem; color: var(--ink-soft); display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+  #tuning button { font: inherit; color: inherit; cursor: pointer; background: transparent; border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px; font-size: .84rem; }
+  #tuning select { accent-color: var(--accent); font: inherit; }
+</style>
+<!-- The look of the game: src/styles/detail-game.css, the same file as on the site. -->
+<style>/*GAME_CSS*/</style>
+</head>
+<body>
+<main>
+<!-- The game: the markup of the page /detail-dne/ (gamePageHtml) and its script (src/lib/detail-game.ts, bundled). -->
+/*GAME_HTML*/
+<section id="tuning" aria-label="Ladění prototypu">
+  <span>Ladění prototypu</span>
+  <span><button id="previous" type="button">← den</button> <output id="day-label"></output> <button id="next" type="button">den →</button></span>
+  <label>Vzhled <select id="look"></select></label>
+  <label>Paleta <select id="palette"></select></label>
+  <label>Sbírka <select id="simulate"><option value="">skutečná</option><option value="7">po týdnu</option><option value="30">po měsíci</option><option value="91">po čtvrt roce</option><option value="365">po roce</option></select></label>
+  <button id="reset" type="button">Smazat postup</button>
+  <span id="pool"></span>
+</section>
+</main>
+<script>
+const DATA = /*DATA*/{};
+/*FUNCTIONS*/
+</script>
+<script>/*GAME_SCRIPT*/</script>
+<script>
+// The prototype: the game of the site (DetailGame.startGame) with the data of this page and its own memory, and a tuning that
+// picks a look, a palette, a made-up collection (simulatedRounds) and any day, also the ones to come.
+(async () => {
+const { config: CONFIG, play: PLAY, public: PUBLIC } = DATA;
+const TUNING = /*STORAGE_PREFIX*/ + '.prototype.detailGame.tuning.v1';
+const LEVELS = gameLevels();
+const LOOKS = gameLooks();
+document.getElementById('palettes').textContent = CONFIG.paletteCss;
+const tuning = (() => {
+  try { return { look: 'auto', palette: 'papir', ...JSON.parse(localStorage.getItem(TUNING)) }; } catch { return { look: 'auto', palette: 'papir' }; }
+})();
+const keep = () => {
+  try { localStorage.setItem(TUNING, JSON.stringify(tuning)); } catch { /* the tuning is forgotten */ }
+};
+document.documentElement.dataset.palette = tuning.palette;
+let simulated = null;
+
+const game = await DetailGame.startGame(document.querySelector('.detail-game'), {
+  data: PLAY,
+  base: PLAY.site.replace(/\/$/, ''),
+  pictures: PUBLIC,
+  store: /*STORAGE_PREFIX*/ + '.prototype.detailGame.v7',
+  look: () => (tuning.look === 'auto' ? null : tuning.look),
+  collectionRounds: () => simulated,
+  lastDay: Infinity,
+  diagnostics: true,
+});
+
+const label = () => {
+  document.getElementById('day-label').textContent = game.day() === game.today ? 'dnes' : `#${game.day() + 1}`;
+};
+const lookChoice = document.getElementById('look');
+const palette = document.getElementById('palette');
+lookChoice.innerHTML = `<option value="auto">podle dne</option>${LEVELS.map((level) => `<optgroup label="${level.label}">${LOOKS.filter((l) => l.level === level.id).map((l) => `<option value="${l.id}">${l.label}</option>`).join('')}</optgroup>`).join('')}`;
+lookChoice.value = LOOKS.some((l) => l.id === tuning.look) ? tuning.look : 'auto';
+palette.innerHTML = CONFIG.palettes.map((p) => `<option value="${p.id}">${p.label}</option>`).join('');
+palette.value = tuning.palette;
+lookChoice.addEventListener('change', () => { tuning.look = lookChoice.value; keep(); game.render(); });
+palette.addEventListener('change', () => { tuning.palette = palette.value; document.documentElement.dataset.palette = palette.value; keep(); });
+document.getElementById('previous').addEventListener('click', async () => { await game.openDay(game.day() - 1); label(); });
+document.getElementById('next').addEventListener('click', async () => { await game.openDay(game.day() + 1); label(); });
+document.querySelector('.detail-game').addEventListener('click', () => requestAnimationFrame(label));
+document.getElementById('simulate').addEventListener('change', (e) => {
+  const days = Number(e.target.value);
+  simulated = days ? simulatedRounds({ start: game.today, days, levels: LEVELS, prepared: PLAY.prepared, epoch: PLAY.epoch }) : null;
+  game.render();
+});
+document.getElementById('reset').addEventListener('click', () => game.reset());
+document.getElementById('pool').textContent = `Odpovědí z ${PLAY.works.length} děl: ${LEVELS.map((l) => `${l.label} ${Object.keys(PLAY.prepared[l.id] ?? {}).length}`).join(', ')} · plán ${Object.keys(PLAY.plan?.days ?? {}).length} dní`;
+label();
+})();
+</script>
+</body>
+</html>

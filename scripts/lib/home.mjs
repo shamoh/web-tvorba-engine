@@ -1,0 +1,66 @@
+// The home page: _index.yaml in the root of the content repository (HOME_SCHEMA in scripts/lib/schema.mjs): the text
+// next to the big picture (`text`, `description` for search engines), its heading, buttons, the texts while the site has
+// no work yet, and its cover (scripts/lib/covers.mjs); its own cover photo is _cover.jpg next to it. A skeleton is written
+// when the file is missing (with the text the home page had before), and it is kept in line like every description.
+
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import YAML from 'yaml';
+import { COVER_NAME, INDEX_FILE, RETIRED_NAMES, keepInLine, retiredNameProblem } from './content.mjs';
+import { skeleton } from './metadata-yaml.mjs';
+import { HOME_SCHEMA, fieldKeys, homeEmptyClosing, publicKeys } from './schema.mjs';
+import { IMAGE_EXTENSIONS, splitExt } from './works.mjs';
+
+export const HOME_FILE = INDEX_FILE;
+export const HOME_PHOTO = COVER_NAME;
+/** Fields copied to the public site repository; the private note never is. */
+export const PUBLIC_HOME_FIELDS = publicKeys(HOME_SCHEMA);
+/** One-line texts of the home page that must not be empty, with what they are (Czech, for the run summary). */
+const REQUIRED = { heading: 'velký nadpis úvodní stránky', button: 'text tlačítka na tvorbu', empty_text: 'věta prázdného webu' };
+/** Every attribute of the home page's _index.yaml (HOME_SCHEMA). */
+export const HOME_FIELDS = fieldKeys(HOME_SCHEMA);
+
+/**
+ * Reads (or creates) _index.yaml, brings it in line with HOME_SCHEMA and finds _cover.jpg. `instagram`: the profile
+ * of site.instagram, for the sentence under the empty site (homeEmptyClosing) of a skeleton or a file without it.
+ * Returns { home: { data, yamlPath, coverPath } | null, created, updated, problems }.
+ * A file under its former name (uvod.yaml, uvod.jpg) is a problem; then no skeleton is written, so nothing is lost.
+ */
+export async function prepareHome(contentDir, { instagram = '' } = {}) {
+  const created = [];
+  const updated = [];
+  const problems = [];
+  const file = path.join(contentDir, HOME_FILE);
+  const retired = (await fs.readdir(contentDir)).sort().map((f) => retiredNameProblem('', f, RETIRED_NAMES)).filter(Boolean);
+  problems.push(...retired);
+  let text = await fs.readFile(file, 'utf8').catch(() => null);
+  if (text === null && retired.length) return { home: null, created, updated, problems };
+  if (text === null) {
+    text = skeleton(HOME_SCHEMA, { empty_closing: homeEmptyClosing(instagram) });
+    await fs.writeFile(file, text);
+    created.push(HOME_FILE);
+  } else {
+    text = await keepInLine(text, HOME_SCHEMA, HOME_FILE, file, updated, problems, { empty_closing: homeEmptyClosing(instagram) });
+  }
+  let data;
+  try {
+    data = YAML.parse(text) ?? {};
+  } catch {
+    return { home: null, created, updated, problems }; // reported by keepInLine
+  }
+  // the texts themselves (text, description, empty_closing) are checked with every description (textProblems)
+  for (const [key, what] of Object.entries(REQUIRED)) {
+    if (typeof data[key] !== 'string' || !data[key].trim()) problems.push(`${HOME_FILE}: ${key} (${what}) je prázdný nebo není text, napiš ho [prazdny-nadpis]`);
+  }
+  // the second button may be switched off by "" (the pipeline adds its default to a file without it)
+  if (data.button_show !== undefined && typeof data.button_show !== 'string') {
+    problems.push(`${HOME_FILE}: button_show (text tlačítka na promítání výběru autorky) není text, napiš ho, nebo "" bez tlačítka [prazdny-nadpis]`);
+  }
+  const photos = (await fs.readdir(contentDir)).filter((f) => {
+    const { base, ext } = splitExt(f);
+    return base === HOME_PHOTO && IMAGE_EXTENSIONS.includes(ext);
+  });
+  if (photos.length > 1) problems.push(`${photos.join(', ')}: víc úvodních fotek úvodní stránky, nech jen jednu [vic-uvodnich-fotek]`);
+  const coverPath = photos.length ? path.join(contentDir, photos[0]) : null;
+  return { home: { data, yamlPath: HOME_FILE, coverPath }, created, updated, problems };
+}

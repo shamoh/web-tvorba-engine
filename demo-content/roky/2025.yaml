@@ -1,0 +1,35 @@
+# NEPOVINNÉ. Ořez vybraného obrazu (cover nebo vlastní fotky) na poměr stran šířka:výška v uvozovkách, např. "3:2", "2:1",
+# "1:1". Jen s focus = "1:1". Bez aspect i focus = celý.
+# aspect: "3:2"
+
+# NEPOVINNÉ. Vybraný úvodní obraz: id díla z toho roku (např. k3f9a), nebo jeho detailní fotka (k3f9a#1-kvet), bez mezer;
+# vede na to dílo. Nebo místo toho vlastní fotka <rok>.jpg vedle tohoto souboru (bez odkazu). Ukáže se celý, s aspect nebo focus oříznutý.
+# Prázdné = náhodně jeden z 10 nejnovějších obrazů ve výběru autorky (featured), celý, bez ořezu.
+# cover: k3f9a
+
+# NEPOVINNÉ. Popis pro vyhledávače a náhled odkazu (Google, Facebook, WhatsApp): jedna nebo dvě věty, nejvýš
+# 160 znaků, bez formátování; na stránce se neukáže. Prázdné = začátek textu.
+# description: Jedna nebo dvě věty pro Google, nejvýš 160 znaků.
+
+# UKÁZKA: vlastní úvodní fotka roku (roky/2025.jpg, široké panorama); jen focus = ořez na čtverec 1:1
+# NEPOVINNÉ. Při ořezu vybraného obrazu zůstane vidět [zleva %, shora %], např. [50, 50] = střed, [80, 30] = vpravo nahoře.
+# Jen s aspect = střed. Náhodný obraz se neořezává.
+focus: [20, 50]
+
+# Pár vět o roce za sebe (jaký byl, co se v tvorbě dělo), nahoře na stránce roku /tvorba/<rok>/.
+# Piš ho pod „text: |“, každý řádek odsazený dvěma mezerami:
+#   - řádky zalamuj, kde chceš: na webu se spojí mezerou (příliš dlouhé zalomí automatika),
+#   - prázdný řádek = nový odstavec,
+#   - prázdné "" = bez textu.
+# Formátování:
+#   - **slovo** = tučně,
+#   - *slovo* = kurzívou,
+#   - [text](/tvorba/) = odkaz na stránku tohoto webu (adresa začíná /),
+#   - [text](k3f9a) = odkaz na jiný obraz podle jeho kódu id, [](k3f9a) = s jeho názvem jako textem odkazu
+#     (rozpracovaný obraz zůstane bez odkazu),
+#   - [text](https://…) = odkaz na jiný web, [text](mailto:…) = odkaz na e-mail.
+text: |
+  Testovací text roku 2025, *kurzívou* a **tučně**.
+
+# NEPOVINNÉ. Soukromá poznámka, zůstane jen v tomto repu, na web se nikdy nedostane.
+# private_note: kde obraz visí, komu patří

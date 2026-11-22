@@ -1,0 +1,248 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  artform, artworkLd, workPageLd, gamePageLd, authorId, imageObjectLd, breadcrumbLd, collectionPageLd, graphLd, HIDDEN_SITE_ROBOTS, jsonLdText, personLd, robotsTxt, summarize,
+  AI_TRAINING_CRAWLERS, TDM_RESERVATION, tdmRepJson,
+  tagKeywords, verificationMeta, websiteLd, workDescription, workPageDescription, workPageTitle, yearPageDescription, YEAR_DESCRIPTION, fillTemplate,
+} from './seo.mjs';
+import { demoSiteConfig } from './test-support/demo-site.mjs';
+
+const site = { url: 'https://web.test', title: 'Pavla Kramolišová', tagline: 'Akvarely a kresby', author: 'Pavla Kramolišová', instagram: 'pavla.k', fler: '' };
+const work = { title: 'Ovce', key: 'ovce-v39nd', year: 2026, date: new Date('2026-09-26'), technique: 'akvarel', size_cm: [42, 30], status: 'not-for-sale' };
+
+test('summarize: whitespace collapsed, at most max characters, cut after a whole word with an ellipsis', () => {
+  assert.equal(summarize('  Tři ovce\n  z pastviny. '), 'Tři ovce z pastviny.');
+  assert.equal(summarize(''), '');
+  assert.equal(summarize(undefined), '');
+  const long = summarize('slovo '.repeat(60), 40);
+  assert.ok(long.length <= 40, long);
+  assert.match(long, /slovo…$/);
+});
+
+test('workDescription: the own text, otherwise made of technique, support, size and year', () => {
+  assert.equal(workDescription({ ...work, description: 'Tři ovce z pastviny.\n' }, site), 'Tři ovce z pastviny.');
+  assert.equal(workDescription(work, site), 'Ovce – akvarel, 42 × 30 cm, 2026. Pavla Kramolišová.');
+  assert.equal(workDescription({ ...work, support: 'papír Arches 300 g' }, site), 'Ovce – akvarel, papír Arches 300 g, 42 × 30 cm, 2026. Pavla Kramolišová.');
+  assert.equal(workDescription({ title: 'Skica', year: 2025 }, site), 'Skica – 2025. Pavla Kramolišová.');
+  assert.equal(workDescription({ ...work, size_cm: [29.5, 29.5] }, site), 'Ovce – akvarel, 29,5 × 29,5 cm, 2026. Pavla Kramolišová.');
+});
+
+test('artworkLd: a VisualArtwork by the author, with size in cm; on sale only availability, never a price', () => {
+  const ld = artworkLd(work, site, { path: '/tvorba/2026/ovce-v39nd/', image: 'https://web.test/og.jpg' });
+  assert.equal(ld['@type'], 'VisualArtwork');
+  assert.equal(ld.url, 'https://web.test/tvorba/2026/ovce-v39nd/');
+  assert.deepEqual(ld.creator, { '@id': authorId(site) });
+  assert.equal(ld.width.value, 42);
+  // structured data keep numbers (29.5), only the texts use the Czech comma
+  assert.equal(artworkLd({ ...work, size_cm: [29.5, 40] }, site, { path: '/x/' }).width.value, 29.5);
+  assert.equal(ld.height.unitCode, 'CMT');
+  assert.equal(ld.dateCreated, '2026-09-26');
+  assert.equal(ld.offers, undefined, 'not for sale: no offer');
+  const onSale = artworkLd({ ...work, status: 'available', price: 2500 }, site, { path: '/x/' });
+  assert.deepEqual(onSale.offers, { '@type': 'Offer', availability: 'https://schema.org/InStock', url: 'https://web.test/x/' });
+  assert.doesNotMatch(JSON.stringify(onSale), /2500|price/i, 'the price never reaches search engines');
+  assert.equal(artworkLd({ ...work, status: 'reserved' }, site, { path: '/x/' }).offers.availability, 'https://schema.org/LimitedAvailability');
+  assert.equal(artworkLd({ ...work, status: 'sold' }, site, { path: '/x/' }).offers, undefined);
+  assert.equal(artworkLd({ title: 'X' }, site, { path: '/x/' }).width, undefined, 'no size, no width');
+});
+
+test('artform: painting, drawing or print from the technique as written, the first rule wins, unknown = none', () => {
+  for (const t of ['akvarel', 'Akvarel', 'akvarel a tuš', 'kvaš', 'pastel']) assert.equal(artform(t), 'malba', t);
+  for (const t of ['kresba tužkou', 'brush pen', 'tuš perem']) assert.equal(artform(t), 'kresba', t);
+  for (const t of ['tisk z výšky', 'linoryt', 'suchá jehla – grafika']) assert.equal(artform(t), 'grafika', t);
+  assert.equal(artform('koláž'), undefined);
+  assert.equal(artform(undefined), undefined);
+});
+
+test('artworkLd: keywords from the tags and the art form, none without them', () => {
+  const ld = artworkLd({ ...work, tags: ['zvířata', 'plenér'] }, site, { path: '/x/' });
+  assert.equal(ld.keywords, 'zvířata, plenér');
+  assert.equal(ld.artform, 'malba');
+  assert.equal(ld.artMedium, 'akvarel');
+  const bare = artworkLd({ ...work, technique: 'koláž', tags: [] }, site, { path: '/x/' });
+  assert.equal(bare.keywords, undefined);
+  assert.equal(bare.artform, undefined);
+  assert.equal(artworkLd({ title: 'X' }, site, { path: '/x/' }).keywords, undefined);
+});
+
+test('tagKeywords: the most frequent tags first, then alphabetically, at most max, nothing without tags', () => {
+  const works = [{ tags: ['voda', 'krajina'] }, { tags: ['krajina', 'les'] }, { tags: ['zvířata'] }, {}];
+  assert.deepEqual(tagKeywords(works), ['krajina', 'les', 'voda', 'zvířata']);
+  assert.deepEqual(tagKeywords(works, 2), ['krajina', 'les']);
+  assert.deepEqual(tagKeywords([{ title: 'Kolekce' }]), []);
+});
+
+test('personLd and websiteLd: one author node, her profiles elsewhere, the site in Czech', () => {
+  const person = personLd(site, { image: 'https://web.test/p.jpg' });
+  assert.equal(person['@id'], 'https://web.test/#autorka');
+  assert.deepEqual(person.sameAs, ['https://www.instagram.com/pavla.k/'], 'an empty Fler address is left out');
+  assert.deepEqual(personLd({ ...site, pinterest: 'https://cz.pinterest.com/pavla/' }).sameAs, ['https://www.instagram.com/pavla.k/', 'https://cz.pinterest.com/pavla/']);
+  assert.equal(person.image, 'https://web.test/p.jpg');
+  assert.equal(personLd(site).image, undefined);
+  assert.equal(person.homeLocation, undefined, 'no place without site.location');
+  assert.deepEqual(personLd({ ...site, location: 'Roztoky' }).homeLocation,
+    { '@type': 'Place', name: 'Roztoky', address: { '@type': 'PostalAddress', addressLocality: 'Roztoky', addressCountry: 'CZ' } });
+  const web = websiteLd(site);
+  assert.equal(web.inLanguage, 'cs');
+  assert.deepEqual(web.author, { '@id': person['@id'] });
+});
+
+test('collectionPageLd and breadcrumbLd: items in order with absolute addresses', () => {
+  const page = collectionPageLd(site, { path: '/tvorba/', name: 'Tvorba', description: 'Vše.', items: [work, { ...work, title: 'Rano', key: 'rano-k3f9a' }], itemPath: (w) => `/tvorba/2026/${w.key}/` });
+  assert.equal(page.mainEntity.numberOfItems, 2);
+  assert.equal(page.keywords, undefined, 'works without tags, no keywords');
+  const tagged = collectionPageLd(site, { path: '/tvorba/', name: 'Tvorba', items: [{ ...work, tags: ['voda', 'krajina'] }, { ...work, tags: ['krajina'] }], itemPath: (w) => `/${w.key}/` });
+  assert.equal(tagged.keywords, 'krajina, voda');
+  assert.deepEqual(page.mainEntity.itemListElement[1], { '@type': 'ListItem', position: 2, url: 'https://web.test/tvorba/2026/rano-k3f9a/', name: 'Rano' });
+  const crumbs = breadcrumbLd(site, [{ name: 'Úvod', path: '/' }, { name: 'Tvorba', path: '/tvorba/' }]);
+  assert.deepEqual(crumbs.itemListElement.map((i) => [i.position, i.item]), [[1, 'https://web.test/'], [2, 'https://web.test/tvorba/']]);
+});
+
+test('graphLd and jsonLdText: one @graph, nothing for no nodes, "<" can never close the script element', () => {
+  assert.equal(graphLd(), null);
+  assert.equal(graphLd(null, undefined), null);
+  const g = graphLd(websiteLd(site), [personLd(site)]);
+  assert.equal(g['@context'], 'https://schema.org');
+  assert.equal(g['@graph'].length, 2);
+  const text = jsonLdText({ name: '</script><script>alert(1)</script>' });
+  assert.doesNotMatch(text, /</);
+  assert.equal(JSON.parse(text).name, '</script><script>alert(1)</script>');
+});
+
+test('verificationMeta and robotsTxt', () => {
+  assert.deepEqual(verificationMeta({ google: 'g1', bing: '', seznam: 's1' }), [
+    { name: 'google-site-verification', content: 'g1' }, { name: 'seznam-wmt', content: 's1' },
+  ]);
+  assert.deepEqual(verificationMeta(undefined), []);
+  assert.deepEqual(verificationMeta({ pinterest: 'p1' }), [{ name: 'p:domain_verify', content: 'p1' }]);
+  assert.ok(robotsTxt({ url: 'https://web.test/' }).endsWith('\n\nUser-agent: *\nAllow: /\n\nSitemap: https://web.test/sitemap.xml\n'));
+  assert.equal(robotsTxt({ url: 'https://web.test/' }, { hidden: false }), robotsTxt({ url: 'https://web.test/' }));
+});
+
+test('robotsTxt: the crawlers training artificial intelligence get nothing, search engines and Pinterest everything', () => {
+  const txt = robotsTxt({ url: 'https://web.test/' });
+  const [ai, rest] = txt.split('\n\n');
+  assert.deepEqual(ai.split('\n'), [...AI_TRAINING_CRAWLERS.map((bot) => `User-agent: ${bot}`), 'Disallow: /'], 'one group, everything disallowed');
+  for (const bot of ['GPTBot', 'ClaudeBot', 'Google-Extended', 'CCBot']) assert.ok(AI_TRAINING_CRAWLERS.includes(bot), bot);
+  for (const bot of ['Googlebot', 'Googlebot-Image', 'Bingbot', 'SeznamBot', 'Pinterestbot', 'facebookexternalhit']) {
+    assert.ok(!AI_TRAINING_CRAWLERS.some((ai) => ai.toLowerCase() === bot.toLowerCase()), `${bot} stays allowed`);
+  }
+  assert.equal(rest, 'User-agent: *\nAllow: /');
+  assert.equal(new Set(AI_TRAINING_CRAWLERS).size, AI_TRAINING_CRAWLERS.length, 'no crawler twice');
+});
+
+test('tdmRepJson and TDM_RESERVATION: the mining of the whole site (in its folder) is reserved', () => {
+  assert.deepEqual(JSON.parse(tdmRepJson('/')), [{ location: '/*', 'tdm-reservation': 1 }]);
+  assert.deepEqual(JSON.parse(tdmRepJson('/web-tvorba-engine')), [{ location: '/web-tvorba-engine/*', 'tdm-reservation': 1 }]);
+  assert.deepEqual(JSON.parse(tdmRepJson('/web-tvorba-engine/')), [{ location: '/web-tvorba-engine/*', 'tdm-reservation': 1 }]);
+  assert.deepEqual(TDM_RESERVATION, { name: 'tdm-reservation', content: '1' });
+});
+
+test('robotsTxt and HIDDEN_SITE_ROBOTS: a hidden site (the test site) forbids everything and names no map', () => {
+  const txt = robotsTxt({ url: 'https://web.test/' }, { hidden: true });
+  assert.equal(txt, 'User-agent: *\nDisallow: /\n');
+  assert.doesNotMatch(txt, /Allow|Sitemap/);
+  assert.match(HIDDEN_SITE_ROBOTS, /noindex/);
+  assert.match(HIDDEN_SITE_ROBOTS, /nofollow/);
+});
+
+const slat = { ...work, id: 'rk9ct', title: 'Tetřevská slať', technique: 'akvarel', size_cm: [30, 42] };
+const tisk = { ...work, id: 'fkhm2', title: 'Tetřevská slať', technique: 'tisk z výšky', size_cm: [6, 10.5] };
+
+test('workPageTitle: the title alone, with the technique when another work has the same title', () => {
+  const ovce = { ...work, id: 'v39nd' };
+  assert.equal(workPageTitle(ovce, [ovce, slat, tisk]), 'Ovce');
+  assert.equal(workPageTitle(slat, [ovce, slat, tisk]), 'Tetřevská slať (akvarel)');
+  assert.equal(workPageTitle(tisk, [ovce, slat, tisk]), 'Tetřevská slať (tisk z výšky)');
+  const shouted = { ...tisk, title: 'TETŘEVSKÁ SLAŤ' };
+  assert.equal(workPageTitle(shouted, [slat, shouted]), 'TETŘEVSKÁ SLAŤ (tisk z výšky)', 'case does not tell them apart');
+});
+
+test('workPageTitle: the same technique too adds size and year, then the id', () => {
+  const a = { ...slat, id: 'aaaaa' };
+  const b = { ...slat, id: 'bbbbb', size_cm: [20, 20] };
+  assert.equal(workPageTitle(a, [a, b]), 'Tetřevská slať (akvarel, 30 × 42 cm, 2026)');
+  const c = { ...slat, id: 'ccccc' };
+  assert.equal(workPageTitle(c, [a, c]), 'Tetřevská slať (akvarel, 30 × 42 cm, 2026, ccccc)');
+});
+
+test('workPageDescription: the own description, with technique, size and year when another work has the same', () => {
+  const k1 = { ...work, id: 'zwpza', title: 'Krmelec u lesa', description: 'Krmelec na okraji lesa.\n', size_cm: [30, 30] };
+  const k2 = { ...work, id: 'rekgm', title: 'Krmelec u lesa (2)', description: 'Krmelec na okraji lesa.\n', size_cm: [27.5, 40] };
+  const other = { ...work, id: 'v39nd', description: 'Tři ovce z pastviny.' };
+  assert.equal(workPageDescription(other, [k1, k2, other], site), 'Tři ovce z pastviny.');
+  assert.equal(workPageDescription(k1, [k1, k2, other], site), 'Krmelec na okraji lesa. Akvarel, 30 × 30 cm, 2026.');
+  assert.equal(workPageDescription(k2, [k1, k2, other], site), 'Krmelec na okraji lesa. Akvarel, 27,5 × 40 cm, 2026.');
+  // a long own text is cut first, the facts always fit into 160 characters
+  const long = 'slovo '.repeat(40);
+  const d = workPageDescription({ ...k2, description: long }, [{ ...k1, description: long }, { ...k2, description: long }], site);
+  assert.ok(d.length <= 160, String(d.length));
+  assert.match(d, /… Akvarel, 27,5 × 40 cm, 2026\.$/);
+});
+
+test('artworkLd: the post on Instagram and the listing on Fler are sameAs, only web addresses', () => {
+  const ld = artworkLd({ ...work, instagram: 'https://www.instagram.com/p/AbC/', fler: 'https://www.fler.cz/zbozi/x' }, site, { path: '/x/' });
+  assert.deepEqual(ld.sameAs, ['https://www.instagram.com/p/AbC/', 'https://www.fler.cz/zbozi/x']);
+  assert.deepEqual(artworkLd({ ...work, instagram: 'https://www.instagram.com/p/AbC/', fler: '' }, site, { path: '/x/' }).sameAs, ['https://www.instagram.com/p/AbC/']);
+  assert.equal('sameAs' in artworkLd({ ...work, instagram: true }, site, { path: '/x/' }), false, 'nothing that is not an address');
+  assert.equal('sameAs' in artworkLd(work, site, { path: '/x/' }), false);
+});
+
+test('artworkLd: the picture is an ImageObject with the author as creator, credit and copyright notice', () => {
+  const ld = artworkLd(work, site, { path: '/tvorba/2026/ovce-v39nd/', image: 'https://web.test/og.jpg' });
+  assert.deepEqual(ld.image, {
+    '@type': 'ImageObject', contentUrl: 'https://web.test/og.jpg', url: 'https://web.test/og.jpg',
+    creator: { '@id': authorId(site) }, creditText: 'Pavla Kramolišová', copyrightNotice: '© 2026 Pavla Kramolišová',
+  });
+  assert.ok(!('license' in ld.image) && !('acquireLicensePage' in ld.image), 'the author sells originals, never licences');
+  assert.equal(imageObjectLd('https://web.test/a.jpg', { date: '2025-03-01' }, site).copyrightNotice, '© 2025 Pavla Kramolišová');
+  assert.equal('image' in artworkLd(work, site, { path: '/x/' }), false);
+});
+
+test('gamePageLd: a WebPage of the site by the author', () => {
+  const ld = gamePageLd(site, { path: '/detail-dne/', name: 'Detail dne', description: 'Hra.' });
+  assert.equal(ld['@type'], 'WebPage');
+  assert.equal(ld.name, 'Detail dne');
+  assert.equal(ld.description, 'Hra.');
+  assert.ok(ld.url.endsWith('/detail-dne/'));
+  assert.ok(ld.isPartOf['@id'] && ld.author['@id']);
+});
+
+test('workPageLd: an ItemPage about the work, relatedLink only with related works', () => {
+  const ld = workPageLd(site, { path: '/tvorba/2026/ovce-v39nd/', name: 'Ovce', relatedPaths: ['/tvorba/2025/pf2025-chqmf/'] });
+  assert.equal(ld['@type'], 'ItemPage');
+  assert.equal(ld.mainEntity['@id'], `${ld.url}#dilo`);
+  assert.deepEqual(ld.relatedLink, [`${ld.url.replace('/tvorba/2026/ovce-v39nd/', '')}/tvorba/2025/pf2025-chqmf/`]);
+  assert.equal('relatedLink' in workPageLd(site, { path: '/tvorba/2026/ovce-v39nd/', name: 'Ovce' }), false);
+});
+
+// The test site (its site.config.yaml): what search engines get about the author and the year pages.
+const testSite = demoSiteConfig().site;
+test('personLd and yearPageDescription of the test site', () => {
+  const person = personLd(testSite);
+  assert.equal(person.name, 'Růženka Borůvková');
+  assert.equal(person.description, 'Vymyšlená malířka ukázkového webu z Mýtinky, maluje akvarelem a nejraději to, co najde v lese: maliny, borůvky a jahody i v zimě.');
+  assert.deepEqual(person.knowsAbout, ['akvarel', 'kresba', 'skicování', 'plenér']);
+  assert.equal(yearPageDescription(undefined, 2026, testSite), 'Akvarely a kresby z roku 2026 – Růženka Borůvková.');
+  assert.equal(yearPageDescription({ description: '' }, 2025, testSite), 'Akvarely a kresby z roku 2025 – Růženka Borůvková.');
+  assert.equal(yearPageDescription({ description: 'Rok plenérů.' }, 2025, testSite), 'Rok plenérů.', 'the own description wins');
+});
+
+test('personLd and yearPageDescription of another site: its own words, generic ones or none without them', () => {
+  const kacka = { url: 'https://kacka.test', title: 'Kateřina', tagline: 'Kresby', author: 'Kateřina Nová' };
+  const bare = personLd(kacka);
+  assert.equal('description' in bare, false, 'no description without site.authorDescription');
+  assert.equal('knowsAbout' in bare, false, 'no topics without site.knowsAbout');
+  assert.equal('knowsAbout' in personLd({ ...kacka, knowsAbout: [] }), false, 'an empty list = none');
+  const own = personLd({ ...kacka, authorDescription: 'Kreslí perem.', knowsAbout: ['kresba'] });
+  assert.equal(own.description, 'Kreslí perem.');
+  assert.deepEqual(own.knowsAbout, ['kresba']);
+  assert.equal(yearPageDescription(undefined, 2027, kacka), 'Tvorba z roku 2027 – Kateřina Nová.');
+  assert.equal(YEAR_DESCRIPTION, 'Tvorba z roku {year} – {author}.');
+  assert.equal(yearPageDescription(null, 2027, { ...kacka, yearDescription: 'Kresby {author}, rok {year}.' }), 'Kresby Kateřina Nová, rok 2027.');
+});
+
+test('fillTemplate: each known {name} filled in, also repeated; an unknown one stays', () => {
+  assert.equal(fillTemplate('{year}/{year} {who}', { year: 2026 }), '2026/2026 {who}');
+  assert.equal(fillTemplate('bez značek', { year: 1 }), 'bez značek');
+});

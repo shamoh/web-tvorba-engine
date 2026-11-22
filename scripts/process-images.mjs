@@ -1,0 +1,1254 @@
+#!/usr/bin/env node
+// Image pipeline. Reads works from the content repository and produces:
+// (<year> is the year of the work's date; the content repository has no year folders, see scripts/lib/content.mjs)
+//   content/…                                          public copies of the descriptions, a mirror of the content
+//                                                      repository (see scripts/lib/site-content.mjs) (commit)
+//   public/tvorba/<year>/<slug>-<id>/<width>.{avif,webp,jpg}, info.json  web images of a work, in the folder of its page (commit);
+//                                                                        with meta_corners the floor around the sheet is
+//                                                                        transparent in AVIF/WebP, the paper of the site in JPEG
+//   public/tvorba/<year>/<slug>-<id>/mockup-<scene>-<width>.*             the work in an interior, only with `mockups: true` (commit);
+//                                                                        from the bare sheet when the master shows surroundings
+//   public/tvorba/<year>/<slug>-<id>/detail-<name>-<width>.*              detail photos of the work (commit)
+//   public/tvorba/<year>/<slug>-<id>/og-<hash>.jpg                        share image (og:image): the whole work on paper, 3:2 (commit)
+//   public/tvorba/<year>/<slug>-<id>/pin-<hash>.jpg                       Pinterest pin: the work with the caption, 2:3, every work
+//                                                                        ("Uložit na Pinterest"); with `meta_pinterest: true`
+//                                                                        also in the feed /pinterest.xml (commit)
+//   public/fotky/<name>/<width>.{avif,webp,jpg}, info.json                 other photos of the site (commit)
+//   public/<page>/_cover/, public/<page>/_og/og-<hash>.jpg                 own cover photo and share image of the chosen cover of a
+//                                                                        collection (tvorba/kolekce/<slug>), year (tvorba/<year>) or
+//                                                                        the home page (the root); see scripts/lib/site-images.mjs (commit)
+//   <contentDir>/export/<platform>/[<collection>/]<slug>/  exports, a folder per work mirroring tvorba/ (exportFolder)
+//   <contentDir>/export/instagram/[<collection>/]<slug>/      Instagram:
+//     caption-<palette>.jpg   the work on the paper of a palette of the site with a caption, 4:5 (scripts/lib/instagram.mjs)
+//     scene-<scene>.jpg       the work in a studio scene, 4:5 (mockups/instagram/scenes.yaml)
+//     pano-<n>.jpg            the slides of the seamless panorama of a wide work, 4:5 (panoramaSlides)
+//     story.jpg               a story, 9:16: the work with the caption and room for a link sticker
+//     grid-<order>-<row>_<col>.jpg, grid-preview.jpg  the profile grid (meta_instagram_grid): tiles 3:4 (order of
+//                             publishing, position on the grid) and a preview
+//     detail-<name>.jpg       a detail photo cropped to 4:5
+//     README.md               preview on GitHub: the photos and the text of the post (scripts/lib/export-readme.mjs)
+//   (Instagram exports only for works with `meta_instagram: true`; otherwise they are removed)
+//
+// Copies for the public site repository contain only public fields: private_note never leaves the content repository.
+//   <contentDir>/export/fler/[<collection>/]<slug>/           Fler:
+//     original.jpg            the original with the author's name as watermark
+//     mockup-<scene>.jpg      the mockups with the same watermark
+//   (Fler exports only for works on sale: available or reserved; otherwise they are removed)
+//   <contentDir>/tvorba/…/<slug>.yaml  meta_corners (corners of the sheet) written when missing (scripts/lib/corners.mjs)
+//   .previews/<slug>-<id>-*.jpg        cut previews of drafts drawn in this run (new or changed photo or corners):
+//                                      -backgrounds, -cut, -frames (outside git, full size; on GitHub only the
+//                                      smaller ones in export/draft/ are kept; all drafts: npm run preview)
+//   <contentDir>/export/draft/[<collection>/]<slug>/   the same previews of a draft, smaller (DRAFT_EDGE), in git:
+//     backgrounds.jpg, cut.jpg, frames.jpg, README.md   (also on a branch; removed once the work is published)
+//
+// Usage:  npm run images             (only works whose outputs are missing or older than the master)
+//         npm run images -- --force  (regenerate everything)
+//         npm run images -- --prepare-only  (only skeletons, ids, corners of the sheets, checks of the content and
+//                                            cut previews of drafts; no images, site or exports; used by the
+//                                            automation on branches of the content repository)
+//         npm run images -- <slug>   (a single work; skips pruning)
+// Content location: CONTENT_DIR (locally from .env, see package.json), or images.contentDir in site.config.yaml.
+// Site location: SITE_DIR (scripts/lib/site-dir.mjs), without it the root of this repository.
+
+import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import sharp from 'sharp';
+import { COLOUR_ANALYSIS_SIZE, analyseColours, needsColours } from './lib/colors.mjs';
+import { isDeepStrictEqual } from 'node:util';
+import YAML from 'yaml';
+import { PUBLIC_COLLECTION_FIELDS, coverSource, prepareCollections, validateCollectionCovers } from './lib/collections.mjs';
+import { PUBLIC_YEAR_FIELDS, prepareYears } from './lib/years.mjs';
+import { PUBLIC_HOME_FIELDS, prepareHome } from './lib/home.mjs';
+import { PAGES_SUBDIR, preparePages, publicPageFields } from './lib/pages.mjs';
+import { COLLECTION_SCHEMA, HOME_SCHEMA, PAGE_SCHEMAS, UNCOLLECTED_SCHEMA, WORK_SCHEMA, YEAR_SCHEMA } from './lib/schema.mjs';
+import { fillDescriptionsWorkLinks, workLinkProblems } from './lib/work-links.mjs';
+import { PUBLIC_UNCOLLECTED_FIELDS, prepareUncollected } from './lib/uncollected.mjs';
+import { NO_COLLECTION_TITLE } from './lib/gallery-filter.mjs';
+import {
+  HOME_PAGE_DIR, OUTPUT_ROOTS, UNCOLLECTED_PAGE_DIR, collectionPageDir, coverDir, fingerprintedName, infoJson, ogDir, photoDir, staleOutputs, workImageDir, yearPageDir,
+} from './lib/site-images.mjs';
+import { HOME_COPY, MODIFIED, UNCOLLECTED_COPY, collectionCopyPath, pageCopyPath, photoCopyPath, staleCopies, workCopyPath, yearCopyPath } from './lib/site-content.mjs';
+import { coverProblems, coverShareSource } from './lib/covers.mjs';
+import { allTextProblems, commentedOutReview, placeholderProblems, prepareContent } from './lib/content.mjs';
+import { DEMO_MARKER, demoProblems } from './lib/demo.mjs';
+import { siteDirectory, sitePaths } from './lib/site-dir.mjs';
+import { loadScenes, pickScenes, renderMockup } from './lib/mockups.mjs';
+import { WATERMARK_LOOK, watermarkSvg } from './lib/watermark.mjs';
+import { rightsXmp } from './lib/image-rights.mjs';
+import { TERMS_PATH } from './lib/pages.mjs';
+import { overviewReadme, overviewSizeAdvice, pagesReadme } from './lib/overview.mjs';
+import { DRAFT_EDGE, STORY_UTM, collectionIndexes, draftIndex, draftReadme, noteMarks, exportIndex, flerReadme, instagramReadme, publishedUrl, readmeFingerprint } from './lib/export-readme.mjs';
+import {
+  GRID_DEFAULTS, GRID_VERSION, SCENE_VERSION, captionFacts, detailLayout, detailSuffixes, gridPosts, gridSuffixes, insetWork, instagramPost, instagramSuffixes, loadFonts, loadInstagramScenes, panoramaSlides,
+  panoramaSuffixes, renderCaption, renderGrid, renderPanorama, renderScene, renderStory, scenePlacement, siteHost,
+} from './lib/instagram.mjs';
+import { PIN_DEFAULTS, PIN_FILE, withParams } from './lib/pinterest.mjs';
+import { PUBLIC_PHOTO_FIELDS, focusCrop, preparePhotos } from './lib/photos.mjs';
+import { fileNameProblems } from './lib/file-names.mjs';
+import { boxRegion, parseSheetXmp } from './lib/sheet-box.mjs';
+import { PREVIEW_KINDS, cornersYaml, cutOut, masterSize, prepareCorners, previewBuffers, shrinkPreview, trimTransparent, writePreviewFiles } from './lib/corners.mjs';
+import { EDGE_DEFAULTS, cutsSheet, edgeLook, innerRegion } from './lib/edges.mjs';
+import { PALETTES } from './lib/palettes.mjs';
+import { formatSummary, workNotes } from './lib/summary.mjs';
+import { fileLinks } from './lib/summary-links.mjs';
+import {
+  careAdvice, consistencyAdvice, draftAgeAdvice, featuredAdvice, hashtagAdvice, instagramLinkAdvice, pageAdvice, photoSizeAdvice, pinterestAdvice, tagAdvice, tagStats,
+  techniqueAdvice, todoAdvice, workAdvice,
+} from './lib/advice.mjs';
+import { addedDates, lineDates } from './lib/git-dates.mjs';
+import { formatLaps, stopwatch } from './lib/timing.mjs';
+import { updateGamePlan } from './lib/game-plan.mjs';
+import { SKIP_KEY, contentExclusions, exclusionProblems } from './lib/game-exclusions.mjs';
+import { photoRegion, writeGameExport } from './lib/game-export.mjs';
+import { ANALYSIS_DIR } from './lib/detail-game-data.mjs';
+import {
+  EXPORT_FILES, PUBLIC_WORK_FIELDS, expectedExports, exportFileName, exportFolder, exportPattern, instagramGrid, isInstagramUrl, isOnSale, makesFlerExports, makesInstagramExports, wantsFler, wantsInstagram, wantsMockups,
+  isValidId, pinterestVersion, wantsPinterest, planFolderPrune, publicFields, validSize, validateWorks, workKey, workPath,
+} from './lib/works.mjs';
+
+/** Bump when the output format changes, so every work is regenerated once. */
+const PIPELINE_VERSION = 9;
+/** Bump when the cut previews of drafts in export/draft/ change, so all of them are written again once. */
+const DRAFT_VERSION = 3;
+/** Bump when the share images of covers (shareCrop) are drawn differently, so all of them are drawn again once. */
+const SHARE_CROP_VERSION = 1;
+
+const exists = (p) => fs.access(p).then(() => true, () => false);
+/** Preview of an export folder on GitHub (scripts/lib/export-readme.mjs). */
+const README = 'README.md';
+const readJson = (p) => fs.readFile(p, 'utf8').then(JSON.parse, () => null);
+
+/**
+ * The colours of a work in its info.json (`colors`, analyseColours in scripts/lib/colors.mjs) from its smallest WebP
+ * in `dir` (with its transparency): analysed once and again only after a new COLOUR_VERSION; its images stay as they
+ * are (a work made again by web() gets them here again). Returns true when written.
+ */
+async function workColours(dir) {
+  const file = path.join(dir, 'info.json');
+  const info = await readJson(file);
+  if (!info || !needsColours(info)) return false;
+  const { data, info: raw } = await sharp(path.join(dir, `${Math.min(...info.widths)}.webp`))
+    .resize(COLOUR_ANALYSIS_SIZE, COLOUR_ANALYSIS_SIZE, { fit: 'inside' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const colors = analyseColours({ data, width: raw.width, height: raw.height, channels: raw.channels });
+  await fs.writeFile(file, infoJson({ ...info, colors }));
+  return true;
+}
+
+const sha1 = (...parts) => {
+  const h = createHash('sha1');
+  for (const p of parts) h.update(typeof p === 'string' ? p : Buffer.from(p));
+  return h.digest('hex').slice(0, 16);
+};
+
+const SYNC_HEADER = '# Generated by `npm run images` from the content repository. Do not edit here, changes will be overwritten.\n';
+
+/** Text of a public metadata copy: only the given fields, no comments (they could hold private notes). */
+const publicCopy = (data, fields) => SYNC_HEADER + YAML.stringify(publicFields(data, fields));
+
+/** Writes `text` only when it differs, to keep git diffs clean. */
+async function writeIfChanged(file, text) {
+  if ((await fs.readFile(file, 'utf8').catch(() => null)) === text) return;
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, text);
+}
+
+// Load the master once: convert to sRGB and apply EXIF rotation. Metadata (EXIF, GPS) is not copied to outputs.
+// `sheet`: where the bare paper lies when the master also shows its surroundings (XMP written by
+// `npm run straighten`, see scripts/lib/sheet-box.mjs); null for a master that is the sheet itself.
+// `corners` (meta_corners of a work, scripts/lib/edges.mjs): everything outside them becomes transparent, fading in
+// over `edges.feather`, and the image is trimmed to the smallest rectangle holding the whole cut work
+// (trimTransparent: no transparent surroundings along a straight side); then `buf` is a PNG with alpha,
+// `transparent` is true, `width`/`height` are those of the trimmed image, `full` the size of the photo and `offset`
+// where the trimmed image lies in it (corners and the XMP sheet are in the photo's coordinates).
+async function loadMaster(input, { corners, edges } = {}) {
+  let buf = await sharp(input).rotate().toColorspace('srgb').toBuffer();
+  const meta = await sharp(buf).metadata();
+  const sheet = parseSheetXmp((await sharp(input).metadata()).xmp);
+  const transparent = cutsSheet(corners);
+  const full = { width: meta.width, height: meta.height };
+  let offset = { left: 0, top: 0 }, size = full;
+  if (transparent) {
+    const trimmed = await trimTransparent(await cutOut(buf, corners, edges));
+    buf = trimmed.buf;
+    offset = { left: trimmed.left, top: trimmed.top };
+    size = { width: trimmed.width, height: trimmed.height };
+  }
+  // the bare sheet of the mockups stays as far from the edge as the cut (at least 2 px: a JPEG bleeds at an edge)
+  const inset = Math.max(2, Math.round((edges?.inset ?? EDGE_DEFAULTS.inset) * Math.min(meta.width, meta.height)));
+  return { buf, ...size, full, offset, sheet, corners: transparent ? corners : null, transparent, inset };
+}
+
+/** The mockups of a work in the `picked` scenes ({ scene, buf }), for the Fler exports of a work whose web images stay. */
+async function renderMockups(m, picked, work) {
+  const framed = picked.length ? await mockupSource(m) : null;
+  const rendered = [];
+  for (const scene of picked) rendered.push({ scene: scene.name, buf: await renderMockup(framed, work.size_cm, scene, { edge: work.meta_edge }) });
+  return rendered;
+}
+
+/**
+ * The master for the mockups: the bare sheet, a framed work never shows the floor around it (the mat covers the
+ * edges of the paper): inside its corners and inside the sheet of the XMP, whichever it has (both: the overlap),
+ * else the whole master.
+ */
+function mockupSource(m) {
+  // both regions are in the photo's coordinates; the buffer may be trimmed (m.offset)
+  const regions = [
+    m.corners && innerRegion(m.corners, m.full.width, m.full.height, m.inset),
+    m.sheet && boxRegion(m.sheet, m.full.width, m.full.height),
+  ].filter(Boolean);
+  if (!regions.length) return m.buf;
+  const left = Math.max(0, Math.max(...regions.map((r) => r.left)) - m.offset.left);
+  const top = Math.max(0, Math.max(...regions.map((r) => r.top)) - m.offset.top);
+  const right = Math.min(m.width, Math.min(...regions.map((r) => r.left + r.width)) - m.offset.left);
+  const bottom = Math.min(m.height, Math.min(...regions.map((r) => r.top + r.height)) - m.offset.top);
+  return sharp(m.buf).extract({ left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) }).removeAlpha().toBuffer();
+}
+
+/** Colour a transparent image is put on where it cannot stay transparent (JPEG fallback on the site): the first palette's paper. */
+const FALLBACK_PAPER = PALETTES[0].colors.paper;
+
+/** Writes <prefix><width>.{avif,webp,jpg} for every width that does not upscale; returns the widths. */
+async function responsive(buf, srcWidth, dir, prefix, widths, quality, xmp) {
+  // Never upscale: a smaller source additionally gets a variant at its full width.
+  const fit = widths.filter((w) => w <= srcWidth);
+  const unique = fit.length === widths.length ? fit : [...fit, srcWidth];
+  for (const w of unique) {
+    // `xmp`: creator, copyright and page of the work (scripts/lib/image-rights.mjs), only on the author's works
+    const resized = sharp(buf).resize({ width: w, withoutEnlargement: true });
+    const base = xmp ? resized.withXmp(xmp) : resized;
+    // AVIF and WebP keep a transparent surroundings; JPEG cannot, it gets the paper of the site behind it.
+    // AVIF effort 4: the same size as 5 in a third less time (AVIF is most of the time of a work)
+    await base.clone().avif({ quality: quality - 22, effort: 4 }).toFile(path.join(dir, `${prefix}${w}.avif`));
+    await base.clone().webp({ quality }).toFile(path.join(dir, `${prefix}${w}.webp`));
+    await base.clone().flatten({ background: FALLBACK_PAPER }).jpeg({ quality, mozjpeg: true, progressive: true }).toFile(path.join(dir, `${prefix}${w}.jpg`));
+  }
+  return unique;
+}
+
+const dominantColor = async (buf) => {
+  const { dominant: d } = await sharp(buf).flatten({ background: FALLBACK_PAPER }).stats();
+  return `rgb(${d.r},${d.g},${d.b})`;
+};
+
+/**
+ * Writes the web images and info.json; returns the rendered mockups ({ scene, buf }) for the exports. `watch` (a
+ * stopwatch of the work, scripts/lib/timing.mjs) gets a lap after the web images, every mockup and every detail.
+ */
+async function web(dir, m, img, { work, picked, details, fingerprint, xmp, pin, feed, watch = stopwatch() }) {
+  // The folder only holds generated files, so start clean (drops mockups of scenes no longer picked).
+  await fs.rm(dir, { recursive: true, force: true });
+  await fs.mkdir(dir, { recursive: true });
+  const widths = await responsive(m.buf, m.width, dir, '', img.web.widths, img.web.quality, xmp);
+  watch.lap('web');
+  const mockups = [];
+  const rendered = [];
+  const framed = picked.length ? await mockupSource(m) : null;
+  for (const scene of picked) {
+    const buf = await renderMockup(framed, work.size_cm, scene, { edge: work.meta_edge });
+    rendered.push({ scene: scene.name, buf });
+    const { width, height } = await sharp(buf).metadata();
+    const mw = await responsive(buf, width, dir, `mockup-${scene.name}-`, img.mockups.widths, img.web.quality, xmp);
+    mockups.push({ scene: scene.name, label: scene.label, width, height, widths: mw, dominant: await dominantColor(buf) });
+    watch.lap('mockups');
+  }
+  const detailSets = [];
+  for (const d of details) {
+    const dm = await loadMaster(d.buf);
+    const dw = await responsive(dm.buf, dm.width, dir, `detail-${d.name}-`, img.details.widths, img.web.quality, xmp);
+    detailSets.push({ name: d.name, width: dm.width, height: dm.height, widths: dw, dominant: await dominantColor(dm.buf) });
+    watch.lap('details');
+  }
+  // share image and pin with a fingerprint in the name (og-<hash>.jpg, pin-<hash>.jpg): a changed image has a new
+  // address, so Pinterest and link previews never keep the old one; info.json names the files for the site
+  const og = await shareImage(dir, m, img, xmp);
+  // the pin for Pinterest (rendered by the caller): its size and bytes go into the feed; `feed` = in the feed
+  // /pinterest.xml (meta_pinterest; the flag itself never reaches the site): { version, before: the pin of the last run }
+  const pinFile = pin ? fingerprintedName('pin', pin) : null;
+  if (pin) await fs.writeFile(path.join(dir, pinFile), pin);
+  // Pinterest knows a pin by the address of its image (a new address = a new pin), so the pin in the feed keeps the
+  // address it had there (feedFile; before there was one, the pin it was: file); a new one only for a work joining
+  // the feed or with a higher meta_pinterest_version. The newest pin is written under that name.
+  let feedFile = null;
+  if (pin && feed) {
+    const b = feed.before;
+    const had = b?.feed ? (b.feedFile ?? b.file ?? PIN_FILE) : null;
+    feedFile = had && (b.feedVersion ?? 1) === feed.version ? had : pinFile;
+    if (feedFile !== pinFile) await fs.writeFile(path.join(dir, feedFile), pin);
+  }
+  const pinInfo = pin
+    ? {
+      ...(await sharp(pin).metadata().then(({ width, height }) => ({ width, height }))), bytes: pin.length, file: pinFile,
+      ...(feed ? { feed: true, feedFile, feedVersion: feed.version } : {}),
+    }
+    : undefined;
+  // Dimensions and placeholder colour, read by the site.
+  const info = {
+    width: m.width, height: m.height, widths, dominant: await dominantColor(m.buf), ...(m.transparent ? { transparent: true } : {}),
+    mockups, details: detailSets, og, ...(pinInfo ? { pin: pinInfo } : {}), fingerprint,
+  };
+  await fs.writeFile(path.join(dir, 'info.json'), infoJson(info));
+  return rendered;
+}
+
+/**
+ * Share image of a work (og:image): the whole work on the paper background, never cropped (it is art),
+ * in the 3:2 frame social networks show without cropping, as og-<hash>.jpg in `dir`. Returns { width, height, file }.
+ */
+/** The whole image centred on the paper background in the share image size (images.og), as a JPEG buffer. */
+async function wholeOnPaper(m, img, xmp) {
+  const { width: W, height: H, background, padding, quality } = img.og;
+  const pad = Math.round(H * padding);
+  const inner = await sharp(m.buf).resize({ width: W - 2 * pad, height: H - 2 * pad, fit: 'inside', withoutEnlargement: true }).toBuffer();
+  const out = sharp({ create: { width: W, height: H, channels: 3, background } }).composite([{ input: inner, gravity: 'center' }]);
+  return (xmp ? out.withXmp(xmp) : out).jpeg({ quality, mozjpeg: true }).toBuffer();
+}
+
+async function shareImage(dir, m, img, xmp) {
+  const buf = await wholeOnPaper(m, img, xmp);
+  const file = fingerprintedName('og', buf);
+  await fs.writeFile(path.join(dir, file), buf);
+  return { width: img.og.width, height: img.og.height, file };
+}
+
+// A detail photo is a close-up, so it fills the whole 4:5 frame (centre crop) instead of sitting on paper; one whose
+// shape is far from 4:5 (the crop would keep less than detailCropKeep of it, e.g. a long narrow strip) lies whole on the
+// paper of the first palette instead (detailLayout).
+async function instagramDetail(file, buf, img) {
+  const { width: W, height: H, padding = 0.025, detailCropKeep } = img.instagram;
+  const src = sharp(buf).rotate().toColorspace('srgb');
+  const { width, height } = await src.clone().metadata().then(async (m) => (m.orientation >= 5 ? { width: m.height, height: m.width } : m));
+  if (detailLayout(width / height, W / H, detailCropKeep) === 'crop') {
+    await src.resize(W, H, { fit: 'cover' }).jpeg({ quality: 92, mozjpeg: true }).toFile(file);
+    return;
+  }
+  const pad = Math.round(W * padding);
+  const inner = await src.resize({ width: W - 2 * pad, height: H - 2 * pad, fit: 'inside' }).toBuffer();
+  await sharp({ create: { width: W, height: H, channels: 3, background: PALETTES[0].colors.paper } })
+    .composite([{ input: inner, gravity: 'center' }]).jpeg({ quality: 92, mozjpeg: true }).toFile(file);
+}
+
+/** Resizes `buf` (the original or a mockup) for Fler and signs it with the author's name (scripts/lib/watermark.mjs). */
+async function fler(file, buf, img, fonts) {
+  const f = img.fler;
+  // a transparent surroundings of the original goes on the background of Fler (white)
+  const resized = await sharp(buf).resize({ width: f.longEdge, height: f.longEdge, fit: 'inside', withoutEnlargement: true })
+    .flatten({ background: f.background ?? '#ffffff' }).toBuffer();
+  const { width, height } = await sharp(resized).metadata();
+  const mark = watermarkSvg({ width, height, text: f.watermark, font: fonts.serif, opacity: f.watermarkOpacity, shadow: f.watermarkShadow });
+  await sharp(resized)
+    .composite([{ input: Buffer.from(mark) }])
+    .jpeg({ quality: f.quality, mozjpeg: true })
+    .toFile(file);
+}
+
+/**
+ * Web sizes of a standalone photo (site photo, collection cover) into `dir`, with info.json.
+ * Skipped when the fingerprint is unchanged; returns true when the photo was (re)generated.
+ */
+async function photoSet(masterPath, dir, img, extra, { force, log, label }) {
+  const master = await fs.readFile(masterPath);
+  const fingerprint = sha1(String(PIPELINE_VERSION), master, JSON.stringify(extra));
+  if ((await readJson(path.join(dir, 'info.json')))?.fingerprint === fingerprint && !force) return false;
+  log(`→ ${label}`);
+  const m = await loadMaster(master);
+  await fs.rm(dir, { recursive: true, force: true });
+  await fs.mkdir(dir, { recursive: true });
+  const widths = await responsive(m.buf, m.width, dir, '', img.photos.widths, img.web.quality);
+  const info = { width: m.width, height: m.height, widths, dominant: await dominantColor(m.buf), ...extra, fingerprint };
+  await fs.writeFile(path.join(dir, 'info.json'), JSON.stringify(info, null, 2));
+  return true;
+}
+
+/**
+ * Removes every export of one work, so a regeneration never leaves stale files behind: its folders on both
+ * platforms (`folder`, see exportFolder) and its files of the former flat layout <year>/<key>-….
+ */
+async function clearExports(exportRoot, year, key, folder, platforms = ['instagram', 'fler']) {
+  for (const sub of platforms) await fs.rm(path.join(exportRoot, sub, folder), { recursive: true, force: true });
+  const own = exportPattern(key);
+  for (const sub of platforms) {
+    const dir = path.join(exportRoot, sub, year);
+    if (!(await exists(dir))) continue;
+    for (const f of await fs.readdir(dir)) if (own.test(f)) await fs.rm(path.join(dir, f));
+  }
+}
+
+/** Every file under `root` (recursively), as paths relative to it with "/". */
+async function listFiles(root) {
+  if (!(await exists(root))) return [];
+  const out = [];
+  const walk = async (dir, rel) => {
+    for (const e of await fs.readdir(dir, { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) await walk(path.join(dir, e.name), r);
+      else if (e.isFile()) out.push(r);
+    }
+  };
+  await walk(root, '');
+  return out;
+}
+
+/**
+ * Recommendations on the care of the site (scripts/lib/advice.mjs): what published works lack (size, description),
+ * detail photos without a caption, small master photos, pages whose cover never changes for few featured works, and,
+ * from the history of the content repository (scripts/lib/git-dates.mjs; none without it), drafts waiting too long
+ * and Instagram photos without the link of their post.
+ */
+async function careOfSite({ works, years, collections, home, uncollected, contentDir, today }) {
+  const day = (today ?? new Date()).toISOString().slice(0, 10);
+  const published = works.filter((w) => w.data?.meta_draft !== true);
+  const own = (page) => Boolean(page.coverPath) || (typeof page.data?.cover === 'string' && page.data.cover.trim() !== '');
+  const pages = [
+    ...years.map((y) => ({ where: y.yamlPath, label: `roku ${y.year}`, works: published.filter((w) => w.year === y.year), own: own(y) })),
+    ...collections.map((c) => ({
+      where: c.yamlPath, label: `kolekce „${typeof c.data?.title === 'string' && c.data.title ? c.data.title : c.slug}“`,
+      works: published.filter((w) => w.collection === c.slug), own: own(c),
+    })),
+    ...(home ? [{ where: home.yamlPath, label: 'úvodní stránky', works: published, own: own(home) }] : []),
+    ...(uncollected ? [{ where: uncollected.yamlPath, label: '„Mimo kolekce“', works: published.filter((w) => !w.collection), own: own(uncollected) }] : []),
+  ];
+  const photos = [];
+  for (const w of works) {
+    if (!w.masterPath) continue;
+    try {
+      photos.push({ where: workPath(w), ...(await masterSize(w.masterPath)) });
+    } catch {
+      // an unreadable photo is reported by the processing itself
+    }
+  }
+  const drafts = works.filter((w) => w.data?.meta_draft === true);
+  const linkless = published.filter((w) => wantsInstagram(w.data) && !isInstagramUrl(w.data?.instagram));
+  const dates = await addedDates(contentDir, drafts.map((w) => w.yamlPath));
+  // the Instagram photos are ready since the description asked for them (the exports themselves are not in git)
+  const ready = await lineDates(contentDir, linkless.map((w) => w.yamlPath), '^meta_instagram: true');
+  return [
+    ...careAdvice(works),
+    ...consistencyAdvice(works, day),
+    ...photoSizeAdvice(photos),
+    ...featuredAdvice(pages),
+    ...draftAgeAdvice(drafts.map((w) => ({ where: workPath(w), added: dates.get(w.yamlPath) })), day),
+    ...instagramLinkAdvice(linkless.map((w) => ({ where: workPath(w), data: w.data, ready: ready.get(w.yamlPath) })), day),
+  ];
+}
+
+/**
+ * Every description of the content repository as it is now (after the skeletons and normalization of this run):
+ * works and collections in tvorba/ (any depth), years in roky/, photos in fotky/, texts of pages in stranky/ and the
+ * home page _index.yaml;
+ * [{ file (relative, "/"), text }] sorted by file.
+ */
+async function contentYamls(contentDir) {
+  const files = [
+    ...(await listFiles(path.join(contentDir, 'tvorba'))).map((f) => `tvorba/${f}`),
+    ...(await listFiles(path.join(contentDir, 'roky'))).map((f) => `roky/${f}`),
+    ...(await listFiles(path.join(contentDir, 'fotky'))).map((f) => `fotky/${f}`),
+    ...(await listFiles(path.join(contentDir, 'stranky'))).map((f) => `stranky/${f}`),
+    ...((await exists(path.join(contentDir, '_index.yaml'))) ? ['_index.yaml'] : []),
+  ].filter((f) => f.endsWith('.yaml')).sort();
+  return Promise.all(files.map(async (file) => ({ file, text: await fs.readFile(path.join(contentDir, file), 'utf8') })));
+}
+
+/** `meta_corners` of a draft as YAML lines for its README: the corners, "meta_corners: false", or '' without any. */
+export const draftCorners = (value) => (value === false ? 'meta_corners: false' : value && typeof value === 'object' && value.photo ? cornersYaml(value) : '');
+
+/** Removes empty folders under `root`, deepest first, and `root` itself when it ends up empty. */
+async function removeEmptyDirs(root) {
+  if (!(await exists(root))) return;
+  for (const e of await fs.readdir(root, { withFileTypes: true })) {
+    if (e.isDirectory()) await removeEmptyDirs(path.join(root, e.name));
+  }
+  if ((await fs.readdir(root)).length === 0) await fs.rmdir(root);
+}
+
+/**
+ * Runs the whole pipeline. Returns a summary; throws on configuration errors.
+ * Options: contentDir, siteDir, config, force, only (slugs), log, today, random, dataset, prepareOnly, gamePlan.
+ * `siteDir`: the folder of the site (scripts/lib/site-dir.mjs, default SITE_DIR or the root of the code); `config`,
+ * `scenesDir`, `instagramScenesDir` and `fontsDir` default to its settings, mockups, studio scenes and fonts.
+ * `gamePlan` (the command line and `npm run demo`, off in tests): a full run also extends the plan of the days of the game
+ * Detail dne (game/detail-dne/, scripts/lib/game-plan.mjs); a failure there is only logged, the game then computes.
+ * `prepareOnly` stops after skeletons, ids, corners of the sheets, checks and the cut previews of drafts: nothing is
+ * written to the site or the exports.
+ * `previewDir`: where the cut previews of drafts drawn in this run go (default .previews/ of the site directory,
+ * outside git; on GitHub nothing keeps them).
+ * `dataset` 'real' (default) forbids test data in the content, 'demo' requires the content to be the test data
+ * (see scripts/lib/demo.mjs; test data are processed by `npm run demo` into .demo/, never into this repo).
+ */
+export async function run({
+  contentDir,
+  siteDir = siteDirectory(),
+  config,
+  force = false,
+  only = [],
+  scenesDir,
+  instagramScenesDir,
+  fontsDir,
+  log = console.log,
+  today,
+  random,
+  dataset = 'real',
+  prepareOnly = false,
+  previewDir,
+  gamePlan = false,
+} = {}) {
+  // how long the phases of the run take, in its log (a slow run on GitHub shows where its time goes)
+  const runWatch = stopwatch();
+  const logPhases = () => log(`⏱ run: ${formatLaps(runWatch.laps(), runWatch.total())}`);
+  // the settings, the mockup scenes and the fonts of the site come from its folder unless given
+  const sitePlaces = sitePaths(siteDir);
+  config ??= YAML.parse(await fs.readFile(sitePlaces.config, 'utf8'));
+  scenesDir ??= sitePlaces.mockups;
+  instagramScenesDir ??= sitePlaces.instagramScenes;
+  fontsDir ??= sitePlaces.fonts;
+  const img = config.images;
+  const edges = { ...EDGE_DEFAULTS, ...img.edges };
+  // meta_corners of the works by their master photo, for share images of covers that show a work (set below)
+  let cornersOf = new Map();
+  /**
+   * Share image of a chosen cover ({ source, crop } from coverShareSource): cropped to crop.ratio around crop.focus
+   * (filling the share image when the ratio is its own, 3:2, otherwise on paper), or without crop the whole image on
+   * paper like the share image of a work. Written into `dir` (the _og folder of the page) as og-<hash>.jpg, the only
+   * file there. The hash is the fingerprint of what the image is drawn from (photo, corners, crop, settings): a new
+   * picture = a new name, and an unchanged one is not drawn at all (loading the master takes seconds).
+   */
+  const shareCrop = async ({ source, crop }, dir, label) => {
+    const master = await fs.readFile(source);
+    const corners = cornersOf.get(source);
+    const name = fingerprintedName('og', sha1(
+      String(SHARE_CROP_VERSION), String(PIPELINE_VERSION), master, JSON.stringify(corners ?? null),
+      JSON.stringify(cutsSheet(corners) ? edgeLook(edges) : null), JSON.stringify(crop ?? null), JSON.stringify(img.og),
+    ));
+    if (await exists(path.join(dir, name))) return;
+    const m = await loadMaster(master, { corners, edges });
+    const ogRatio = img.og.width / img.og.height;
+    const area = crop && focusCrop(m.width, m.height, crop.ratio, crop.focus);
+    // one lossy encoding only: the crop fills the share image in a single pipeline, or goes on paper as lossless PNG
+    const buf = !crop
+      ? await wholeOnPaper(m, img)
+      : Math.abs(crop.ratio - ogRatio) < 0.01
+        ? await sharp(m.buf).extract(area).resize(img.og.width, img.og.height).flatten({ background: img.og.background }).jpeg({ quality: img.og.quality, mozjpeg: true }).toBuffer()
+        : await wholeOnPaper({ buf: await sharp(m.buf).extract(area).png().toBuffer(), width: area.width, height: area.height }, img);
+    log(`→ ${label}`);
+    await fs.rm(dir, { recursive: true, force: true });
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, name), buf);
+  };
+  contentDir ??= process.env.CONTENT_DIR || img.contentDir;
+  if (!contentDir) throw new Error('Není nastavené, kde je obsahové repo: dej CONTENT_DIR=<cesta k němu> do .env');
+  contentDir = path.resolve(siteDir, contentDir);
+  if (!(await exists(path.join(contentDir, 'tvorba')))) {
+    throw new Error(`Obsah nenalezen: ${path.join(contentDir, 'tvorba')} (zkontroluj CONTENT_DIR v .env)`);
+  }
+
+  // Bad names of files and folders stop the run before anything is written (a skeleton would get another name).
+  const nameProblems = await fileNameProblems(contentDir);
+  if (nameProblems.length) {
+    return { ok: false, problems: nameProblems, created: [], assigned: [], detected: [], updated: [], pending: [], advice: [], todo: [], tags: tagStats([]), processed: 0, skipped: 0, missing: [], pruned: [], previews: [], prepared: prepareOnly, commentedOut: [] };
+  }
+
+  const { works, collectionFolders, created, assigned, updated, pending, problems: scanProblems } = await prepareContent(contentDir, { today, random });
+  const photos = await preparePhotos(contentDir);
+  created.push(...photos.created);
+  updated.push(...photos.updated);
+  const collections = await prepareCollections(contentDir, collectionFolders);
+  created.push(...collections.created);
+  updated.push(...collections.updated);
+  const years = await prepareYears(contentDir, works.map((w) => w.year).filter(Boolean));
+  created.push(...years.created);
+  updated.push(...years.updated);
+  // Corners of the sheets (meta_corners): detected for every work that has none yet, like the ids.
+  const corners = await prepareCorners(contentDir, works, { search: edges.search, suspicious: edges.suspicious });
+  corners.detected.forEach((p) => log(`+ corners of the sheet: ${p}`));
+  cornersOf = new Map(works.filter((w) => w.masterPath).map((w) => [w.masterPath, w.data.meta_corners]));
+  // The places kept out of the game Detail dne (meta_game_skip): checked like the corners, in the pixels of the photo.
+  const gameExclusionProblems = [];
+  for (const w of works) {
+    if (!w.masterPath || w.data[SKIP_KEY] === undefined) continue;
+    const { width, height } = await masterSize(w.masterPath);
+    gameExclusionProblems.push(...exclusionProblems(w.data[SKIP_KEY], width, height, w.yamlPath));
+  }
+  const home = await prepareHome(contentDir, { instagram: config.site?.instagram ?? '' });
+  created.push(...home.created);
+  updated.push(...home.updated);
+  // stranky/<page>.yaml: the texts of the pages (O mně, Kontakt, 404, generic ones), their photos from fotky/.
+  const pages = await preparePages(contentDir, { photos: photos.photos.map((p) => p.name) });
+  created.push(...pages.created);
+  updated.push(...pages.updated);
+  // tvorba/_index.yaml: the cover of "Mimo kolekce" (the works without a collection) on the collections overview.
+  const uncollected = await prepareUncollected(contentDir, works.some((w) => !w.collection));
+  created.push(...uncollected.created);
+  updated.push(...uncollected.updated);
+  created.forEach((p) => log(`+ new metadata skeleton: ${p}`));
+  assigned.forEach((p) => log(`+ id assigned: ${p}`));
+  updated.forEach((p) => log(`~ metadata brought in line with the schema: ${p}`));
+  pending.forEach((p) => log(`! published, still marked DOPLNIT: ${p}`));
+  const tags = tagStats(works);
+  // links between works by id: `related` of works and [text](<id>) in every formatted text
+  const linkDescriptions = [
+    ...works.map((w) => ({ yamlPath: w.yamlPath, data: w.data, schema: WORK_SCHEMA, draft: Boolean(w.data?.meta_draft) })),
+    ...collections.collections.map((c) => ({ yamlPath: c.yamlPath, data: c.data, schema: COLLECTION_SCHEMA })),
+    ...years.years.map((y) => ({ yamlPath: y.yamlPath, data: y.data, schema: YEAR_SCHEMA })),
+    ...(home.home ? [{ yamlPath: home.home.yamlPath, data: home.home.data, schema: HOME_SCHEMA }] : []),
+    ...(uncollected.uncollected ? [{ yamlPath: uncollected.uncollected.yamlPath, data: uncollected.uncollected.data, schema: UNCOLLECTED_SCHEMA }] : []),
+    ...pages.pages.map((p) => ({ yamlPath: p.yamlPath, data: p.data, schema: PAGE_SCHEMAS[p.name] })),
+  ];
+  const workLinks = workLinkProblems({ works, descriptions: linkDescriptions });
+  // "[](<id>)" gets the title of the work in the data the site and the exports get (the author's files stay)
+  fillDescriptionsWorkLinks(linkDescriptions, works);
+  const advice = [...workAdvice(works, { siteTitle: config.site?.title ?? '' }), ...techniqueAdvice(works), ...tagAdvice(works), ...hashtagAdvice(works, config.instagramPost), ...pinterestAdvice(works, config.pinterestKeywords?.en), ...workLinks.advice, ...pageAdvice({
+    collections: collections.collections, years: years.years, home: home.home, uncollected: uncollected.uncollected, photos: photos.photos,
+  }), ...await careOfSite({ works, years: years.years, collections: collections.collections, home: home.home, uncollected: uncollected.uncollected, contentDir, today })];
+  advice.forEach((p) => log(`? advice: ${p}`));
+  // "Zbývá doplnit": descriptions still marked DOPLNIT, a block of their own under the recommendations
+  const yamls = await contentYamls(contentDir);
+  const todo = todoAdvice(yamls, new Set(pending.map((p) => p.slice(0, p.indexOf(': ')))));
+  todo.forEach((p) => log(`? to fill in: ${p}`));
+  // "Ke kontrole": commented-out attributes that are not optional (e.g. "# id: TODO"), ignored by the pipeline
+  const commentedOut = commentedOutReview(yamls);
+  commentedOut.forEach((p) => log(`! commented-out attribute: ${p}`));
+  const problems = [
+    ...scanProblems, ...corners.problems, ...gameExclusionProblems, ...validateWorks(works), ...photos.problems, ...collections.problems, ...years.problems, ...home.problems, ...pages.problems, ...uncollected.problems,
+    ...years.years.flatMap((y) => coverProblems({
+      where: y.yamlPath, data: y.data, photoPath: y.coverPath, works, inScope: (w) => w.year === y.year, scope: y.year,
+    })),
+    ...(home.home ? coverProblems({ where: home.home.yamlPath, data: home.home.data, photoPath: home.home.coverPath, works }) : []),
+    ...(uncollected.uncollected ? coverProblems({
+      where: uncollected.uncollected.yamlPath, data: uncollected.uncollected.data, photoPath: uncollected.uncollected.coverPath, works,
+      inScope: (w) => !w.collection, scope: 'obrazů mimo kolekce',
+    }) : []),
+    ...validateCollectionCovers(collections.collections, works),
+    ...placeholderProblems({
+      collections: collections.collections, years: years.years, home: home.home, uncollected: uncollected.uncollected, photos: photos.photos, pages: pages.pages,
+    }),
+    ...allTextProblems({
+      works, collections: collections.collections, years: years.years, home: home.home, uncollected: uncollected.uncollected,
+    }),
+    ...workLinks.problems,
+    ...demoProblems({ works, collections: collections.collections, marked: await exists(path.join(contentDir, DEMO_MARKER)) }, dataset),
+  ];
+  const detected = corners.detected;
+  // what the summary of this run says about each work so far, for the READMEs of drafts (also when the run fails)
+  const noted = { problems, pending, detected, commentedOut, advice, todo };
+
+  // Cut previews of drafts (all three, like npm run preview), to check the corners before publishing: smaller
+  // (DRAFT_EDGE) in export/draft/[<collection>/]<slug>/ of the content repository with a README.md, committed like the
+  // other exports, and in full size in previewDir (emptied by every full run, a run of `only` adds to them); drawn
+  // only when their fingerprint (photo, corners, settings) changes or a file in git is missing, so previewDir holds
+  // the previews drawn in this run (all of them: npm run preview). On every branch (also --prepare-only); the
+  // folder of a work goes once it is published (or deleted).
+  // Also when the run fails on problems: the README of a draft lists what the summary says about it (workNotes); the
+  // previews of a draft with problems of its own are not made again (its corners may be wrong), the old ones stay.
+  runWatch.lap('checks');
+  previewDir = path.resolve(previewDir ?? path.join(siteDir, '.previews'));
+  if (!only.length) await fs.rm(previewDir, { recursive: true, force: true });
+  const exportRoot = path.join(contentDir, 'export');
+  const draftRoot = path.join(exportRoot, 'draft');
+  const draftTitles = new Map(collections.collections.map((c) => [c.slug, typeof c.data?.title === 'string' ? c.data.title : '']));
+  const draftFiles = Object.fromEntries(PREVIEW_KINDS.map((k) => [k, `${k}.jpg`]));
+  const previews = [];
+  const drafts = [];
+  // folder of a draft (exportFolder) -> the file names it should have in export/draft/
+  const draftWanted = new Map();
+  for (const w of works) {
+    if (w.data.meta_draft !== true) continue;
+    // every draft has its folder with the state of its description and, with a photo, the three previews (also when
+    // nothing is cut: meta_corners false or all zero, then the whole photo on the papers, so every draft looks alike)
+    const cut = Boolean(w.masterPath);
+    const folder = exportFolder(w.yamlPath, w.slug);
+    const collection = draftTitles.get(w.collection) ?? '';
+    const notes = workNotes(w.yamlPath, noted);
+    const dir = path.join(draftRoot, folder);
+    const complete = async () => (await Promise.all(Object.values(draftFiles).map((f) => exists(path.join(dir, f))))).every(Boolean);
+    const entry = { title: w.data.title, code: w.id, folder, thumb: null, note: captionFacts(w.data, w.year), collection, marks: noteMarks(notes) };
+    drafts.push(entry);
+    if (only.length && !only.includes(w.slug)) {
+      if (cut && (await complete())) entry.thumb = draftFiles.backgrounds;
+      continue;
+    }
+    const readmePath = path.join(dir, README);
+    const current = readmeFingerprint(await fs.readFile(readmePath, 'utf8').catch(() => ''));
+    let fingerprint = current ?? '';
+    if (cut && !notes.errors.length) {
+      fingerprint = sha1(String(DRAFT_VERSION), await fs.readFile(w.masterPath), JSON.stringify([w.data.meta_corners, edges, DRAFT_EDGE]));
+      // drawing the previews takes seconds per draft: only when the ones in git are missing or out of date
+      if (current !== fingerprint || !(await complete())) {
+        const buffers = await previewBuffers(w.masterPath, w.data.meta_corners, edges);
+        const names = await writePreviewFiles(previewDir, `${w.slug}-${w.id}`, buffers);
+        previews.push(...names);
+        log(`→ cut previews: ${names.join(', ')}`);
+        await fs.mkdir(dir, { recursive: true });
+        for (const [kind, buf] of buffers) await fs.writeFile(path.join(dir, draftFiles[kind]), await shrinkPreview(buf, DRAFT_EDGE));
+        log(`→ export/draft/${folder}/: cut previews`);
+      }
+    } else if (cut) log(`! export/draft/${folder}/: problems of its own, cut previews not made again`);
+    const files = cut && (await complete()) ? draftFiles : null;
+    if (files) entry.thumb = draftFiles.backgrounds;
+    draftWanted.set(folder, new Set([...(files ? Object.values(draftFiles) : []), README]));
+    const noPreviews = !w.masterPath ? 'photo' : 'errors';
+    await fs.mkdir(dir, { recursive: true });
+    await writeIfChanged(readmePath, draftReadme({
+      work: w.data, year: w.year, files, corners: draftCorners(w.data.meta_corners), collection, fingerprint: files ? fingerprint : '', notes, noPreviews,
+      siteUrl: String(config.site?.url ?? '').replace(/\/+$/, ''),
+    }));
+  }
+  // export/README.md: everything about every work and what the run says about it, in one file for searching
+  // (scripts/lib/overview.mjs). Written by every run without `only`, also when it fails and with --prepare-only; the
+  // full run writes it again at its end with the warnings of the exports (misfits).
+  const overviewSite = String(config.site?.url ?? '').replace(/\/+$/, '');
+  const writeOverview = async (extra = {}) => {
+    const text = overviewReadme({
+      siteUrl: overviewSite,
+      works: works.map((w) => ({
+        yamlPath: w.yamlPath,
+        photoPath: w.masterPath ? path.relative(contentDir, w.masterPath).split(path.sep).join('/') : null,
+        id: w.id,
+        data: w.data,
+        collection: w.collection,
+        pageUrl: w.data.meta_draft !== true && w.year && isValidId(w.id) && overviewSite ? `${overviewSite}/${workImageDir(w.year, workKey(w.slug, w.id))}/` : '',
+      })),
+      collections: collections.collections,
+      uncollected: uncollected.uncollected,
+      noted: { ...noted, ...extra },
+    });
+    await writeIfChanged(path.join(exportRoot, README), text);
+    return overviewSizeAdvice(`export/${README}`, Buffer.byteLength(text));
+  };
+  if (!only.length) {
+    const tooBig = await writeOverview();
+    if (tooBig) advice.push(tooBig);
+    // export/stranky/README.md: the texts of the home page, the pages in stranky/ and the years as on the site
+    await writeIfChanged(path.join(exportRoot, PAGES_SUBDIR, README), pagesReadme({
+      pages: pages.pages, home: home.home, years: years.years, siteUrl: overviewSite,
+    }));
+  }
+  const draftPruned = [];
+  // The overview (and one in every collection folder) is written by every run without `only`, also when it fails: a
+  // draft whose description cannot be read is missing from it until it is fixed. Pruning only in a run without
+  // problems: such a draft's folder would go as if it were published.
+  if (!only.length) {
+    if (drafts.length) {
+      drafts.sort((a, b) => a.folder.localeCompare(b.folder));
+      draftWanted.set('', new Set([README]));
+      await writeIfChanged(path.join(draftRoot, README), draftIndex(drafts));
+      for (const { dir, title, entries } of collectionIndexes(drafts)) {
+        draftWanted.set(dir, new Set([README]));
+        await writeIfChanged(path.join(draftRoot, dir, README), draftIndex(entries, { within: title }));
+      }
+    }
+  }
+  if (!only.length && !problems.length) {
+    // folders of works published, deleted or renamed since, and the overview once there is no draft
+    for (const rel of planFolderPrune(await listFiles(draftRoot), draftWanted, EXPORT_FILES.draft)) {
+      await fs.rm(path.join(draftRoot, rel));
+      draftPruned.push(`export/draft/${rel}`);
+    }
+    await removeEmptyDirs(draftRoot);
+  }
+  runWatch.lap('drafts');
+  if (problems.length || prepareOnly) logPhases();
+  if (problems.length) {
+    return { ok: false, problems, created, assigned, detected, updated, pending, advice, todo, tags, processed: 0, skipped: 0, missing: [], pruned: draftPruned, previews, prepared: prepareOnly, commentedOut };
+  }
+  if (prepareOnly) return { ok: true, problems: [], created, assigned, detected, updated, pending, advice, todo, tags, processed: 0, skipped: 0, missing: [], pruned: draftPruned, previews, prepared: true, commentedOut };
+  const { scenes, text: scenesText } = await loadScenes(scenesDir);
+  // Instagram: captions on the papers of the palettes of the site, scenes of the studio (loaded once, when needed)
+  const instagramScenes = await loadInstagramScenes(instagramScenesDir);
+  const captionPalettes = PALETTES.map((p) => p.id);
+  const instagramVariants = instagramSuffixes(captionPalettes, instagramScenes.scenes.map((s) => s.name));
+  // the scenes a work fits into (scenePlacement = the place renderScene draws it at): only these get a photo; placing
+  // takes long (seconds for all scenes), so once per work and run (asked for the README and for the stale exports)
+  const fitting = new Map();
+  const fittingScenes = (w) => {
+    const key = JSON.stringify([w.id, w.data.size_cm ?? null]);
+    if (!fitting.has(key)) {
+      fitting.set(key, validSize(w.data.size_cm) ? instagramScenes.scenes.filter((sc) => scenePlacement(sc, w.data.size_cm, w.id).fits) : []);
+    }
+    return fitting.get(key);
+  };
+  const instagramSettings = JSON.stringify({ ...img.instagram, host: siteHost(config.site?.url) });
+  // the pin for Pinterest (every work): images.pinterest over the defaults
+  const pinConfig = { ...PIN_DEFAULTS, ...img.pinterest };
+  let fonts = null;
+
+  const publicDir = path.join(siteDir, 'public');
+  // A draft never leaves the content repository: no metadata copy, no web images, no exports.
+  // Outputs it had while published are removed by the prune below.
+  const published = works.filter((w) => !w.data.meta_draft);
+
+  let processed = 0, skipped = 0;
+  const missing = [];
+  // works that do not fit the free part of a studio scene (their Instagram photo covers props): "Ke kontrole"
+  const misfits = [];
+  // Public copies of the descriptions (content/, a mirror of the content repository): every path written by a full
+  // run; anything else under content/ is removed at the end.
+  const copies = new Set();
+  // Images in public/, where their page is (scripts/lib/site-images.mjs): every folder and file a full run produces,
+  // relative to public/; anything else under the output folders is removed at the end.
+  const outputs = new Set();
+  const writeCopy = async (rel, data, fields) => {
+    copies.add(rel);
+    await writeIfChanged(path.join(siteDir, rel), publicCopy(data, fields));
+  };
+  // The day of this run: derived_modified of a work whose public attributes or images change in it.
+  const day = (today ?? new Date()).toISOString().slice(0, 10);
+  /**
+   * Public copy of a work, in the same place as in the content repository (the collection is its folder), with
+   * derived_modified: the day its public attributes or its images last changed (lastmod of the sitemap); kept as
+   * it was when nothing changed.
+   */
+  const writeWorkCopy = async (w, imagesChanged) => {
+    const rel = workCopyPath(w.collection, w.slug);
+    const fields = publicFields(w.data, PUBLIC_WORK_FIELDS);
+    const old = await fs.readFile(path.join(siteDir, rel), 'utf8').then((t) => YAML.parse(t) ?? {}, () => null);
+    const { [MODIFIED]: before, ...oldFields } = old ?? {};
+    const modified = old && before && !imagesChanged && isDeepStrictEqual(oldFields, fields) ? before : day;
+    copies.add(rel);
+    await writeIfChanged(path.join(siteDir, rel), SYNC_HEADER + YAML.stringify({ ...fields, [MODIFIED]: modified }));
+  };
+
+  /** Instagram export suffixes of the detail photos of a work (detailSuffixes), from their sizes in its info.json. */
+  const instagramDetailSuffixes = (w, info) => w.details.flatMap((d) => {
+    const set = (info?.details ?? []).find((x) => x.name === d.name);
+    return detailSuffixes(d.name, set ? set.width / set.height : 0, img.instagram);
+  });
+
+  /**
+   * The export files a published work should have, per platform: a Set of file names (with README.md), null = any
+   * (the state is not known yet: Fler without web images), none when it gets no exports there. `info`: its info.json.
+   * Instagram only while makesInstagramExports, Fler only while makesFlerExports (placing the work in the scenes of the
+   * studio takes long: only for a work that gets Instagram exports).
+   */
+  const workExports = (w, info) => {
+    const variants = makesInstagramExports(w.data) ? [
+      ...instagramVariants.filter((v) => !v.startsWith('-scene-')), ...fittingScenes(w).map((sc) => `-scene-${sc.name}`),
+      ...panoramaSuffixes(panoramaSlides(w.data.size_cm, img.instagram)), '-story', ...gridSuffixes(instagramGrid(w.data)),
+      ...instagramDetailSuffixes(w, info),
+    ] : [];
+    const mockupScenes = info ? (info.mockups ?? []).map((m) => m.scene) : null;
+    const e = expectedExports({
+      fler: makesFlerExports(w.data), details: [], mockupScenes, instagram: makesInstagramExports(w.data), instagramVariants: variants,
+    });
+    const files = (list) => (list === null ? null : list.length ? new Set([...list.map(exportFileName), README]) : undefined);
+    return { instagram: files(e.instagram), fler: files(e.fler) };
+  };
+  /**
+   * The platforms where a published work lacks an export file it should have (lost, or newly asked for): their
+   * exports are made again, nothing else of the work.
+   */
+  const exportsMissing = async (w, info) => {
+    const folder = exportFolder(w.yamlPath, w.slug);
+    const wanted = workExports(w, info);
+    const missingOn = [];
+    for (const sub of ['instagram', 'fler']) {
+      for (const name of wanted[sub] ?? []) {
+        if (name !== README && !(await exists(path.join(exportRoot, sub, folder, name)))) { missingOn.push(sub); break; }
+      }
+    }
+    return missingOn;
+  };
+
+  /** Address of the page of a work on the site (its folder in public/ is its address). */
+  const siteUrl = String(config.site?.url ?? '').replace(/\/+$/, '');
+  const workPageUrl = (year, key) => `${siteUrl}/${workImageDir(year, key)}/`;
+
+  /**
+   * The exports of a work on `platforms` (both after its web images were made, the missing ones of an up-to-date
+   * work): its old ones there are removed first. `m`: its master (loadMaster), `mockups`: rendered mockups ({ scene, buf }).
+   */
+  const workExportFiles = async (w, key, rel, m, mockups, platforms, watch) => {
+    // Exports. Instagram: only when asked for (meta_instagram: true): the work with a caption on the paper of every
+    // palette, the work in every studio scene and the detail photos; never the mockups of the site.
+    // Fler: only when asked for (meta_fler: true), the original and the mockups, all with the watermark.
+    // Both only while the work is not there yet (no instagram / fler link): makesInstagramExports, makesFlerExports.
+    const folder = exportFolder(w.yamlPath, w.slug);
+    await clearExports(exportRoot, w.year, key, folder, platforms);
+    watch.lap('other');
+    if (platforms.includes('instagram') && makesInstagramExports(w.data)) {
+      const insta = path.join(exportRoot, 'instagram', folder);
+      await fs.mkdir(insta, { recursive: true });
+      fonts ??= await loadFonts(fontsDir);
+      const art = await insetWork(m.buf, img.instagram.insetPercent ?? 0);
+      const host = siteHost(config.site?.url);
+      const details = await Promise.all(w.details.map(async (d) => ({ name: d.name, buf: await fs.readFile(d.path) })));
+      for (const p of PALETTES) {
+        const buf = await renderCaption({ art, work: w.data, year: w.year, host, colors: p.colors, fonts, config: img.instagram });
+        await fs.writeFile(path.join(insta, exportFileName(`-caption-${p.id}`)), buf);
+      }
+      if (validSize(w.data.size_cm)) {
+        // a work that does not fit into a scene gets no photo of it, only a warning in the summary
+        for (const scene of instagramScenes.scenes) {
+          const placement = scenePlacement(scene, w.data.size_cm, w.id);
+          if (!placement.fits) {
+            log(`  ! ${rel}: does not fit ${placement.cut ? 'into the photo of' : 'the free part of'} the scene ${scene.name}, no photo of it (see mockups/instagram/scenes.yaml)`);
+            misfits.push(`${w.yamlPath}: obraz se na „${scene.label ?? scene.name}“ `
+              + (placement.cut ? 'celý nevejde, okraj fotky by ho ořízl' : 'nevejde mimo rekvizity, částečně by je zakrýval')
+              + ', fotku této scény proto nevyrábím [nevejde-do-sceny]');
+            continue;
+          }
+          const { buf } = await renderScene({ art, work: { ...w.data, id: w.id }, scene, config: img.instagram });
+          await fs.writeFile(path.join(insta, exportFileName(`-scene-${scene.name}`)), buf);
+        }
+      }
+      // the seamless panorama of a wide work (slides of one carousel) and the story, on the paper of the first palette
+      const slides = panoramaSlides(w.data.size_cm, img.instagram);
+      if (slides) {
+        const bufs = await renderPanorama({ art, colors: PALETTES[0].colors, slides, config: img.instagram });
+        for (const [i, buf] of bufs.entries()) await fs.writeFile(path.join(insta, exportFileName(panoramaSuffixes(slides)[i])), buf);
+      }
+      const story = await renderStory({ art, work: w.data, year: w.year, host, colors: PALETTES[0].colors, fonts, config: img.instagram });
+      // the profile grid (meta_instagram_grid): the work cut into tiles 3:4 that join up on the profile, and a preview
+      const gridSpec = instagramGrid(w.data);
+      if (gridSpec) {
+        const grid = await renderGrid({ art, work: w.data, year: w.year, host, colors: PALETTES[0].colors, fonts, grid: gridSpec, config: img.instagram });
+        for (const [i, buf] of grid.tiles.entries()) await fs.writeFile(path.join(insta, exportFileName(gridSuffixes(gridSpec)[i])), buf);
+        await fs.writeFile(path.join(insta, exportFileName('-grid-preview')), grid.preview);
+        const tiles = `${gridSpec.cols}x${gridSpec.rows}`;
+        const minFill = img.instagram.grid?.minFill ?? GRID_DEFAULTS.minFill;
+        if (grid.layout.fill < minFill) {
+          log(`  ! ${rel}: the work covers only ${Math.round(grid.layout.fill * 100)} % of its grid ${tiles}`);
+          misfits.push(`${w.yamlPath}: obraz zabere v mřížce ${tiles} jen ${Math.round(grid.layout.fill * 100)} % plochy `
+            + '(zbytek je prázdný papír); zvol jinou mřížku (meta_instagram_grid) nebo false [mala-mrizka]');
+        }
+      }
+      await fs.writeFile(path.join(insta, exportFileName('-story')), story);
+      for (const d of details) {
+        // a long narrow detail (e.g. the matrix of a linocut) becomes a panorama of its own, like the work
+        const dbuf = await sharp(d.buf).rotate().toColorspace('srgb').png().toBuffer();
+        const { width: dw, height: dh } = await sharp(dbuf).metadata();
+        const names = detailSuffixes(d.name, dw / dh, img.instagram);
+        if (names.length === 1) { await instagramDetail(path.join(insta, exportFileName(names[0])), d.buf, img); continue; }
+        const bufs = await renderPanorama({ art: dbuf, colors: PALETTES[0].colors, slides: names.length, config: img.instagram });
+        for (const [i, buf] of bufs.entries()) await fs.writeFile(path.join(insta, exportFileName(names[i])), buf);
+      }
+      watch.lap('instagram');
+    }
+    if (platforms.includes('fler') && makesFlerExports(w.data)) {
+      const flerDir = path.join(exportRoot, 'fler', folder);
+      await fs.mkdir(flerDir, { recursive: true });
+      fonts ??= await loadFonts(fontsDir);
+      await fler(path.join(flerDir, exportFileName('')), m.buf, img, fonts);
+      for (const mk of mockups) await fler(path.join(flerDir, exportFileName(`-mockup-${mk.scene}`)), mk.buf, img, fonts);
+      watch.lap('fler');
+    }
+  };
+
+  /** Web images and exports of a work; true when they were (re)generated in this run. */
+  const workImages = async (w, key, rel) => {
+    const webDir = path.join(publicDir, workImageDir(w.year, key));
+    if (!w.masterPath) {
+      // No master is fine as long as web images exist (another computer, CI).
+      if (!(await exists(path.join(webDir, 'info.json')))) missing.push(rel);
+      return false;
+    }
+    // Outputs depend on the master, the size (mockup scale), the mockup scenes (only with mockups), whether the work is on sale
+    // (Fler exports), `mockups` (with the edge: a canvas hangs without a mat), `meta_instagram`, `meta_pinterest`, the corners of the sheet (and how its edge fades, edgeLook: not the
+    // settings of detection and previews) and the detail photos; not on price or description.
+    const master = await fs.readFile(w.masterPath);
+    // the flags as they always were in the fingerprint (a new formula would make every work again); which exports
+    // a work gets (makesInstagramExports, makesFlerExports) is checked apart from it, by exportsMissing
+    const onSale = isOnSale(w.data.status);
+    const instagram = wantsInstagram(w.data);
+    const pinterest = wantsPinterest(w.data);
+    const mockupsOn = wantsMockups(w.data);
+    const details = await Promise.all(w.details.map(async (d) => ({ name: d.name, buf: await fs.readFile(d.path) })));
+    // Instagram exports also show the title, technique, size and date (caption) and depend on the scenes and settings.
+    // Exports live in a folder mirroring tvorba/: a work moved to another collection gets them made again there.
+    const instagramInputs = instagram
+      ? [instagramScenes.text, String(SCENE_VERSION), instagramSettings, JSON.stringify([w.data.title, w.data.technique, w.data.size_cm, w.year, instagramGrid(w.data) ? [instagramGrid(w.data), GRID_VERSION] : 0, w.data.meta_edge ?? 'deckle'])]
+      : [];
+    const folderInputs = instagram || onSale ? [exportFolder(w.yamlPath, w.slug)] : [];
+    // the pin (every work) shows the caption too, in its own size
+    // (a version of the pin above 1 makes it again: a new address in the feed)
+    const pinVersion = pinterest && pinterestVersion(w.data) > 1 ? { version: pinterestVersion(w.data) } : {};
+    const pinInputs = [JSON.stringify(['snug', { feed: pinterest, ...pinVersion }, pinConfig, siteHost(config.site?.url), w.data.title, w.data.technique, w.data.size_cm, w.year])];
+    // Fler exports carry the signature: its settings and look (a change makes them again)
+    const flerInputs = onSale ? [JSON.stringify([img.fler, WATERMARK_LOOK])] : [];
+    // Creator, title, copyright, terms of use and page of the work in the XMP of its web images (a new title makes them again)
+    const xmp = rightsXmp({ author: config.site?.author, title: w.data.title, year: w.year, pageUrl: workPageUrl(w.year, key), termsUrl: `${siteUrl}${TERMS_PATH}` });
+    // the mockup scenes only for a work with mockups: a change of mockups/scenes.yaml leaves the others alone
+    const fingerprint = sha1(
+      String(PIPELINE_VERSION), master, JSON.stringify(w.data.size_cm ?? null), mockupsOn ? scenesText : '', String(onSale), String(instagram), String(mockupsOn && (w.data.meta_edge ?? 'deckle')),
+      String(pinterest), ...instagramInputs, ...folderInputs, ...flerInputs, ...pinInputs, xmp,
+      JSON.stringify(w.data.meta_corners ?? null), JSON.stringify(cutsSheet(w.data.meta_corners) ? edgeLook(edges) : null),
+      ...details.flatMap((d) => [d.name, d.buf]),
+    );
+    const before = await readJson(path.join(webDir, 'info.json'));
+    const upToDate = before?.fingerprint === fingerprint && !force;
+    // up to date: nothing to do, unless an export it should have is missing (asked for since, or lost): then only the
+    // exports of that platform are made, the web images stay
+    const exportsOnly = upToDate ? await exportsMissing(w, before) : null;
+    if (exportsOnly && !exportsOnly.length) { skipped++; return false; }
+    const platforms = exportsOnly ?? ['instagram', 'fler'];
+
+    log(exportsOnly ? `→ ${rel} (exports: ${exportsOnly.join(', ')})` : `→ ${rel}`);
+    // how long each step of the work takes, in the log after it
+    const watch = stopwatch();
+    const m = await loadMaster(master, { corners: w.data.meta_corners, edges });
+    watch.lap('master');
+    // Mockups only when the author asks for them (mockups: true), whether or not the work is for sale.
+    const picked = mockupsOn ? pickScenes(w.data.size_cm, w.id, scenes, { edge: w.data.meta_edge }) : [];
+    if (mockupsOn && !picked.length) log(`  ! no mockup scene is big enough for ${rel} (see mockups/scenes.yaml maxCm)`);
+    if (exportsOnly) {
+      // the mockups only for the Fler exports (the web keeps its own)
+      const mockups = platforms.includes('fler') && makesFlerExports(w.data) ? await renderMockups(m, picked, w.data) : [];
+      watch.lap('mockups');
+      await workExportFiles(w, key, rel, m, mockups, platforms, watch);
+      log(`  ⏱ ${formatLaps(watch.laps(), watch.total())}`);
+      processed++;
+      return false;
+    }
+    // Pinterest: the work with the caption right under it on the paper of the first palette, 2:3, on the site; every
+    // work has it ("Uložit na Pinterest" of its page), with meta_pinterest it is also in the feed /pinterest.xml
+    fonts ??= await loadFonts(fontsDir);
+    const pin = await renderCaption({
+      art: await insetWork(m.buf, pinConfig.insetPercent ?? 0), work: w.data, year: w.year, host: siteHost(config.site?.url),
+      colors: PALETTES[0].colors, fonts, config: pinConfig, xmp, snug: true,
+    });
+    watch.lap('pin');
+    const feed = pinterest ? { version: pinterestVersion(w.data), before: before?.pin } : null;
+    const mockups = await web(webDir, m, img, { work: w.data, picked, details, fingerprint, xmp, pin, feed, watch });
+
+    await workExportFiles(w, key, rel, m, mockups, platforms, watch);
+    log(`  ⏱ ${formatLaps(watch.laps(), watch.total())}`);
+    processed++;
+    return true;
+  };
+
+  // titles of the collections by slug, for the text of Instagram posts
+  const collectionTitles = new Map(collections.collections.map((c) => [c.slug, typeof c.data?.title === 'string' ? c.data.title : '']));
+  for (const w of published) {
+    if (only.length && !only.includes(w.slug)) continue;
+    const key = workKey(w.slug, w.id);
+    outputs.add(workImageDir(w.year, key));
+    const imagesChanged = await workImages(w, key, `${w.year}/${key}`);
+    // its colours for the filter „Barva“ and similar works: analysed once from its web picture, the images stay
+    if (await workColours(path.join(publicDir, workImageDir(w.year, key)))) log(`+ colours: ${w.year}/${key}`);
+    await writeWorkCopy(w, imagesChanged);
+    // The text of an Instagram post and the README.md previews of the export folders: cheap, so written by every run
+    // (they follow the description, tags and price at once).
+    const folder = exportFolder(w.yamlPath, w.slug);
+    const about = { collection: collectionTitles.get(w.collection) ?? '', pageUrl: workPageUrl(w.year, key) };
+    if (makesInstagramExports(w.data)) {
+      const text = instagramPost({
+        work: w.data, year: w.year, host: siteHost(config.site?.url), onSale: isOnSale(w.data.status), settings: config.instagramPost,
+        collection: collectionTitles.get(w.collection) ?? '',
+      });
+      const files = {
+        captions: captionPalettes.map((p) => exportFileName(`-caption-${p}`)),
+        scenes: fittingScenes(w).map((sc) => exportFileName(`-scene-${sc.name}`)),
+        panorama: panoramaSuffixes(panoramaSlides(w.data.size_cm, img.instagram)).map(exportFileName),
+        story: exportFileName('-story'),
+        grid: instagramGrid(w.data)
+          ? { tiles: gridSuffixes(instagramGrid(w.data)).slice(0, -1).map(exportFileName), preview: exportFileName('-grid-preview'), cols: instagramGrid(w.data).cols,
+            posts: gridPosts({ work: w.data, grid: instagramGrid(w.data), post: text, handle: config.site?.instagram }) }
+          : null,
+        details: instagramDetailSuffixes(w, await readJson(path.join(publicDir, workImageDir(w.year, key), 'info.json'))).map(exportFileName),
+      };
+      await writeIfChanged(path.join(exportRoot, 'instagram', folder, README), instagramReadme({ work: w.data, year: w.year, files, post: text, ...about }));
+    }
+    if (makesFlerExports(w.data)) {
+      const info = await readJson(path.join(publicDir, workImageDir(w.year, key), 'info.json'));
+      const files = { original: [exportFileName('')], mockups: (info?.mockups ?? []).map((mk) => exportFileName(`-mockup-${mk.scene}`)) };
+      await writeIfChanged(path.join(exportRoot, 'fler', folder, README), flerReadme({ work: w.data, year: w.year, files, ...about }));
+    }
+  }
+
+  runWatch.lap('works');
+  const pruned = [...draftPruned];
+  if (!only.length) {
+    // Stale exports, independent of whether the work was regenerated in this run: exports of deleted, renamed
+    // or draft works, of detail photos and mockup scenes a work no longer has, Fler exports of works not on sale.
+    // folder of a work (exportFolder) -> the file names it should have there (null = any, state unknown), per platform
+    const wanted = { instagram: new Map(), fler: new Map() };
+    for (const w of published) {
+      const info = await readJson(path.join(publicDir, workImageDir(w.year, workKey(w.slug, w.id)), 'info.json'));
+      const e = workExports(w, info);
+      const folder = exportFolder(w.yamlPath, w.slug);
+      for (const sub of ['instagram', 'fler']) if (e[sub] !== undefined) wanted[sub].set(folder, e[sub]);
+    }
+    // the overview of a platform lists every work asked for there (only when it has any): with its folder while it
+    // has exports, with the link once it is there (its folder is gone then)
+    const overview = { instagram: [], fler: [] };
+    for (const w of published) {
+      const folder = exportFolder(w.yamlPath, w.slug);
+      const collection = collectionTitles.get(w.collection) ?? '';
+      const facts = captionFacts(w.data, w.year);
+      if (wantsInstagram(w.data)) {
+        overview.instagram.push({
+          title: w.data.title, code: w.id, folder, thumb: makesInstagramExports(w.data) ? exportFileName('-caption-papir') : null, note: facts, collection, url: publishedUrl(w.data, 'instagram'),
+          // the story of the collection: its frames and links (with the UTM of stories)
+          story: makesInstagramExports(w.data) ? exportFileName('-story') : null, date: String(w.data.date ?? ''), storyUrl: withParams(workPageUrl(w.year, workKey(w.slug, w.id)), STORY_UTM),
+          collectionUrl: w.collection ? withParams(`${siteUrl}/${collectionPageDir(w.collection)}/`, STORY_UTM) : '',
+        });
+      }
+      if (wantsFler(w.data) && isOnSale(w.data.status)) {
+        const price = typeof w.data.price === 'number' ? `${w.data.price.toLocaleString('cs-CZ')} Kč` : '';
+        overview.fler.push({ title: w.data.title, code: w.id, folder, thumb: makesFlerExports(w.data) ? exportFileName('') : null, note: [facts, price].filter(Boolean).join(' · '), collection, url: publishedUrl(w.data, 'fler') });
+      }
+    }
+    for (const sub of ['instagram', 'fler']) {
+      if (!overview[sub].length) continue;
+      overview[sub].sort((a, b) => a.folder.localeCompare(b.folder));
+      wanted[sub].set('', new Set([README]));
+      await writeIfChanged(path.join(exportRoot, sub, README), exportIndex(sub, overview[sub]));
+      // the same overview for each collection, in its folder
+      for (const { dir, title, entries } of collectionIndexes(overview[sub])) {
+        wanted[sub].set(dir, new Set([README]));
+        await writeIfChanged(path.join(exportRoot, sub, dir, README), exportIndex(sub, entries, { within: title }));
+      }
+    }
+    for (const sub of ['instagram', 'fler']) {
+      const root = path.join(exportRoot, sub);
+      for (const rel of planFolderPrune(await listFiles(root), wanted[sub], EXPORT_FILES[sub])) {
+        await fs.rm(path.join(root, rel));
+        pruned.push(`export/${sub}/${rel}`);
+      }
+      await removeEmptyDirs(root);
+    }
+  }
+
+  runWatch.lap('exports');
+  // Other photos (portrait, studio): public/fotky/<name>/ (images), content/fotky/<name>.yaml (alt, caption, focus)
+  for (const photo of photos.photos) {
+    if (only.length && !only.includes(photo.name)) continue;
+    await writeCopy(photoCopyPath(photo.name), photo.data, PUBLIC_PHOTO_FIELDS);
+    outputs.add(photoDir(photo.name));
+    if (await photoSet(photo.masterPath, path.join(publicDir, photoDir(photo.name)), img, {}, { force, log, label: `fotky/${photo.name}` })) processed++;
+    else skipped++;
+  }
+
+  /**
+   * Own cover photo (_cover/) and share image of the chosen cover (_og/og-<hash>.jpg) in the folder of a page.
+   * `photoPath`: the own cover photo or null, `source`: coverShareSource/coverSource or null. One no longer used
+   * is removed by the final prune of a full run (and so reported), right away in a run of `only`.
+   */
+  const pageCover = async (pageDir, { photoPath, alt, source, label }) => {
+    const dir = path.join(publicDir, coverDir(pageDir));
+    if (photoPath) {
+      outputs.add(coverDir(pageDir));
+      if (await photoSet(photoPath, dir, img, { alt }, { force, log, label })) processed++;
+      else skipped++;
+    } else if (only.length) {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+    if (source) {
+      outputs.add(ogDir(pageDir));
+      await shareCrop(source, path.join(publicDir, ogDir(pageDir)), `og ${label}`);
+    } else if (only.length) {
+      await fs.rm(path.join(publicDir, ogDir(pageDir)), { recursive: true, force: true });
+    }
+  };
+
+  runWatch.lap('photos');
+  // Collections: content/tvorba/<slug>/_index.yaml (public fields); in public/tvorba/kolekce/<slug>/ the own cover
+  // photo (_cover/) and the share image of the cover (_og/og-<hash>.jpg) cropped exactly like the page shows it.
+  // Share images are drawn only when what they are drawn from changes (shareCrop).
+  for (const c of collections.collections) {
+    if (only.length && !only.includes(c.slug)) continue;
+    await writeCopy(collectionCopyPath(c.slug), c.data, PUBLIC_COLLECTION_FIELDS);
+    await pageCover(collectionPageDir(c.slug), { photoPath: c.coverPath, alt: c.data.title ?? '', source: coverSource(c, works), label: `kolekce/${c.slug}` });
+  }
+
+  // Years: content/roky/<year>.yaml (text and cover); in public/tvorba/<year>/ the own cover photo (_cover/) and the
+  // share image of a chosen cover (_og/og-<hash>.jpg, cropped around focus).
+  for (const y of years.years) {
+    if (only.length && !only.includes(y.year)) continue;
+    await writeCopy(yearCopyPath(y.year), y.data, PUBLIC_YEAR_FIELDS);
+    const source = coverShareSource({ photoPath: y.coverPath, data: y.data, works: works.filter((w) => w.year === y.year) });
+    await pageCover(yearPageDir(y.year), { photoPath: y.coverPath, alt: `Tvorba ${y.year}`, source, label: `roky/${y.year}` });
+  }
+
+  // Home page: content/_index.yaml (text and cover); public/_cover/ (own cover photo), public/_og/ (chosen cover).
+  if (home.home && !only.length) {
+    const h = home.home;
+    await writeCopy(HOME_COPY, h.data, PUBLIC_HOME_FIELDS);
+    const source = coverShareSource({ photoPath: h.coverPath, data: h.data, works });
+    await pageCover(HOME_PAGE_DIR, { photoPath: h.coverPath, alt: config.site?.title ?? '', source, label: 'uvod' });
+  }
+
+  // Texts of the pages: content/stranky/<page>.yaml (no images of their own: their photos are in fotky/).
+  if (!only.length) {
+    for (const p of pages.pages) await writeCopy(pageCopyPath(p.name), p.data, publicPageFields(p.name));
+  }
+
+  // Works without a collection: content/tvorba/_index.yaml (cover); public/tvorba/_cover/ (own cover photo). The
+  // item "Mimo kolekce" has no page of its own, so no share image.
+  // Only while some published work is without a collection (otherwise the site shows no such item).
+  if (uncollected.uncollected && !only.length && works.some((w) => !w.collection && !w.data.meta_draft)) {
+    const u = uncollected.uncollected;
+    await writeCopy(UNCOLLECTED_COPY, u.data, PUBLIC_UNCOLLECTED_FIELDS);
+    await pageCover(UNCOLLECTED_PAGE_DIR, { photoPath: u.coverPath, alt: NO_COLLECTION_TITLE, source: null, label: 'mimo-kolekce' });
+  }
+
+  runWatch.lap('covers');
+  // Images nobody produced in this full run: deleted, renamed or unpublished items, covers no longer used.
+  if (!only.length) {
+    for (const { rel, dir } of staleOutputs(siteDir, outputs)) {
+      await fs.rm(path.join(publicDir, rel), { recursive: true, force: true });
+      pruned.push(`public/${rel}${dir ? '/' : ''}`);
+    }
+    for (const root of OUTPUT_ROOTS) await removeEmptyDirs(path.join(publicDir, root)).catch(() => {});
+  }
+  // Public copies nobody wrote in this full run: deleted, renamed or unpublished items.
+  if (!only.length) {
+    for (const rel of staleCopies(siteDir, copies)) {
+      await fs.rm(path.join(siteDir, rel));
+      pruned.push(rel);
+    }
+    await removeEmptyDirs(path.join(siteDir, 'content'));
+  }
+  pruned.forEach((p) => log(`- removed ${p}`));
+
+  runWatch.lap('prune');
+  if (!only.length) await writeOverview({ misfits });
+  runWatch.lap('overview');
+  // The plan of the days of the game Detail dne: the days up to tomorrow stay, the next two weeks from the works of now.
+  if (!only.length && gamePlan) {
+    try {
+      // the places kept out of the game in shares of the web picture: the photo cut by its corners as the web images are
+      const exclusions = await contentExclusions(works, (w) => photoRegion(w.masterPath, w.data.meta_corners, edges));
+      const plan = await updateGamePlan({ siteDir, config, date: today ?? new Date(), exclusions });
+      const planFiles = plan.changed.filter((file) => !file.startsWith(ANALYSIS_DIR));
+      log(`Detail dne: plan ${planFiles.length ? `updated (${planFiles.join(', ')})` : 'unchanged'}, ${plan.days} days up to ${plan.ahead}; pictures analysed ${plan.analysis.written.length}, kept ${plan.analysis.reused}, removed ${plan.analysis.removed.length}`);
+      // export/detail-dne/: the details of every work in the game over its picture (scripts/lib/game-export.mjs)
+      pruned.push(...await writeGameExport({
+        works, exclusions, plan: plan.plan, collectionTitles: draftTitles, siteDir, exportRoot, edges, siteUrl: overviewSite, log,
+      }));
+    } catch (error) {
+      log(`! Detail dne: the plan of the days was not updated: ${error.message}`);
+    }
+    runWatch.lap('game plan');
+  }
+  logPhases();
+  return { ok: missing.length === 0, problems: [], created, assigned, detected, updated, pending, advice, todo, tags, processed, skipped, missing, pruned, previews, misfits, commentedOut };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const args = process.argv.slice(2);
+  // On GitHub Actions the result is also written to the run page.
+  // File names in it link to the content repository on GitHub when its workflow gives the address (CONTENT_BLOB_URL).
+  const link = process.env.CONTENT_DIR ? fileLinks(process.env.CONTENT_BLOB_URL, process.env.CONTENT_DIR) : null;
+  const summary = (r, e) => process.env.GITHUB_STEP_SUMMARY && fs.appendFile(process.env.GITHUB_STEP_SUMMARY, formatSummary(r, e, { link }));
+  try {
+    // --demo: the content is the test data (dry run of the workflow on GitHub, see .github/workflows/dry-run.yml)
+    const r = await run({
+      force: args.includes('--force'),
+      prepareOnly: args.includes('--prepare-only'),
+      dataset: args.includes('--demo') ? 'demo' : 'real',
+      only: args.filter((a) => !a.startsWith('--')),
+      gamePlan: true,
+    });
+    r.problems.forEach((p) => console.error(`✗ ${p}`));
+    if (r.problems.length === 0) console.log(r.prepared ? 'Prepared: skeletons, ids and checks only.' : `Done: ${r.processed} processed, ${r.skipped} unchanged.`);
+    if (r.missing.length) console.error(`Missing master photo for: ${r.missing.join(', ')}`);
+    await summary(r);
+    if (!r.ok) process.exitCode = 1;
+  } catch (e) {
+    console.error(`✗ ${e.message}`);
+    await summary(null, e);
+    process.exitCode = 1;
+  }
+}

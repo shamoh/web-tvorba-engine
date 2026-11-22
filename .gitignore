@@ -1,9 +1,23 @@
-.DS_Store
-.idea/
 node_modules/
 dist/
 .astro/
+.DS_Store
+.idea/
 .demo/
-.prototypes/
-.previews/
 .env
+.previews/
+.prototypes/
+/mockups/export/
+# images of the site made by the pipeline: in the branch main_binary, not in main (scripts/binary.mjs, npm run binary:pull)
+/public/tvorba/
+/public/fotky/
+/public/_cover/
+/public/_og/
+/public/og.jpg
+AGENTS.md
+# screenshots of the site for the install dialog: taken by the deploy once a week (npm run app-screenshots)
+/.app-screenshots/
+# images of the test data: rendered from demo-content/images.yaml (npm run demo:images), in git only in the engine
+/demo-content/**/*.jpg
+/demo-content/**/*.png
+/demo-content/**/*.webp

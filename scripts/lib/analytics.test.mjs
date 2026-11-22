@@ -1,0 +1,169 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import { cinemaRunCounts } from './cinema.mjs';
+import {
+  CINEMA_CLOSE_REASONS, CINEMA_CLOSE_METHODS, MORE_METHODS, CINEMA_LINK_SOURCES, CINEMA_OPEN_METHODS, EVENTS, IMAGE_METHODS, cinemaCloseParams, cinemaLinkMethod, gameEventParams, cinemaOpenParams, imageEventParams, filterEventParams, gtagConfigScript, gtagSrc, isMeasurementId, measurementIdFor, trackEvent, trackedClick, viewEventParams,
+} from './analytics.mjs';
+
+const analytics = { googleMeasurementId: 'G-HPZNHYZ2MQ' };
+
+test('measurementIdFor: only the production build of the real site measures', () => {
+  assert.equal(measurementIdFor(analytics, { production: true, demo: false }), 'G-HPZNHYZ2MQ');
+  assert.equal(measurementIdFor(analytics, { production: false, demo: false }), null, 'dev server');
+  assert.equal(measurementIdFor(analytics, { production: true, demo: true }), null, 'site from the test data');
+});
+
+test('measurementIdFor: no ID means no statistics, a broken ID is an error', () => {
+  for (const a of [undefined, null, {}, { googleMeasurementId: '' }, { googleMeasurementId: null }]) {
+    assert.equal(measurementIdFor(a, { production: true, demo: false }), null);
+  }
+  for (const id of ['UA-12345-1', 'g-hpznhyz2mq', 'G-HPZ NHY', 'G-HPZNHYZ2MQ"><script>', 42]) {
+    assert.throws(() => measurementIdFor({ googleMeasurementId: id }, { production: true, demo: false }), /must look like G-/);
+  }
+});
+
+test('isMeasurementId accepts GA4 IDs only', () => {
+  assert.equal(isMeasurementId('G-HPZNHYZ2MQ'), true);
+  assert.equal(isMeasurementId('G-94EC5C6TB0'), true);
+  assert.equal(isMeasurementId('GTM-ABC123'), false);
+  assert.equal(isMeasurementId(undefined), false);
+});
+
+test('gtag: loader URL and the config from the installation guide (the page is reported with its query string)', () => {
+  assert.equal(gtagSrc('G-HPZNHYZ2MQ'), 'https://www.googletagmanager.com/gtag/js?id=G-HPZNHYZ2MQ');
+  const script = gtagConfigScript('G-HPZNHYZ2MQ');
+  assert.match(script, /window\.dataLayer = window\.dataLayer \|\| \[\];/);
+  assert.match(script, /gtag\('config', 'G-HPZNHYZ2MQ'\);$/);
+  assert.doesNotMatch(script, /page_location/);
+  assert.match(script, /gtag\('set', \{ display_mode: .*'app' : 'browser' \}\);\ngtag\('config'/, 'every event says app or browser, page_view too');
+  const mode = (standalone, iosStandalone) => {
+    const set = [];
+    const gtag = (...a) => set.push(a);
+    new Function('matchMedia', 'navigator', 'gtag', script.split('\n').find((l) => l.startsWith("gtag('set'")))(() => ({ matches: standalone }), { standalone: iosStandalone }, gtag);
+    return set[0][1].display_mode;
+  };
+  assert.deepEqual([mode(true, undefined), mode(false, true), mode(false, undefined)], ['app', 'app', 'browser']);
+  assert.throws(() => gtagConfigScript("G-X');alert(1);//"), /invalid measurement ID/);
+});
+
+test('filterEventParams: only the active filters, always the number of matching works', () => {
+  const state = { tag: ['krajina'], technique: '', year: '2026', collection: '', status: 'unsold', page: 2, perPage: 24 };
+  assert.deepEqual(filterEventParams(state, 5), { tag: 'krajina', year: '2026', status: 'unsold', results: 5 });
+  assert.deepEqual(filterEventParams({ tag: [], technique: '', year: '', collection: '', status: '' }, 21), { results: 21 });
+  assert.deepEqual(filterEventParams({ collection: '2026-plener-sumava', technique: 'akvarel' }, 0), { technique: 'akvarel', collection: '2026-plener-sumava', results: 0 });
+  assert.deepEqual(filterEventParams({ tag: ['krajina', 'voda'] }, 2), { tag: 'krajina,voda', results: 2 }, 'several tags in one value');
+  assert.deepEqual(filterEventParams({ tag: [], featured: '1' }, 4), { featured: '1', results: 4 }, 'the author\'s selection too');
+});
+
+test('trackedClick: the buttons of a work with its id and title, nothing for other elements', () => {
+  assert.deepEqual(trackedClick({ track: EVENTS.fler, workId: 'k4ts5', workTitle: 'Malý a Velký Roklan' }),
+    { name: 'fler_click', params: { work_id: 'k4ts5', work_title: 'Malý a Velký Roklan' } });
+  assert.deepEqual(trackedClick({ track: EVENTS.email, workId: 'k4ts5' }), { name: 'email_click', params: { work_id: 'k4ts5' } });
+  assert.deepEqual(trackedClick({ track: EVENTS.instagram, workId: 'jujn2', workTitle: 'Bobří hráz' }),
+    { name: 'instagram_click', params: { work_id: 'jujn2', work_title: 'Bobří hráz' } });
+  assert.deepEqual(trackedClick({ track: EVENTS.share, method: 'pinterest', workId: 'jujn2', workTitle: 'Bobří hráz' }),
+    { name: 'share', params: { work_id: 'jujn2', work_title: 'Bobří hráz', method: 'pinterest' } });
+  assert.equal(trackedClick({ track: 'something_else' }), null);
+  assert.equal(trackedClick({}), null);
+  assert.equal(trackedClick(undefined), null);
+});
+
+test('trackEvent: sends through gtag when the Google tag is on the page, otherwise only logs', () => {
+  const sent = [];
+  trackEvent('fler_click', { work_id: 'k4ts5' }, { gtag: (...args) => sent.push(args) });
+  assert.deepEqual(sent, [['event', 'fler_click', { work_id: 'k4ts5' }]]);
+
+  const logged = [];
+  trackEvent('gallery_filter', { results: 3 }, { console: { debug: (...args) => logged.push(args) } });
+  assert.deepEqual(logged, [['[analytics]', 'gallery_filter', { results: 3 }]]);
+  assert.doesNotThrow(() => trackEvent('gallery_filter', {}, {}));
+});
+
+test('cinema_open / cinema_close: the listing, how it opened, why it closed, how long and how many works', () => {
+  assert.equal(EVENTS.cinema, 'cinema_open');
+  assert.equal(EVENTS.cinemaClose, 'cinema_close');
+  assert.deepEqual(CINEMA_OPEN_METHODS, ['button', 'link', 'home', 'footer', 'shortcut', 'shortcut_favorites']);
+  assert.deepEqual(CINEMA_LINK_SOURCES.map(cinemaLinkMethod), ['home', 'footer', 'shortcut', 'shortcut_favorites'], 'a link of the site counted apart');
+  assert.deepEqual([null, '', 'menu', 'contact'].map(cinemaLinkMethod), ['link', 'link', 'link', 'link'], 'any other address = link');
+  assert.equal(cinemaOpenParams({ listing: 'gallery', results: 3, interval: 15, method: 'home' }).method, 'home');
+  assert.deepEqual(cinemaOpenParams({ listing: 'year', results: 12, interval: 15, method: 'link' }), { listing: 'year', results: 12, interval: 15, method: 'link' });
+  assert.throws(() => cinemaOpenParams({ listing: 'gallery', results: 1, interval: 15, method: 'tap' }), /unknown method of cinema_open: tap/);
+  assert.deepEqual(CINEMA_CLOSE_REASONS, ['close', 'back', 'work', 'collection', 'list', 'selection']);
+  assert.deepEqual(Object.keys(CINEMA_CLOSE_METHODS).sort(), CINEMA_CLOSE_REASONS.filter((r) => r !== 'back').sort(), 'every reason but Back says how');
+  assert.deepEqual(cinemaCloseParams({ listing: 'gallery', reason: 'close', ms: 61499, shown: 5, swipes: 3, method: 'key' }),
+    { listing: 'gallery', reason: 'close', seconds: 61, shown: 5, swipes: 3, keys: 0, swipes_missed: 0, method: 'key' }, 'Esc');
+  assert.equal(cinemaCloseParams({ listing: 'gallery', reason: 'close', ms: 1, shown: 1, method: 'button' }).method, 'button', '×');
+  assert.equal(cinemaCloseParams({ listing: 'gallery', reason: 'close', ms: 1, shown: 1, method: 'fullscreen' }).method, 'fullscreen', 'the whole screen left');
+  assert.deepEqual(cinemaCloseParams({ listing: 'gallery', reason: 'back', ms: 2000, shown: 2, swipes: 1, method: 'key' }),
+    { listing: 'gallery', reason: 'back', seconds: 2, shown: 2, swipes: 1, keys: 0, swipes_missed: 0 }, 'Back: no method');
+  assert.deepEqual(cinemaCloseParams({ listing: 'gallery', reason: 'back', ms: 1, shown: 1 }), { listing: 'gallery', reason: 'back', seconds: 0, shown: 1, swipes: 0, keys: 0, swipes_missed: 0 }, 'no counts given = none');
+  assert.deepEqual(cinemaCloseParams({ listing: 'year', reason: 'close', ms: 9000, shown: 7, swipes: 2, keys: 4, swipes_missed: 3, method: 'button' }),
+    { listing: 'year', reason: 'close', seconds: 9, shown: 7, swipes: 2, keys: 4, swipes_missed: 3, method: 'button' }, 'every count goes on');
+  assert.equal(cinemaCloseParams({ listing: 'gallery', reason: 'list', ms: 2000, shown: 2, method: 'key' }).method, 'key', '"Seznam" back to the listing by S');
+  assert.equal(cinemaCloseParams({ listing: 'gallery', reason: 'selection', ms: 2000, shown: 2, method: 'pinch' }).method, 'pinch', '"Seznam" to "Můj výběr" by a pinch');
+  assert.equal(cinemaCloseParams({ listing: 'gallery', reason: 'work', ms: 1, shown: 1, method: 'swipe' }).method, 'swipe', 'a finger down');
+  assert.equal(cinemaCloseParams({ listing: 'gallery', reason: 'collection', ms: 1, shown: 1, method: 'click' }).method, 'click', '"Kolekce: …"');
+  for (const [reason, methods] of Object.entries(CINEMA_CLOSE_METHODS)) {
+    for (const method of methods) assert.equal(cinemaCloseParams({ listing: 'selection', reason, ms: 0, shown: 1, method }).method, method, `${reason} ${method}`);
+    assert.throws(() => cinemaCloseParams({ listing: 'gallery', reason, ms: 1, shown: 1 }), /unknown method of cinema_close/, `${reason} always says how`);
+  }
+  assert.throws(() => cinemaCloseParams({ listing: 'gallery', reason: 'list', ms: 1, shown: 1, method: 'swipe' }), /unknown method of cinema_close list: swipe/);
+  assert.throws(() => cinemaCloseParams({ listing: 'gallery', reason: 'close', ms: 1, shown: 1, method: 'pinch' }), /unknown method/);
+  assert.throws(() => cinemaCloseParams({ listing: 'gallery', reason: 'esc', ms: 1, shown: 1, method: 'key' }), /unknown reason/, 'the old reasons are gone');
+  assert.throws(() => cinemaCloseParams({ listing: 'gallery', reason: 'swipe', ms: 1, shown: 1 }), /unknown reason/);
+});
+
+test('viewEventParams: where and which view, tiles with their size', () => {
+  assert.equal(EVENTS.view, 'view_change');
+  assert.deepEqual(viewEventParams('home', { view: 'grid', tile: 's' }), { listing: 'home', view: 'grid' });
+  assert.deepEqual(viewEventParams('gallery', { view: 'tiles', tile: 'l' }), { listing: 'gallery', view: 'tiles-l' });
+});
+
+test('image_view: the work, the picture, its kind and how it got into the viewer', () => {
+  assert.equal(EVENTS.image, 'image_view');
+  const work = { id: 'g4psg', title: 'Orangutan' };
+  assert.deepEqual(imageEventParams(work, 'obraz', 'open'), { work_id: 'g4psg', work_title: 'Orangutan', image: 'obraz', image_kind: 'main', method: 'open' });
+  assert.equal(imageEventParams(work, 'detail-oci', 'swipe').image_kind, 'detail');
+  assert.equal(imageEventParams(work, 'mockup-obyvak-vecer', 'link').image_kind, 'mockup');
+  for (const m of IMAGE_METHODS) assert.equal(imageEventParams(work, 'obraz', m).method, m);
+  assert.throws(() => imageEventParams(work, 'obraz', 'click'), /unknown method/);
+});
+
+test('game_start / game_end: the level, the day as the page counts it, archive, the look; the end with its outcome', () => {
+  assert.equal(EVENTS.gameStart, 'game_start');
+  assert.equal(EVENTS.gameEnd, 'game_end');
+  assert.deepEqual(gameEventParams({ level: 'easy', day: 14, today: 14, id: '2026-319', look: 'mosaic' }), { level: 'easy', day: '2026-319', archive: 'no', look: 'mosaic' });
+  assert.equal(gameEventParams({ level: 'easy', day: 3, today: 14, look: 'mosaic' }).archive, 'yes');
+  const end = gameEventParams({ level: 'hard', day: 3, today: 14, id: '2026-308', look: 'dream' }, { solved: true, misses: 1, drops: 9, streak: 2, work: { id: 'g4psg', title: 'Orangutan' } });
+  assert.deepEqual(end, { level: 'hard', day: '2026-308', archive: 'yes', look: 'dream', solved: 'yes', misses: 1, drops: 9, streak: 2, work_id: 'g4psg', work_title: 'Orangutan' });
+  assert.equal(gameEventParams({ level: 'hard', day: 3, today: 3, look: 'dream' }, { solved: false, misses: 3, drops: 0, streak: 1, work: { id: 'a', title: 'A' } }).solved, 'no');
+});
+
+test('README: every custom dimension to register in GA fits its form (description at most 150 characters)', async () => {
+  const readme = await fs.readFile(new URL('../../README.md', import.meta.url), 'utf8');
+  const table = readme.split('| Název dimenze | Parametr |')[1].split(/\n\s*\n/)[0];
+  const rows = [...table.matchAll(/^\s*\| [^|]+ \| `([a-z_]+)` \| (.+) \|\s*$/gm)];
+  assert.ok(rows.length >= 10, 'the table of the dimensions is found');
+  for (const [, param, description] of rows) assert.ok(description.length <= 150, `${param}: ${description.length} characters`);
+});
+
+test('trackedClick: more_click of a card under a work, the clicked work and where it was', () => {
+  assert.deepEqual(trackedClick({ track: EVENTS.more, method: MORE_METHODS.similar, workId: 'rw4dh', workTitle: 'Máky' }),
+    { name: 'more_click', params: { work_id: 'rw4dh', work_title: 'Máky', method: 'similar' } });
+  assert.deepEqual(trackedClick({ track: EVENTS.more, method: MORE_METHODS.similarFilter }), { name: 'more_click', params: { method: 'similar_filter' } });
+  assert.deepEqual(Object.values(MORE_METHODS), ['related', 'similar', 'similar_filter']);
+});
+
+test('cinema_close carries every count of a show (cinemaRunCounts) and README registers each as a custom metric', async () => {
+  const counter = cinemaRunCounts();
+  counter.stepped('touch');
+  counter.stepped('key');
+  counter.missed('touch');
+  const run = counter.counts;
+  const params = cinemaCloseParams({ listing: 'gallery', reason: 'back', ms: 0, shown: 1, ...run });
+  for (const [name, value] of Object.entries(run)) assert.equal(params[name], value, `${name} in cinema_close`);
+  const readme = await fs.readFile(new URL('../../README.md', import.meta.url), 'utf8');
+  const metrics = readme.split('*Vlastní metriky → Vytvořit*')[1].split('Nový parametr události')[0];
+  for (const name of [...Object.keys(run), 'seconds', 'shown']) assert.match(metrics, new RegExp(`\`${name}\` \\(`), `${name} among the metrics to register`);
+});
