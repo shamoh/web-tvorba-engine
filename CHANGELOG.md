@@ -12,6 +12,9 @@ Značky: **Nové** = nová vlastnost, **Změna** = jinak než dřív, **Konec** 
 
 ## 2026-11-22
 
+- **Nové** Nová verze enginu se do webů dostane sama: sdílené workflow `engine-update.yml` (obsahové repo ho volá každý
+  den) při novějším tagu `vN` založí pull request do repa webu (sloučí se sám po kontrole s novou verzí) a do obsahového
+  repa. Potřebuje token s právem měnit workflow (`UPDATE_TOKEN`).
 - **Nové** Samostatný engine `web-tvorba-engine` (verze `v1`): kód webu, pipeline a sdílená workflow v jednom veřejném
   repu, s historií kódu prvního webu (bez jeho dat a obrázků). Web má vlastní repo webu (nastavení, písma, scény,
   data), obsah zůstává v obsahovém repu; všechna workflow pracují se třemi checkouty `content/`, `site/`, `engine/`

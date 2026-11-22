@@ -2817,6 +2817,21 @@ v repu webu (`engine/.github/failure-issue.sh`). Všechna workflow kontroluje `a
 konzistenci `scripts/workflows.test.mjs` (vstup `engine-ref`, checkout enginu v něm, skryté soubory v artefaktu Pages,
 jméno větve aktualizace obsahu `CONTENT_UPDATE_BRANCH`).
 
+**Nová verze enginu** (`.github/workflows/engine-update.yml`, sdílené, volá ho obsahové repo každý den a ručně; jeho
+`uses:` je `@main`, nikdy verze): když má engine novější tag `vN` (jen tvar `v<číslo>`), než jaký používá web, založí pull
+request `engine/update` „Engine: nová verze“ do repa webu (se zapnutým auto-merge: sloučí se, až projde `check / check`,
+která už běží s novou verzí) a do obsahového repa (sloučí správce). Mění `uses: …@vN` a `engine-ref: vN` ve všech
+workflow (`scripts/engine-update.mjs`, logika `scripts/lib/engine-version.mjs`: `latestVersion`, `usedVersion`,
+`withVersion`, `planUpdate`); různé verze v jednom repu = chyba, nic nehádá. Otevřený pull request jen aktualizuje.
+Potřebuje secret `UPDATE_TOKEN`: fine-grained token vlastníka na obě repa s *Contents*, *Pull requests* a **Workflows**
+read and write (token běhu nesmí měnit workflow ani spustit kontroly pull requestu, který založí). Lokálně
+`node scripts/engine-update.mjs --repo site=../<web> --repo content=../<obsah>` (bez `--tags` čte tagy z GitHubu;
+změní soubory na místě).
+
+**Vydání nové verze:** tag `v<číslo+1>` na commitu v `main` (`git tag -a vN -m …`, `git push origin vN`) a záznam
+v `CHANGELOG.md`; tag se pak už nepřesouvá. Do druhého dne weby dostanou pull requesty (nebo hned ručním spuštěním
+„Nová verze enginu“ v obsahovém repu).
+
 **Ukázka na GitHub Pages** (`.github/workflows/demo-pages.yml`): při pushi do `main` a ručně postaví testovací web
 (`npm run demo:build`) a nasadí ho na `https://shamoh.github.io/web-tvorba-engine/` (`site.url` v `demo/site.config.yaml`).
 Je skrytá vyhledávačům (`demo: true`), nic neměří ani neodesílá; jen artefakt Pages, nikdy commitnutá větev.

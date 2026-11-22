@@ -168,6 +168,29 @@ příkazem). Před lokálním plným `npm run images` musí být obsahové repo 
 
 ## 5. Nová verze enginu
 
-Nová verze = tag enginu (`v2`). Web ji přijme změnou `@v1` a `engine-ref: v1` na `v2` ve všech čtyřech obálkách (dvě
-v repu webu, dvě v obsahovém repu): v repu webu pull requestem (projde kontrolou s novou verzí), v obsahovém repu
-commitem. Co verze mění a co musí web udělat, říká `CHANGELOG.md`.
+Nová verze = tag enginu (`v2`). Weby ji dostanou samy: obsahové repo má obálku sdíleného `engine-update.yml` (každý den
+a ručně), která při novějším tagu založí pull request „Engine: nová verze“ do repa webu (sloučí se sám po kontrole
+s novou verzí) a do obsahového repa (sloučíš ho ty). Potřebuje secret `UPDATE_TOKEN` v obsahovém repu: fine-grained
+token vlastníka, *Repository access* repo webu a obsahové repo, oprávnění *Contents*, *Pull requests* a *Workflows*
+**Read and write**.
+
+```yaml
+# .github/workflows/engine-update.yml ("Nová verze enginu")
+name: Nová verze enginu
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  update:
+    uses: shamoh/web-tvorba-engine/.github/workflows/engine-update.yml@main   # vždy main, nikdy verze
+    with:
+      site-repository: <vlastník>/<web>
+    secrets:
+      UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+```
+
+Ručně jde totéž: změnit `@v1` a `engine-ref: v1` na `v2` ve všech čtyřech obálkách (dvě v repu webu, dvě v obsahovém
+repu). Co verze mění a co musí web udělat, říká `CHANGELOG.md`.

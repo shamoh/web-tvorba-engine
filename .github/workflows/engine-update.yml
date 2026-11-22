@@ -1,0 +1,102 @@
+# Shared workflow "Nová verze enginu" (workflow_call): when the engine has a newer version (a tag vN) than the one the
+# site uses, opens a pull request in the repository of the site and one in the calling content repository, each moving
+# `uses: …@vN` and `engine-ref: vN` of all its workflows to the newest version (scripts/engine-update.mjs).
+#   content/   the calling repository (its own workflows)
+#   site/      the repository of the site
+#   engine/    this engine at main: the updater itself is always the newest (its own `uses:` line is @main, never moved)
+# The pull request of the site merges itself once its required check passes ("check / check", which already runs the
+# new version: the site must build with it); the one of the content repository is merged by hand. An open pull request
+# of either is updated, not doubled (branch engine/update).
+# Needs the secret UPDATE_TOKEN: a fine-grained token of the owner for both repositories with Contents, Pull requests
+# and Workflows read and write. The token of the run itself may neither change workflow files nor start the checks of
+# the pull request it opens.
+name: Nová verze enginu (sdílená)
+
+on:
+  workflow_call:
+    inputs:
+      site-repository:
+        description: The repository of the site (owner/name)
+        type: string
+        required: true
+      engine-repository:
+        description: The repository of the engine
+        type: string
+        default: shamoh/web-tvorba-engine
+    secrets:
+      UPDATE_TOKEN:
+        description: Token for both repositories with Contents, Pull requests and Workflows read and write
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the content (the calling repository)
+        uses: actions/checkout@v7
+        with:
+          path: content
+          token: ${{ secrets.UPDATE_TOKEN }}
+
+      - name: Checkout the site
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.site-repository }}
+          path: site
+          token: ${{ secrets.UPDATE_TOKEN }}
+
+      - name: Checkout the engine (the updater)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.engine-repository }}
+          path: engine
+          sparse-checkout: scripts
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # step outputs `site` and `content` = "<from> <to>" when a newer version exists; descriptions in $RUNNER_TEMP
+      - name: Newest version of the engine
+        id: plan
+        run: node engine/scripts/engine-update.mjs --repo site=site --repo content=content --body-dir "$RUNNER_TEMP"
+
+      - name: Pull request into the site
+        id: site
+        if: steps.plan.outputs.site != ''
+        uses: peter-evans/create-pull-request@v8
+        with:
+          path: site
+          token: ${{ secrets.UPDATE_TOKEN }}
+          branch: engine/update
+          base: main
+          add-paths: .github/workflows
+          commit-message: "Engine ${{ steps.plan.outputs.site }}"
+          title: "Engine: nová verze"
+          body-path: ${{ runner.temp }}/engine-update-site.md
+          delete-branch: true
+
+      - name: Merge the pull request of the site automatically once its check passes
+        if: steps.site.outputs.pull-request-number != '' && steps.site.outputs.pull-request-operation != 'closed'
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+          PR_NUMBER: ${{ steps.site.outputs.pull-request-number }}
+          SITE_REPOSITORY: ${{ inputs.site-repository }}
+        run: gh pr merge "$PR_NUMBER" --repo "$SITE_REPOSITORY" --auto --merge
+
+      - name: Pull request into the content repository (merged by hand)
+        if: steps.plan.outputs.content != ''
+        uses: peter-evans/create-pull-request@v8
+        with:
+          path: content
+          token: ${{ secrets.UPDATE_TOKEN }}
+          branch: engine/update
+          base: main
+          add-paths: .github/workflows
+          commit-message: "Engine ${{ steps.plan.outputs.content }}"
+          title: "Engine: nová verze"
+          body-path: ${{ runner.temp }}/engine-update-content.md
+          delete-branch: true

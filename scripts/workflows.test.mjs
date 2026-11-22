@@ -44,3 +44,15 @@ test('the content update branch of the workflows is the one of the code (CONTENT
   const pr = stepsOf(await workflow('process-content.yml')).find((step) => String(step.uses ?? '').startsWith('peter-evans/create-pull-request@'));
   assert.equal(pr.with.branch, CONTENT_UPDATE_BRANCH);
 });
+
+test('engine-update.yml: the updater runs the engine at main (never a version it would move) with a token that may change workflows', async () => {
+  const wf = await workflow('engine-update.yml');
+  assert.ok(wf.on?.workflow_call?.secrets?.UPDATE_TOKEN?.required, 'UPDATE_TOKEN: the token of the run may not change workflow files');
+  const engine = stepsOf(wf).find((step) => step.with?.repository === '${{ inputs.engine-repository }}');
+  assert.equal(engine.with.ref, undefined, 'the engine at its default branch');
+  const prs = stepsOf(wf).filter((step) => String(step.uses ?? '').startsWith('peter-evans/create-pull-request@'));
+  assert.deepEqual(prs.map((step) => [step.with.path, step.with.token, step.with['add-paths']]), [
+    ['site', '${{ secrets.UPDATE_TOKEN }}', '.github/workflows'],
+    ['content', '${{ secrets.UPDATE_TOKEN }}', '.github/workflows'],
+  ]);
+});
