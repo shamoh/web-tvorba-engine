@@ -8,7 +8,7 @@ Vznikl jako web Pavly Kramolišové (pavla.kramolis.cz), proto příklady v doku
 její (volitelnost funkcí a výchozí texty pro další weby: krok 5 plánu).
 
 Návod pro autorku (obsahové repo: jak přidat obraz, texty, kolekce, co se s obsahem děje): `docs/navod-pro-autorku.md`.
-Registrace nového webu ve vyhledávačích: `docs/registrace-vyhledavace.md`.
+Nový web (další autorka): co založit a nastavit, `docs/novy-web.md`. Registrace nového webu ve vyhledávačích: `docs/registrace-vyhledavace.md`.
 
 Lokálně leží všechna tři repa vedle sebe; engine je najde přes `.env` (mimo git):
 
@@ -3521,15 +3521,7 @@ Kód: `scripts/lib/straighten.mjs` (hledání listu, homografie, převzorkován�
 
 ## Nový web (jednorázově)
 
-1. Repo webu: `site.config.yaml` (podle `demo/site.config.yaml`), písma, scény, ikony; obálky workflow `check.yml`
-   (job `check` → `site-check.yml@v1`) a `deploy.yml` (→ `site-deploy.yml@v1`).
-2. Nastavení repa webu: *Settings → Pages → Source: GitHub Actions*, vlastní doména a *Enforce HTTPS*; *Allow auto-merge*
-   a *Automatically delete head branches*; ruleset na `main` s povinnou kontrolou `check / check` (jméno kontroly
-   sdíleného workflow = job obálky / job sdíleného workflow).
-3. DNS u registrátora domény: CNAME záznam na `<vlastník>.github.io.` (doména je v `public/CNAME` a `site.config.yaml`).
-4. Obsahové repo: obálky `publish.yml` (→ `process-content.yml@v1`) a `health-check.yml` (→ `health-check.yml@v1`),
-   secret s tokenem pro repo webu (Contents a Pull requests read and write).
-5. Lokálně repa vedle sebe, v enginu `.env` se `SITE_DIR` a `CONTENT_DIR`, `npm ci`.
+Celý postup (repo webu, obsahové repo, nastavení na GitHubu, tokeny, obálky workflow, první běh): `docs/novy-web.md`.
 
 ## Poznámky
 
