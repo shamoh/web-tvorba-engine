@@ -163,7 +163,8 @@ const PAGES = ['stránce', 'stránkách', 'stránkách'];
 /** Czech result of checkSiteImages for the health report (at most `limit` items listed). */
 export function evaluateSiteImages(result, { limit = 10 } = {}) {
   if (result === null) return { ok: true, message: 'Obrázky na webu nebyly zkontrolovány.' };
-  const path = (url) => new URL(url).pathname;
+  // the page of a missing image may be a file that lists images, not a URL ("sitemap.xml", "pinterest.xml", "site.webmanifest")
+  const path = (url) => (URL.canParse(url) ? new URL(url).pathname : url);
   const problems = [];
   if (result.missing.length) {
     problems.push(`Na webu chybí ${count(result.missing.length, IMAGES)}, na které odkazují jeho stránky: [obrazky-chybi]`);

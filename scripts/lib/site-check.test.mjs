@@ -203,3 +203,16 @@ test('distFetch: serves a built site like GitHub Pages: folders by index.html, 4
   assert.equal((await f(`${ORIGIN}/%2e%2e/etc/passwd`)).ok, false);
   await fs.rm(dir, { recursive: true, force: true });
 });
+
+test('evaluateSiteImages: a missing image of the manifest or of the feed names that file, not a page (no "Invalid URL")', () => {
+  const r = evaluateSiteImages({
+    pages: 3, images: 5, sitemap: 3, brokenPages: [],
+    missing: [
+      { image: 'https://example.com/web/app-screenshot-home.webp', page: 'site.webmanifest', status: 404 },
+      { image: 'https://example.com/web/tvorba/2026/a/pin-1.jpg', page: 'pinterest.xml', status: 404 },
+    ],
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /- \/web\/app-screenshot-home\.webp \(stránka site\.webmanifest, HTTP 404\)/);
+  assert.match(r.message, /\(stránka pinterest\.xml, HTTP 404\)/);
+});

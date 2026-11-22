@@ -41,6 +41,37 @@ jobs:
       - name: Build the test site
         run: npm run demo:build
 
+      # Screenshots for the install dialog (site.webmanifest), as the deploy of a site takes them (site-deploy.yml): once a
+      # week into the cache of Actions, every other deploy of that week only copies them; a failure never stops the deploy.
+      - name: Week of the screenshots
+        id: week
+        run: echo "key=demo-app-screenshots-$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+      - name: Screenshots of this week, if already taken
+        id: shots
+        uses: actions/cache/restore@v6
+        with:
+          path: .app-screenshots
+          key: ${{ steps.week.outputs.key }}
+      - name: Take the screenshots of this week
+        id: take
+        if: steps.shots.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          SITE_DIR: .demo/site
+        run: |
+          npx astro preview --host 127.0.0.1 --port 4321 > /tmp/preview.log 2>&1 &
+          for _ in $(seq 60); do curl -sf http://127.0.0.1:4321/web-tvorba-engine/ > /dev/null && break; sleep 1; done
+          CHROME="$(command -v google-chrome)" npm run app-screenshots -- http://127.0.0.1:4321/web-tvorba-engine --out .app-screenshots
+      - name: Keep them for the rest of the week
+        if: steps.take.outcome == 'success'
+        uses: actions/cache/save@v6
+        with:
+          path: .app-screenshots
+          key: ${{ steps.week.outputs.key }}
+      - name: Screenshots into the site
+        run: |
+          if compgen -G ".app-screenshots/*.webp" > /dev/null; then cp .app-screenshots/*.webp .demo/site/dist/; else echo "::warning::No screenshots for the install dialog this time"; fi
+
       - uses: actions/upload-pages-artifact@v5
         with:
           path: .demo/site/dist
