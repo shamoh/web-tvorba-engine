@@ -130,7 +130,7 @@ async function deployedSiteChecks(siteUrl) {
     const res = await fetch(siteAddress(siteUrl, 'detail-dne/data.json'));
     if (res.status === 404) return evaluateGamePlan(null);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return evaluateGamePlan(await res.json());
+    return evaluateGamePlan(await res.json(), { siteRepo: SITE_REPO });
   });
 
   return [siteImages, pageTexts, inlineScripts, gamePlan];

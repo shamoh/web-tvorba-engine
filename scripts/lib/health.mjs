@@ -145,10 +145,10 @@ export const GAME_PLAN_MIN_DAYS = 7;
  * the plan every Monday, so a plan that ends soon means the runs of "Zpracování obsahu" stopped (or their pull requests do not
  * merge). Without a plan the game still goes on, computing the days as before, but new works reshuffle its archive.
  */
-export function evaluateGamePlan(game, { now = new Date(), minDays = GAME_PLAN_MIN_DAYS } = {}) {
+export function evaluateGamePlan(game, { now = new Date(), minDays = GAME_PLAN_MIN_DAYS, siteRepo } = {}) {
   if (game === null) return { ok: true, message: 'Plán hry Detail dne nebyl zkontrolován (web hru nemá).' };
   const days = Object.keys(game.plan?.days ?? {}).map(Number);
-  const fix = 'Zkontroluj poslední běhy „Zpracování obsahu“ (běží i každé pondělí samo) a pull request „Obsah: aktualizace“ v repu pavla.';
+  const fix = `Zkontroluj poslední běhy „Zpracování obsahu“ (běží i každé pondělí samo) a pull request „Obsah: aktualizace“ v repu ${shortRepo(siteRepo)}.`;
   if (!days.length) {
     return { ok: false, message: `Hra Detail dne na webu nemá plán dnů: hádanky počítá postaru a nové obrazy přeskládají její archiv. [plan-hry-chybi]
 ${fix}` };

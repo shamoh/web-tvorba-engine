@@ -351,6 +351,8 @@ test('evaluateGamePlan: the plan of the game on the site reaches a week ahead; n
   assert.match(evaluateGamePlan({ epoch: '2026-11-01', plan: { days: {} } }, { now }).message.split('\n')[0], /\[plan-hry-chybi\]$/);
   assert.match(evaluateGamePlan({ epoch: '2026-11-01' }, { now }).message, /\[plan-hry-chybi\]/, 'data without a plan (an older build)');
   assert.deepEqual(evaluateGamePlan(null), { ok: true, message: 'Plán hry Detail dne nebyl zkontrolován (web hru nemá).' });
+  assert.match(evaluateGamePlan(game(18), { now, siteRepo: 'shamoh/kacka' }).message, /v repu kacka\.$/, 'the repository of the site, not a name in the code');
+  assert.match(evaluateGamePlan(game(18), { now }).message, /v repu webu\.$/);
   assert.equal(evaluateGamePlan(game(18), { now: new Date('2026-11-15T23:30:00Z') }).message.includes('ještě 3 dní'), true, 'the day in Prague (already the 16th)');
 });
 
