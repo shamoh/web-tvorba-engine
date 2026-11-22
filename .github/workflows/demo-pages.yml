@@ -1,0 +1,58 @@
+# "Ukázka na GitHub Pages": the test site (demo/ + demo-content/, every function of the engine) built and deployed to
+# the GitHub Pages of this repository (https://shamoh.github.io/web-tvorba-engine/; site.url of demo/site.config.yaml),
+# on a push to main and by hand. It is hidden from search engines (demo: true: robots.txt Disallow, noindex on every
+# page), never measures visits and never sends messages. Built as an artifact of Pages, never as a committed branch.
+# The weekly health check of a content repository checks it like the site (demo-url).
+name: Ukázka na GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read   # needed by actions/deploy-pages since v4
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the test site
+        run: npm run demo:build
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: .demo/site/dist
+          include-hidden-files: true
+          retention-days: 1
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

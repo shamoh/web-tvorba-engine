@@ -271,9 +271,11 @@ const megabytes = (bytes) => `${Math.round(bytes / MB)} MB`;
  * site (its Pages artifact) }, each null when it could not be read. Not ok when any of them reaches `warnShare` of its
  * limit; the message always lists all of them with their share, to follow how they grow.
  */
-export function evaluateSizes(sizes, limits = SIZE_LIMITS, { siteRepo } = {}) {
+export function evaluateSizes(sizes, limits = SIZE_LIMITS, { siteRepo, engineRepo } = {}) {
   const items = [
     [`repo webu${siteRepo ? ` (${siteRepo})` : ''}`, sizes.site, limits.repoBytes],
+    // the engine only when its size was asked for (`engine` in `sizes`)
+    ...('engine' in sizes ? [[`engine${engineRepo ? ` (${engineRepo})` : ''}`, sizes.engine, limits.repoBytes]] : []),
     ['obsahové repo', sizes.content, limits.repoBytes],
     ['nasazený web (GitHub Pages)', sizes.pages, limits.siteBytes],
   ];

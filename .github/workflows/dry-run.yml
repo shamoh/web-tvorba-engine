@@ -5,7 +5,7 @@
 #      checkout of the repository of a site),
 #   2. the pipeline runs on it as on a branch (--prepare-only, with the cut previews of drafts smaller in export/draft/
 #      of the test content) and as on main, writing into the test site,
-#   3. the images are packed into a commit of obsah/aktualizace_binary of the test site (scripts/binary.mjs pack, not
+#   3. the images are packed into a commit of content/update_binary of the test site (scripts/binary.mjs pack, not
 #      pushed) and the
 #      pull request is prepared by the same script as the content workflow (scripts/pull-request.mjs) and its
 #      paths are added and committed the way peter-evans/create-pull-request does it,
@@ -94,7 +94,7 @@ jobs:
 
       - name: Pull request without collection cover photos (not opened)
         run: |
-          node scripts/binary.mjs pack obsah/aktualizace_binary --dir "$SITE_DIR"
+          node scripts/binary.mjs pack content/update_binary --dir "$SITE_DIR"
           node scripts/pull-request.mjs "$RUNNER_TEMP/pr-body.md"
           (cd "$SITE_DIR" && "$GITHUB_WORKSPACE/.github/dry-run-commit.sh" "$RUNNER_TEMP/pr-body.md")
 
@@ -105,6 +105,6 @@ jobs:
 
       - name: Pull request with collection cover photos (not opened)
         run: |
-          node scripts/binary.mjs pack obsah/aktualizace_binary --dir "$SITE_DIR"
+          node scripts/binary.mjs pack content/update_binary --dir "$SITE_DIR"
           node scripts/pull-request.mjs "$RUNNER_TEMP/pr-body.md"
           (cd "$SITE_DIR" && "$GITHUB_WORKSPACE/.github/dry-run-commit.sh" "$RUNNER_TEMP/pr-body.md")

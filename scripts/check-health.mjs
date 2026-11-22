@@ -30,6 +30,8 @@ const config = readSiteConfig(siteDirectory());
 const SITE_REPO = config.site.repository;
 if (!SITE_REPO) throw new Error('site.config.yaml: site.repository (owner/name of the repository of the site) is missing');
 const PR_BRANCH = CONTENT_UPDATE_BRANCH;
+// The repository of the engine (ENGINE_REPOSITORY of the shared workflow): its weekly dry run, its size.
+const ENGINE_REPO = process.env.ENGINE_REPOSITORY || 'shamoh/web-tvorba-engine';
 
 // The repository of the site is public: its data is read without a token, so these checks do not depend on PAVLA_TOKEN.
 const api = (path, token) => fetch(`https://api.github.com${path}`, {
@@ -79,9 +81,9 @@ const runs = await guarded('běhy „Zpracování obsahu“', async () => {
   return evaluateRuns(data.workflow_runs, { days: arg('--run-days', 7) });
 });
 
-// The weekly dry run of the workflow on the test data runs in the public repository of the site (.github/workflows/dry-run.yml).
+// The weekly dry run of the workflow on the test data runs in the public repository of the engine (.github/workflows/dry-run.yml).
 const dryRun = await guarded('zkušební běhy zpracování', async () => {
-  const data = await json(`/repos/${SITE_REPO}/actions/workflows/dry-run.yml/runs?branch=main&per_page=30`);
+  const data = await json(`/repos/${ENGINE_REPO}/actions/workflows/dry-run.yml/runs?branch=main&per_page=30`);
   return evaluateRuns(data.workflow_runs, { days: arg('--run-days', 7), workflow: DRY_RUNS });
 });
 
@@ -154,8 +156,9 @@ const sizes = await guarded('velikosti rep a webu', async () => {
   const pagesBytes = async () => (await json(`/repos/${SITE_REPO}/actions/artifacts?name=github-pages&per_page=1`)
     .catch(() => null))?.artifacts?.[0]?.size_in_bytes ?? null;
   return evaluateSizes({
-    site: await repoBytes(SITE_REPO), content: process.env.REPO ? await repoBytes(process.env.REPO, process.env.RUNS_TOKEN) : null, pages: await pagesBytes(),
-  }, undefined, { siteRepo: SITE_REPO });
+    site: await repoBytes(SITE_REPO), engine: await repoBytes(ENGINE_REPO),
+    content: process.env.REPO ? await repoBytes(process.env.REPO, process.env.RUNS_TOKEN) : null, pages: await pagesBytes(),
+  }, undefined, { siteRepo: SITE_REPO, engineRepo: ENGINE_REPO });
 });
 
 // Minutes of GitHub Actions of this month (the billing usage report of the owner's account): only private repositories

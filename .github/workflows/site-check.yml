@@ -1,0 +1,130 @@
+# Shared workflow "Kontrola kódu" of the repository of a site (workflow_call): checks that the site still builds with
+# the version of the engine it uses. Called by the site's own check.yml on every pull request (the required check of
+# its ruleset on main, which the automatic merge of a content update waits for) and on a push to its main.
+#   site/     the calling repository (SITE_DIR): settings, fonts, scenes, public copies (content/), binary.lock
+#   engine/   this engine in the version the site uses (engine-ref)
+# Steps: the tests of the engine, the data of the site (npm run check:site: settings, icons, fonts, scenes), the
+# images of the site (the branch its binary.lock names: main_binary, or content/update_binary for a content pull
+# request; scripts/binary.mjs), a build of the site, and its images, sitemap, page texts and inline scripts
+# (npm run check:images). The workflows of the site repository are checked by actionlint.
+# A failure on a push to main, or on the content pull request (branch content/update, it would otherwise just never
+# merge), opens an issue in the site repository assigned to its owner (engine/.github/failure-issue.sh), so he gets an
+# e-mail; the next passing run of the same kind closes it. The repository of a site is public: the issue only links
+# the run, the commit or the pull request.
+name: Kontrola kódu webu (sdílená)
+
+on:
+  workflow_call:
+    inputs:
+      engine-ref:
+        description: The version of the engine the site uses (a tag such as v1), the same as in the `uses:` line
+        type: string
+        required: true
+      engine-repository:
+        description: The repository of the engine
+        type: string
+        default: shamoh/web-tvorba-engine
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+      SITE_DIR: ${{ github.workspace }}/site
+    steps:
+      - name: Checkout the site (the calling repository)
+        uses: actions/checkout@v7
+        with:
+          path: site
+
+      - name: Checkout the engine (the version of the site)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.engine-repository }}
+          ref: ${{ inputs.engine-ref }}
+          path: engine
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+
+      - name: Install
+        working-directory: engine
+        run: npm ci
+
+      - name: Unit tests of the engine
+        working-directory: engine
+        run: npm test
+
+      # the data of this site (settings, icons, fonts, scenes): the tests of the engine run only on its test site
+      - name: Data of the site
+        working-directory: engine
+        run: npm run check:site
+
+      # the images are not in main: the branch whose tree binary.lock names (an error when none has them)
+      - name: Images of the site
+        run: node engine/scripts/binary.mjs unpack --dir site
+
+      - name: Build the site
+        working-directory: engine
+        run: npm run build
+
+      # Every image the pages refer to exists, every indexable page is in the sitemap (a pull request breaking
+      # either is not merged).
+      - name: Images and sitemap of the built site
+        working-directory: engine
+        run: npm run check:images
+
+  # Syntax, expressions, action inputs and shell scripts (shellcheck) of every workflow of the site repository.
+  workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
+
+  # The issue of a failed check (see the top): only for a push to main and for the content pull request; other pull
+  # requests and manual runs are watched by whoever started them. A run cancelled by a newer push does nothing.
+  notify:
+    needs: [check, workflows]
+    if: >-
+      always() && !cancelled() &&
+      (github.event_name == 'push' || (github.event_name == 'pull_request' && github.head_ref == 'content/update'))
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      FAILED: ${{ contains(needs.*.result, 'failure') }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      EVENT: ${{ github.event_name }}
+    steps:
+      - name: Checkout the engine (its helper scripts)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.engine-repository }}
+          ref: ${{ inputs.engine-ref }}
+          sparse-checkout: .github
+
+      - name: Open or update the issue (sends an e-mail), or close it when the check passed
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            .github/failure-issue.sh "Aktualizace obsahu neprošla kontrolou kódu" "$FAILED" "Běh: $RUN_URL
+          Pull request: $PR_URL
+
+          Testy nebo build webu s novým obsahem selhaly, pull request se proto sám nesloučí. Podrobnosti jsou v běhu."
+          else
+            .github/failure-issue.sh "Kontrola kódu na main selhala" "$FAILED" "Běh: $RUN_URL
+          Commit: ${GITHUB_SHA::7}
+
+          Testy, build webu nebo kontrola workflow na main selhaly. Podrobnosti jsou v běhu."
+          fi

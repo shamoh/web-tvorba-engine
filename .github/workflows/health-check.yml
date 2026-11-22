@@ -10,9 +10,17 @@ on:
   workflow_call:
     inputs:
       site-repository:
-        description: The repository of the site (owner/name), its code and its data
+        description: The repository of the site (owner/name), its settings and its data
         type: string
         required: true
+      engine-ref:
+        description: The version of the engine the site uses (a tag such as v1), the same as in the `uses:` line
+        type: string
+        required: true
+      engine-repository:
+        description: The repository of the engine
+        type: string
+        default: shamoh/web-tvorba-engine
       demo-url:
         description: The address of the deployed test site, checked like the site (check-health.mjs --demo-url); empty = not checked
         type: string
@@ -37,14 +45,24 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the site (the check script, its dependencies and the address of the site)
+      - name: Checkout the engine (the check script and its dependencies, the version of the site)
         uses: actions/checkout@v7
         with:
-          repository: ${{ inputs.site-repository }}
+          repository: ${{ inputs.engine-repository }}
+          ref: ${{ inputs.engine-ref }}
+          path: engine
           sparse-checkout: |
             scripts
             package.json
             package-lock.json
+          sparse-checkout-cone-mode: false
+
+      - name: Checkout the site (its settings, i.e. the address of the site and its repository)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.site-repository }}
+          path: site
+          sparse-checkout: |
             site.config.yaml
           sparse-checkout-cone-mode: false
 
@@ -63,14 +81,19 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: engine/package-lock.json
 
       # The check of the descriptions reads YAML (the yaml package).
       - name: Install
+        working-directory: engine
         run: npm ci
 
       - name: Check token and recent runs
         id: check
+        working-directory: engine
         env:
+          SITE_DIR: ${{ github.workspace }}/site
+          ENGINE_REPOSITORY: ${{ inputs.engine-repository }}
           TOKEN: ${{ secrets.SITE_TOKEN }}
           RUNS_TOKEN: ${{ github.token }}
           CHECK_TOKEN: ${{ secrets.CHECK_TOKEN }}

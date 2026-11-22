@@ -275,6 +275,15 @@ test('evaluateSizes: a size that could not be read is listed as such and never f
   assert.equal(evaluateSizes({ site: 600, content: 600, pages: 600 }, { repoBytes: 1000, siteBytes: 1000, warnShare: 0.5 }).ok, false);
 });
 
+test('evaluateSizes: the engine is listed after the site when asked for, and fails from 70 % like the others', () => {
+  const r = evaluateSizes({ site: 20e6, engine: 12e6, content: 500e6, pages: 400e6 }, SIZE_LIMITS, { siteRepo: SITE_REPO, engineRepo: 'shamoh/web-tvorba-engine' });
+  assert.equal(r.ok, true);
+  assert.match(r.message, /repo webu \(shamoh\/pavla\) 20 MB \(2 % z 1000 MB\) · engine \(shamoh\/web-tvorba-engine\) 12 MB \(1 % z 1000 MB\) · obsahové repo/);
+  assert.match(evaluateSizes({ site: 1, engine: 0.8 * SIZE_LIMITS.repoBytes, content: 1, pages: 1 }).message, /\(engine\): \[blizi-se-limit\]/);
+  assert.match(evaluateSizes({ site: 1, engine: null, content: 1, pages: 1 }).message, /engine nezjištěno/);
+  assert.doesNotMatch(evaluateSizes({ site: 1, content: 1, pages: 1 }).message, /engine/, 'not asked = not listed');
+});
+
 const usage = (repo, quantity, extra = {}) => ({ product: 'actions', unitType: 'Minutes', repositoryName: repo, quantity, netAmount: 0, ...extra });
 const privateRepo = (repo) => repo === 'obsah';
 

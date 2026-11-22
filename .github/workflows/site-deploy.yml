@@ -1,39 +1,74 @@
-name: Deploy na GitHub Pages
+# Shared workflow "Nasazení webu" (workflow_call): builds the site of the calling repository with the version of the
+# engine it uses and deploys it to its GitHub Pages. Called by the site's own deploy.yml on a push to its main.
+#   site/     the calling repository (SITE_DIR)
+#   engine/   this engine in the version the site uses (engine-ref)
+# The images are made by the content workflow and are not in main: they are in the branch whose tree binary.lock names.
+# After a merged content update that is content/update_binary: it becomes main_binary first (promote; then it is
+# deleted, as main_binary has its commit), then the images go into public/ (unpack) and the site is built from them
+# and content/. The caller grants contents: write (promote), pages: write, id-token: write, actions: read and
+# issues: write.
+# A failed build or deploy opens an issue in the site repository assigned to its owner (or comments on the open one),
+# so he gets an e-mail whoever started the run; the next successful deploy closes it (engine/.github/failure-issue.sh).
+# The repository of a site is public: the issue only links the run and names the commit.
+name: Nasazení webu (sdílené)
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      engine-ref:
+        description: The version of the engine the site uses (a tag such as v1), the same as in the `uses:` line
+        type: string
+        required: true
+      engine-repository:
+        description: The repository of the engine
+        type: string
+        default: shamoh/web-tvorba-engine
 
 permissions:
   contents: write   # binary.mjs promote: the images of a merged content update become main_binary
   pages: write
   id-token: write
   actions: read   # needed by actions/deploy-pages since v4
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
+  issues: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      SITE_DIR: ${{ github.workspace }}/site
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout the site (the calling repository)
+        uses: actions/checkout@v7
+        with:
+          path: site
+
+      - name: Checkout the engine (the version of the site)
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.engine-repository }}
+          ref: ${{ inputs.engine-ref }}
+          path: engine
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      # The images are made by the content workflow and are not in main: they are in the branch whose tree
-      # binary.lock names. After a merged content update that is obsah/aktualizace_binary: it becomes main_binary
-      # first (promote; then it is deleted, as main_binary has its commit), then the images go into public/ (unpack)
-      # and the site is built from them and content/.
+          cache-dependency-path: engine/package-lock.json
+
+      - name: Install
+        working-directory: engine
+        run: npm ci
+
       - name: The images of a merged content update become main's
-        run: node scripts/binary.mjs promote
+        run: node engine/scripts/binary.mjs promote --dir site
+
       - name: Images of the site
-        run: node scripts/binary.mjs unpack
-      - run: npm run build
+        run: node engine/scripts/binary.mjs unpack --dir site
+
+      - name: Build the site
+        working-directory: engine
+        run: npm run build
+
       # Screenshots of the site for the install dialog (site.webmanifest, scripts/app-screenshots.mjs): not in git; taken
       # from the built site once a week and kept in the cache of Actions under the week, every other deploy of that week
       # only copies them. A failure never stops the deploy: the site goes out without them and the weekly health check
@@ -51,10 +86,11 @@ jobs:
         id: take
         if: steps.shots.outputs.cache-hit != 'true'
         continue-on-error: true
+        working-directory: engine
         run: |
           npx astro preview --host 127.0.0.1 --port 4321 > /tmp/preview.log 2>&1 &
           for _ in $(seq 60); do curl -sf http://127.0.0.1:4321/ > /dev/null && break; sleep 1; done
-          CHROME="$(command -v google-chrome)" npm run app-screenshots -- http://127.0.0.1:4321 --out .app-screenshots
+          CHROME="$(command -v google-chrome)" npm run app-screenshots -- http://127.0.0.1:4321 --out "$GITHUB_WORKSPACE/.app-screenshots"
       - name: Keep them for the rest of the week
         if: steps.take.outcome == 'success'
         uses: actions/cache/save@v6
@@ -63,10 +99,10 @@ jobs:
           key: ${{ steps.week.outputs.key }}
       - name: Screenshots into the site
         run: |
-          if compgen -G ".app-screenshots/*.webp" > /dev/null; then cp .app-screenshots/*.webp dist/; else echo "::warning::No screenshots for the install dialog this time"; fi
+          if compgen -G ".app-screenshots/*.webp" > /dev/null; then cp .app-screenshots/*.webp site/dist/; else echo "::warning::No screenshots for the install dialog this time"; fi
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: dist
+          path: site/dist
           # the site has hidden files too (/.well-known/tdmrep.json); without this the action leaves them out
           include-hidden-files: true
           # only the deploy job below needs it; one day keeps the Actions storage of the account small
@@ -82,24 +118,22 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v5
 
-  # A failed build or deploy opens an issue assigned to the repository owner (or comments on the open one), so he
-  # gets an e-mail whoever started the run; the next successful deploy closes it (.github/failure-issue.sh). This
-  # repository is public: the issue only links the run and names the commit. A run cancelled by a newer push does nothing.
+  # A run cancelled by a newer push does nothing.
   notify:
     needs: [build, deploy]
     if: always() && !cancelled()
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       FAILED: ${{ contains(needs.*.result, 'failure') }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout the engine (its helper scripts)
+        uses: actions/checkout@v7
         with:
+          repository: ${{ inputs.engine-repository }}
+          ref: ${{ inputs.engine-ref }}
           sparse-checkout: .github
 
       - name: Open or update the issue (sends an e-mail), or close it when the deploy passed
