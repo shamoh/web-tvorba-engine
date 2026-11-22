@@ -1,8 +1,10 @@
 # CLAUDE.md
 
-Osobní web akvarelistky Pavly Kramolišové, spravovaný s pomocí Claude Code.
-Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web spravuje, registrátor domény, IP adresy,
-účty, tokeny): ty jsou v dokumentaci obsahového repa.
+Engine osobních webů s tvorbou (web, obrázková pipeline, sdílená workflow), spravovaný s pomocí Claude Code. Vznikl
+jako web akvarelistky Pavly Kramolišové; její web je dnes jen jedno z rep webů, které engine používají (příklady níže
+jsou zatím její). Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo weby spravuje, registrátor domény,
+IP adresy, účty, tokeny) ani data žádného skutečného webu: jen kód a vymyšlená testovací data v `demo/` a `demo-content/`.
+Každá změna vlastností = záznam v `CHANGELOG.md` (dnešní den nahoře, **Nové** / **Změna** / **Konec**, česky, stručně).
 
 ## Stack
 - Astro (statický výstup), žádný UI framework, vanilla JS jen pro filtry v galerii.
@@ -10,10 +12,11 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
 - Node.js ≥ 24 (`engines`); workflow na GitHubu `node-version: 24` ve všech workflow (i v obsahovém repu), držet je stejně.
 - Instalační skripty závislostí jen přes `allowScripts` v `package.json` (npm 11 je jinak přeskakuje); nový balíček
   nejdřív posoudit, pak `npm install-scripts approve|deny`, nikdy plošně `--all`.
-- Deploy: GitHub Actions → GitHub Pages, doména v `public/CNAME`.
+- Deploy webu: sdílené `site-deploy.yml` → GitHub Pages repa webu, doména v jeho `public/CNAME`; ukázka enginu
+  `demo-pages.yml` → Pages enginu (`https://shamoh.github.io/web-tvorba-engine/`).
 
 ## Data
-- **Složka webu** (`scripts/lib/site-dir.mjs`, `SITE_DIR`, výchozí kořen repa): `site.config.yaml`, `fonts/`, `mockups/`,
+- **Složka webu** (`scripts/lib/site-dir.mjs`, `SITE_DIR`, vždy nastavená, bez ní chyba `SITE_DIR_MISSING`; lokálně `.env`): `site.config.yaml`, `fonts/`, `mockups/`,
   `home-screen-icon.svg`, `public/`, `content/`, `game/`, `binary.lock`, `dist/`. Cesty k nim jen přes `sitePaths`
   (`readSiteConfig`), nikdy natvrdo z kořene kódu; ve `src/` kořen kódu z `process.cwd()` (build moduly přibalí jinam).
   Načítání scén a písem nemá výchozí složku. Testovací web má vlastní složku `demo/` (`demo: true` =
@@ -29,10 +32,10 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   (`scripts/lib/storage-prefix.mjs`, `site.storagePrefix`, Pavla `pavla`), nikdy natvrdo; klíče jmenované níže jsou Pavliny.
   Web smí ležet v podsložce adresy (`site.url` s cestou, testovací web na Pages enginu; `siteBase`, Astro `base`): odkazy
   na stránky jen `url()`, celé adresy jen `absolute` / `siteAddress` (`scripts/lib/site-url.mjs`), nikdy `new URL('/…', site.url)`.
-- **Toto repo je veřejné, obsah je v odděleném soukromém obsahovém repu.** Jeho název, cestu ani odkazy na něj
-  sem nikdy nepiš (kód, komentáře, README, CLAUDE.md, commity, texty pull requestů); piš jen „obsahové repo“
-  / „the content repository“. Odkazy vedou jen z obsahového repa sem, nikdy obráceně. Lokálně ho pipeline najde
-  přes `CONTENT_DIR` v `.env` (mimo git), na GitHubu ho předá workflow obsahového repa.
+- **Toto repo je veřejné, obsah je v odděleném soukromém obsahovém repu každého webu.** Jména, cesty ani odkazy
+  obsahových rep a soukromých dokumentů správce sem nikdy nepiš (kód, komentáře, README, CLAUDE.md, CHANGELOG, commity,
+  texty pull requestů); piš jen „obsahové repo“ / „the content repository“, „repo webu“. Odkazy vedou jen odtamtud sem.
+  Lokálně je pipeline najde přes `SITE_DIR` a `CONTENT_DIR` v `.env` (mimo git), na GitHubu je předá workflow.
 - Obsahové repo: `tvorba/[<kolekce>/]<slug>.yaml` + master fotka,
   bez složek roků; rok díla = rok jeho `date` (`scripts/lib/content.mjs`). V tomto repu jsou výstupy dál podle roků.
 - Systémové soubory obsahu mají všude dvě jména (`INDEX_FILE`, `COVER_NAME` v `scripts/lib/content.mjs`):
@@ -46,7 +49,7 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   a jména, jen veřejné atributy, `scripts/lib/site-content.mjs`, needitovat; plný běh smaže vše, co nezapsal)
   a obrázky v `public/` (**nejsou v historii `main`**: `.gitignore`, větev `main_binary` s jediným commitem, `binary.lock`
   v `main` = hash jejich stromu, `scripts/binary.mjs` pack/unpack/promote/prune, `npm run binary:pull`; pull request
-  aktualizace obsahu má obrázky v `obsah/aktualizace_binary`, deploy je `promote` povýší a pak tu větev smaže (`dropPromoted`, jen se stejným commitem jako `main_binary`); viz README „Obrázky webu ve větvi“;
+  aktualizace obsahu má obrázky v `content/update_binary`, deploy je `promote` povýší a pak tu větev smaže (`dropPromoted`, jen se stejným commitem jako `main_binary`); viz README „Obrázky webu ve větvi“;
   obsahové repo stejně drží `export/` v `<větev>_binary`) ve složce své stránky (= adresa, `scripts/lib/site-images.mjs`): dílo
   `public/tvorba/<rok>/<slug>-<id>/`, rok `public/tvorba/<rok>/_cover/` + `_og/`, kolekce
   `public/tvorba/kolekce/<slug>/_cover/` + `_og/`, úvod `public/_cover/` + `public/_og/`, fotky `public/fotky/<název>/`;
@@ -268,7 +271,7 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   a „Mimo kolekce“ vzorovou větu (`COLLECTION_SKELETON_TEXT`, `yearSkeletonText`, `UNCOLLECTED_SKELETON_TEXT`; nikdy
   `DOPLNIT`, ty jsou veřejné hned a `DOPLNIT` by zastavilo běh). Neodsazený text pod atributem hlásí `yamlProblem`
   přesně (`unindentedText`).
-- Testovacích děl (`pavla/demo-content/`) musí být vždy víc, než je nejmenší počet na stránku (aspoň 15 při 12).
+- Testovacích děl (`demo-content/`) musí být vždy víc, než je nejmenší počet na stránku (aspoň 15 při 12).
 - Autorství v obrázcích: webové obrázky díla (originál, detaily, mockupy ve všech formátech a náhled pro sdílení) nesou XMP
   (autorka, název, © rok, kredit, Podmínky užití `xmpRights:WebStatement` + `UsageTerms`, odkaz na stránku díla `dc:relation`; `scripts/lib/image-rights.mjs`, v otisku díla), JSON-LD obrázku
   díla je `ImageObject` se stejným `creditText` a `copyrightNotice`; nikdy licence. Jiné fotky webu XMP nedostanou.
@@ -314,7 +317,7 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
 - Ostatní fotky: `fotky/<název>.jpg` obsahového repa → `public/fotky/<název>/` (obrázky), popis (`alt`, `caption`,
   `focus`) → `content/fotky/<název>.yaml`; na stránce `<Photo name="…" />`;
   `aspect` ořízne na poměr stran kolem `focus: [x, y]` (%) z yaml fotky. O mně: `o-mne-uvod` (2:1) a `portret`.
-- Automatika: workflow obsahového repa spouští tuto pipeline a otevírá PR do tohoto repa (větev `obsah/aktualizace`,
+- Automatika: workflow obsahového repa spouští tuto pipeline a otevírá PR do tohoto repa (větev `content/update`,
   auto-merge po projití „Kontroly kódu“, větev se po sloučení maže);
   na jeho ostatních větvích jen `--prepare-only`. Souhrn běhu: `scripts/lib/summary.mjs` (nahoře chyby po souborech, pak „Ke kontrole“, pak „Doporučení“ z `scripts/lib/advice.mjs`
   včetně štítků `tagAdvice` (jen co jde opravit: dva tvary, vždy spolu, čipy přes 2 řádky) a péče o web `careOfSite` (zveřejněné dílo bez
@@ -339,11 +342,15 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   „Zkušební běh zpracování“ (`.github/workflows/dry-run.yml`, každou neděli na testovacích datech, nic nepushne)
   prochází tytéž kroky ve složce testovacího webu `.demo/site` (`SITE_DIR`, git repo s lokálním `origin`, nikdy
   skutečný web): změna kroků zpracování obsahu = stejná změna ve `dry-run.yml`.
-  Kroky zpracování obsahu a týdenní kontroly jsou sdílená workflow tohoto repa (`workflow_call`):
-  `.github/workflows/process-content.yml` („Zpracování obsahu (sdílené)“, vstup `site-repository`, secret `SITE_TOKEN`)
-  a `.github/workflows/health-check.yml` („Kontrola automatiky (sdílená)“, navíc `CHECK_TOKEN`, `demo-url`). Obsahové repo
-  je volá ze svých obálek (spouštěče, souběh, oprávnění, tokeny); kontext `github` je volajícího (jeho repo, větev, issue).
-  Ani sdílená workflow nejmenují obsahové repo (cesty `content` a `site`).
+  Sdílená workflow tohoto repa (`workflow_call`, každé s povinným `engine-ref` = verze enginu webu, checkout enginu
+  vždy v ní do `engine/`, `engine-repository`): pro obsahové repo `.github/workflows/process-content.yml` („Zpracování
+  obsahu (sdílené)“, vstup `site-repository`, secret `SITE_TOKEN`; `content/`, `site/`, `engine/`) a
+  `.github/workflows/health-check.yml` („Kontrola automatiky (sdílená)“, navíc `CHECK_TOKEN`, `demo-url`); pro repo webu
+  `site-check.yml` (povinná kontrola webu, v rulesetu `check / check`) a `site-deploy.yml` (nasazení). Volají je obálky
+  (spouštěče, souběh, oprávnění, tokeny, `uses: …@v1` + stejné `engine-ref`); kontext `github` je volajícího (jeho repo,
+  větev, issue). Žádné nejmenuje obsahové repo. Konzistenci hlídá `scripts/workflows.test.mjs`. Vlastní workflow enginu:
+  `check.yml` (testy, `check:site -- demo`, `demo:build`, `check:images` testovacího webu, `actionlint`),
+  `demo-pages.yml` (ukázka na Pages), `dry-run.yml`.
   Týdenní kontrola (token, selhané běhy, zkušební běh, nasazení, čekající PR, neznámé atributy, chybějící obrázky
   nasazeného webu `scripts/lib/site-check.mjs`, texty a JSON-LD jeho stránek `evaluatePageTexts`, vložené skripty všech jeho stránek `evaluateInlineScripts`, velikost obou rep
   a nasazeného webu proti limitům GitHubu `evaluateSizes` (od 70 % `blizi-se-limit`), minuty Actions soukromých rep
@@ -355,11 +362,11 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   Workflow kontroluje `actionlint` (job `workflows` v `check.yml`); po každé úpravě workflow ho spusť i lokálně.
 - Nastavení repa na GitHubu jako kontrolní seznam: `node scripts/repo-settings.mjs <vlastník/repo> --out …`
   (`gh api`, jen čte; exporty v dokumentaci obsahového repa). Změna nastavení repa = export obnovit.
-- Deploy workflow tohoto repa obrázky negeneruje, jen staví web z `main` a obrázků větve, kterou jmenuje `binary.lock`
+- Nasazení webu (`site-deploy.yml`) obrázky negeneruje, jen staví web z `main` repa webu a obrázků větve, kterou jmenuje `binary.lock`
   (`promote`, `unpack`; `contents: write`); „Kontrola kódu“ před buildem `unpack`. Při selhání buildu nebo
   nasazení job `notify` založí (nebo komentuje) issue „Nasazení webu selhalo“ přidělené vlastníkovi (e-mail), další
   úspěšné nasazení ho zavře; issue je veřejné, jen odkaz na běh a commit. Stejně „Kontrola kódu“ při pushi do `main`
-  a u PR z `obsah/aktualizace` (jiné PR ne); obojí přes `.github/failure-issue.sh`.
+  a u PR z `content/update` (jiné PR ne); obojí přes `.github/failure-issue.sh`.
 - Srovnání fotek obrazů (perspektiva, ořez podkladu): `npm run straighten -- <fotka|složka>` (`scripts/straighten.mjs`),
   originály nikdy nepřepisuje, výstup do `upravene/`; ruční rohy a další výřezy v `<fotka>.orez.yaml`, `--white-balance`, `--width`, `--margin` (výchozí okraj podkladu kolem listu, aby byly vidět okraje papíru).
   S okrajem zapíše do JPEGu polohu listu (XMP `pavla:sheet`, `scripts/lib/sheet-box.mjs`); pipeline podle ní
@@ -394,23 +401,23 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   (`npm run app-screenshots`; nejsou v gitu: deploy je fotí jednou týdně do mezipaměti Actions a kopíruje do `dist/`;
   týdenní kontrola hlídá obrázky manifestu `manifestImages`). Přehled vzhledů hry pro autorku: `npm run game-overview`.
 - Patička nese verzi buildu `vRR.MMDD.HHMM` (pražský čas) s bublinou (datum, commit): `scripts/lib/build-version.mjs`.
-- „Kontrola kódu“ (`.github/workflows/check.yml`): u PR a pushe do `main` jen `npm test` + `npm run check:site` + `npm run build`
+- „Kontrola kódu“ webu (`site-check.yml`): u PR a pushe do `main` repa webu jen `npm test` + `npm run check:site` + `npm run build`
   + `npm run check:images` (obrázky, úplnost mapy webu `unlistedPages`, unikátní titulky a popisy a platné JSON-LD
   `pageProblems`, vložené skripty najdou svůj prvek a `data-view` mřížky je platné nastavení (`keys`, `views`, `tiles`) `inlineScriptProblems`; rychlé). Vložený skript nad prvkem před sebou vždy hledá prvek
   podle značky (`INLINE_TARGETS`: `viewGridBefore`/`data-view`, `pickBoxBefore`/`data-pick-box`), nikdy `previousElementSibling` skriptu. Stejný název nebo popis dvou děl řeší web sám (`workPageTitle`, `workPageDescription`).
-  U každého PR běží vždy: job `check` je povinná kontrola rulesetu na `main`, na kterou čeká auto-merge aktualizací
-  obsahu (správce má výjimku pro přímé pushe). Job `check` nepřejmenovávat, jinak se auto-merge zasekne.
-  Web z testovacích dat se na GitHubu nestaví (pomalé, nikde se nezveřejňuje): před commitem změn webu nebo pipeline
-  vždy lokálně `npm run demo:build` (a výsledek zkontrolovat).
+  U každého PR repa webu běží vždy: `check / check` je povinná kontrola rulesetu na `main`, na kterou čeká auto-merge
+  aktualizací obsahu (správce má výjimku pro přímé pushe). Job `check` obálky ani sdíleného workflow nepřejmenovávat,
+  jinak se auto-merge zasekne. Web z testovacích dat staví kontrola enginu a ukázka na Pages; před commitem změn webu
+  nebo pipeline přesto vždy lokálně `npm run demo:build` (a výsledek zkontrolovat).
 
 ## Testovací a skutečná data
-- Testovací (demo) data žijí **jen** v `pavla/demo-content/`: vymyšlené obsahové repo se stejnou strukturou jako
+- Testovací (demo) data žijí **jen** v `demo-content/`: vymyšlené obsahové repo se stejnou strukturou jako
   skutečné (yaml, obrázky vyrobené z receptu `demo-content/images.yaml` přes `npm run demo:images` jen chybějící, nikdy
-  přepsané, tady mimo git, v enginu v gitu; značka `demo-content.yaml`), zpracovávají se přes
+  přepsané, v gitu; značka `demo-content.yaml`), zpracovávají se přes
   `npm run demo` do `.demo/` (mimo git). Skutečná data jsou **jen** v obsahovém repu; web v produkci se staví
   jen z nich (i když jsou prázdná).
 - **Nikdy netvoř testovací/ukázková data v obsahovém repu** (díla, kolekce, fotky, obrázky), ani „dočasně“.
-  Nové testovací případy = nové soubory v `pavla/demo-content/`, díla a kolekce s `demo-` jménem.
+  Nové testovací případy = nové soubory v `demo-content/`, díla a kolekce s `demo-` jménem.
 - Pipeline to hlídá (`scripts/lib/demo.mjs`): skutečná data se značkou `demo-content.yaml` nebo s dílem či kolekcí
   `demo-…` = chyba; testovací data bez značky nebo s dílem či kolekcí bez `demo-` = chyba. Atribut `demo` neexistuje.
   Kontrolu neobcházej ani nevypínej.
@@ -441,7 +448,7 @@ Do tohoto repa (je veřejné) nepatří osobní ani provozní údaje (kdo web sp
   (jinak `check:images` selže; stránka, která do mapy nepatří, musí mít `noindex`).
 - Řádky roků (nad galerií, na přehledu kolekcí) vždy na jeden řádek přes `fitYearRow` (`src/lib/year-row.ts`), roky
   značené `data-year-item`; čipy štítků česky abecedně.
-- README obou rep (toto technicky, obsahové repo pro Pavlu a pro jeho automatiku) musí **vždy obsahovat kompletní popis všech
+- README enginu (technicky) a návod pro autorku (obsahové repo) musí **vždy obsahovat kompletní popis všech
   vlastností**: celou strukturu, každou schopnost webu i pipeline (včetně voleb, parametrů v URL, kontrol a chyb),
   jak ji nastavit a jak ji lokálně vyzkoušet. Nic, co web nebo pipeline umí, nesmí v README chybět.
   Uprav je v téže změně jako kód, nikdy „až potom“.
@@ -451,7 +458,7 @@ Novinky/blog, kalendář plenérů a později kurzy/workshopy; prodej zatím př
 
 ## Licence
 - Cizí příspěvky jen se souhlasem s CLA v `CONTRIBUTING.md` (věta v popisu pull requestu); pull requesty vlastníka
-  a automatika ne. Kontrolu CLA (bot, povinná kontrola) nepřidávat bez výjimky pro vlastníka a `obsah/aktualizace`:
+  a automatika ne. Kontrolu CLA (bot, povinná kontrola) nepřidávat bez výjimky pro vlastníka a `content/update`:
   auto-merge aktualizací obsahu čeká jen na `check`.
 - Kód: `LICENSE.md` = FSL-1.1-MIT (po dvou letech MIT), `package.json` `license`. Obsah webu (obrazy, fotky, texty autorky:
   `content/`, obrázky `public/` a větví `*_binary`, `game/`, `mockups/`, údaje v `site.config.yaml`) pod ni nespadá, všechna práva
