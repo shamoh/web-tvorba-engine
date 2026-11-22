@@ -7,6 +7,8 @@ soukromé). Engine je veřejný a žádné repo webu ani obsahové repo nejmenuj
 Vznikl jako web Pavly Kramolišové (pavla.kramolis.cz), proto příklady v dokumentaci a výchozí texty v kódu jsou zatím
 její (volitelnost funkcí a výchozí texty pro další weby: krok 5 plánu).
 
+Návod pro autorku (obsahové repo: jak přidat obraz, texty, kolekce, co se s obsahem děje): `docs/navod-pro-autorku.md`.
+
 Lokálně leží všechna tři repa vedle sebe; engine je najde přes `.env` (mimo git):
 
 ```
