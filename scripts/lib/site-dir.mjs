@@ -9,8 +9,9 @@
 //   game/                   lasting state of the game Detail dne (plan of the days, analyses of the images)
 //   binary.lock             the tree of the images of the site (scripts/binary.mjs)
 //   dist/                   the built site
-// SITE_DIR names the folder (relative to the working directory); without it the folder is the root of the code,
-// where the real site lives today. The test data build their own complete folder (.demo/site, scripts/demo.mjs).
+// SITE_DIR names the folder (relative to the working directory, or absolute); it is always needed: the engine holds no
+// site of its own (locally in .env, e.g. SITE_DIR=../pavla; a workflow checks the site out into site/). The test data
+// build their own complete folder (.demo/site, scripts/demo.mjs; npm run demo and demo:build set SITE_DIR themselves).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,13 +27,16 @@ export const SITE_DIR_VARIABLE = 'SITE_DIR';
 /** The settings file of a site. */
 export const SITE_CONFIG_FILE = 'site.config.yaml';
 
-/**
- * The folder of the site: SITE_DIR of `env` resolved against `cwd`, without it `codeRoot`.
- */
-export function siteDirectory({ env = process.env, cwd = process.cwd(), codeRoot = CODE_ROOT } = {}) {
-  const named = env[SITE_DIR_VARIABLE];
+/** Why a command needs SITE_DIR (the error without it). */
+export const SITE_DIR_MISSING = 'SITE_DIR is not set: name the folder of the site (e.g. SITE_DIR=../pavla in .env), '
+  + 'or use the test site (npm run demo, npm run demo:build)';
 
-  return named ? path.resolve(cwd, named) : codeRoot;
+/** The folder of the site: SITE_DIR of `env` resolved against `cwd`; without it an error (SITE_DIR_MISSING). */
+export function siteDirectory({ env = process.env, cwd = process.cwd() } = {}) {
+  const named = env[SITE_DIR_VARIABLE];
+  if (!named) throw new Error(SITE_DIR_MISSING);
+
+  return path.resolve(cwd, named);
 }
 
 /** Paths of everything a site holds, in the folder `siteDir`. */

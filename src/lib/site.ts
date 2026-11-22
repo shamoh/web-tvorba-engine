@@ -23,13 +23,11 @@ import { colourSettings, workColourIds } from '../../scripts/lib/colors.mjs';
 import { colourProfile } from '../../scripts/lib/affinity.mjs';
 import { execSync } from 'node:child_process';
 
-// The repository, not the bundled module (the build moves it): the root of the code is the working directory.
-const root = process.cwd();
 /**
  * The folder of the site (SITE_DIR, scripts/lib/site-dir.mjs): its settings, fonts, icons and data (content/ and
  * public/); .demo/site for the test data (npm run demo).
  */
-export const siteDir = siteDirectory({ codeRoot: root });
+export const siteDir = siteDirectory();
 const dataRoot = siteDir;
 /** Where the site data lies (content/ and public/), for pages that read its files themselves (the game Detail dne). */
 export const siteDataRoot = dataRoot;
@@ -266,11 +264,14 @@ export function getPhoto(name: string): Photo | null {
   return photoCache.get(name)!;
 }
 
-/** Commit the site is built from: GITHUB_SHA on GitHub Actions, otherwise the local checkout; '' when unknown. */
+/**
+ * Commit of the site built (its repository, the folder of the site): GITHUB_SHA on GitHub Actions (the workflow of the
+ * repository of the site), otherwise the local checkout of the site folder; '' when unknown.
+ */
 function currentCommit(): string {
   if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA;
   try {
-    return execSync('git rev-parse --short HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return execSync('git rev-parse --short HEAD', { cwd: siteDir, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
   } catch {
     return '';
   }

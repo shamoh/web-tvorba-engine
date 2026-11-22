@@ -36,9 +36,6 @@ import { CORNER_KEYS, EDGE_DEFAULTS, cornerShares, cornersProblems, cutsSheet, p
 import { IMAGE_EXTENSIONS, slugify, splitExt } from './lib/works.mjs';
 import { siteDirectory, sitePaths } from './lib/site-dir.mjs';
 
-// the settings and the previews folder of the site (SITE_DIR, scripts/lib/site-dir.mjs)
-const siteDir = siteDirectory();
-
 const isPhoto = (name) => !name.startsWith('.') && !name.startsWith('_') && IMAGE_EXTENSIONS.includes(splitExt(name).ext);
 
 /**
@@ -129,6 +126,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       throw new Error('--only-suspicious cannot be combined with --write: it would write just the doubtful corners');
     }
     if (args.includes('--out') && !opt('--out')) throw new Error('--out needs a folder');
+    // the settings and the previews folder of the site (SITE_DIR, scripts/lib/site-dir.mjs)
+    const siteDir = siteDirectory();
     const config = YAML.parse(await fs.readFile(sitePaths(siteDir).config, 'utf8'));
     const edges = { ...EDGE_DEFAULTS, ...config.images?.edges };
     const wrong = guidesProblems(edges.guides);
