@@ -961,8 +961,7 @@ Když pracuješ v počítači v terminálu (ne na webu), po kroku 2 si změny st
   úklid staré struktury, rozšíření na později).
 - [docs/github-nastaveni/](docs/github-nastaveni/): export nastavení obou rep na GitHubu (kontrolní seznam pro nové
   repo se stejným nastavením; obnovit `node scripts/repo-settings.mjs <repo> --out …` v enginu).
-- Doba zpracování, limity GitHubu a co dělat, až se k nim web přiblíží: `docs/github-provoz.md` ve společném soukromém
-  repu `web-tvorba-private` (pracovní dokument správce).
+- Doba zpracování, limity GitHubu a co dělat, až se k nim web přiblíží: soukromá dokumentace správce webu.
 
 Text obrazu (`text`, případně `description`) se ukazuje i ve výsledcích hledání, proto ho stojí za to psát konkrétně:
 kde a kdy obraz vznikl, co na něm je, na jakém papíře. Jeho začátek (asi 240 znaků) ukáže web i v bublině po najetí
