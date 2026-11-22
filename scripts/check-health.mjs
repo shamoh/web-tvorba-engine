@@ -18,6 +18,7 @@ import { findUnknownAttributes, findUnknownTechniques, findUntranslatedTags } fr
 import { checkSiteImages, evaluateSiteImages } from './lib/site-check.mjs';
 import { evaluatePageTexts } from './lib/page-check.mjs';
 import { evaluateInlineScripts } from './lib/inline-targets.mjs';
+import { CONTENT_UPDATE_BRANCH } from './lib/binary.mjs';
 import { readSiteConfig, siteDirectory } from './lib/site-dir.mjs';
 import { siteAddress } from './lib/site-url.mjs';
 import {
@@ -28,7 +29,7 @@ const config = readSiteConfig(siteDirectory());
 // The repository of the site (site.repository of site.config.yaml), e.g. "shamoh/pavla".
 const SITE_REPO = config.site.repository;
 if (!SITE_REPO) throw new Error('site.config.yaml: site.repository (owner/name of the repository of the site) is missing');
-const PR_BRANCH = 'obsah/aktualizace';
+const PR_BRANCH = CONTENT_UPDATE_BRANCH;
 
 // The repository of the site is public: its data is read without a token, so these checks do not depend on PAVLA_TOKEN.
 const api = (path, token) => fetch(`https://api.github.com${path}`, {

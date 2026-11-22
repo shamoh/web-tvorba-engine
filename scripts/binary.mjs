@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Binary branches (scripts/lib/binary.mjs): generated images kept out of the history, in `<branch>_binary` with a single commit.
 //
-// Usage (in this repo, the defaults: the images of the site, binary.lock, main_binary / obsah/aktualizace_binary):
+// Usage (in this repo, the defaults: the images of the site, binary.lock, main_binary / content/update_binary):
 //   npm run binary:pull                         the images of main into public/ (= unpack)
 //   node scripts/binary.mjs unpack              the same; the branch whose tree binary.lock names
 //   node scripts/binary.mjs pack <branch> [--push]   pack public/… into <branch>, write binary.lock
 //   node scripts/binary.mjs promote             after a merge: main_binary gets the images binary.lock names,
-//                                               then obsah/aktualizace_binary goes once main_binary has its commit
+//                                               then content/update_binary goes once main_binary has its commit
 // For another repository (the content workflow): --dir <clone> --paths <a,b> [--lock <file>|--no-lock]
 //   node scripts/binary.mjs unpack --dir ../obsah --paths export --no-lock --branch <b>_binary,main_binary
 //   node scripts/binary.mjs pack <b>_binary --dir ../obsah --paths export --no-lock --push

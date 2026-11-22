@@ -43,7 +43,7 @@ test('binaryBranch and the defaults of this repo', () => {
   assert.equal(binaryBranch('main'), 'main_binary');
   assert.equal(binaryBranch('obrazy-posledni-rok'), 'obrazy-posledni-rok_binary');
   assert.equal(SITE_BINARY.main, 'main_binary');
-  assert.equal(SITE_BINARY.pending, 'obsah/aktualizace_binary');
+  assert.equal(SITE_BINARY.pending, 'content/update_binary');
   assert.ok(SITE_BINARY.paths.includes('public/tvorba') && SITE_BINARY.paths.includes('public/fotky'));
 });
 
@@ -81,17 +81,17 @@ test('unpack: the branch the lock names, replacing the files; a wrong lock is an
     await write(a, 'public/tvorba/2026/rano/960.avif', 'hlavni');
     const main = await pack({ dir: a, paths, branch: 'main_binary', push: true, lock: 'binary.lock' });
     await write(a, 'public/tvorba/2026/rano/960.avif', 'nova');
-    const pending = await pack({ dir: a, paths, branch: 'obsah/aktualizace_binary', push: true, lock: 'binary.lock' });
+    const pending = await pack({ dir: a, paths, branch: 'content/update_binary', push: true, lock: 'binary.lock' });
     // b: a stale file goes, the lock picks the branch
     await write(b, 'public/tvorba/2025/stary/960.avif', 'stary');
     await fs.writeFile(path.join(b, 'binary.lock'), `${main.tree}\n`);
-    const r = await unpack({ dir: b, paths, branches: ['main_binary', 'obsah/aktualizace_binary'], lock: 'binary.lock' });
+    const r = await unpack({ dir: b, paths, branches: ['main_binary', 'content/update_binary'], lock: 'binary.lock' });
     assert.deepEqual(r, { branch: 'main_binary', tree: main.tree });
     assert.equal(await read(b, 'public/tvorba/2026/rano/960.avif'), 'hlavni');
     assert.ok(!(await exists(path.join(b, 'public/tvorba/2025'))), 'replaced, not merged');
     assert.equal(git(b, 'status', '--porcelain'), '?? binary.lock', 'the index of b untouched');
     await fs.writeFile(path.join(b, 'binary.lock'), `${pending.tree}\n`);
-    assert.equal((await unpack({ dir: b, paths, branches: ['main_binary', 'obsah/aktualizace_binary'], lock: 'binary.lock' })).branch, 'obsah/aktualizace_binary');
+    assert.equal((await unpack({ dir: b, paths, branches: ['main_binary', 'content/update_binary'], lock: 'binary.lock' })).branch, 'content/update_binary');
     assert.equal(await read(b, 'public/tvorba/2026/rano/960.avif'), 'nova');
     await fs.writeFile(path.join(b, 'binary.lock'), `${'0'.repeat(40)}\n`);
     await assert.rejects(unpack({ dir: b, paths, branches: ['main_binary'], lock: 'binary.lock' }), /no branch has the binary files 0000000 named in binary\.lock \(main_binary /);
@@ -107,14 +107,14 @@ test('promote: the images of the merged update become main\'s, once; neither bra
   try {
     await write(a, 'public/tvorba/x.avif', 'stare');
     await pack({ dir: a, paths, branch: 'main_binary', push: true, lock: 'binary.lock' });
-    assert.equal(await promote({ dir: a, from: 'obsah/aktualizace_binary', to: 'main_binary', lock: 'binary.lock' }), 'current');
+    assert.equal(await promote({ dir: a, from: 'content/update_binary', to: 'main_binary', lock: 'binary.lock' }), 'current');
     await write(a, 'public/tvorba/x.avif', 'nove');
-    const pending = await pack({ dir: a, paths, branch: 'obsah/aktualizace_binary', push: true, lock: 'binary.lock' });
-    assert.equal(await promote({ dir: a, from: 'obsah/aktualizace_binary', to: 'main_binary', lock: 'binary.lock' }), 'promoted');
+    const pending = await pack({ dir: a, paths, branch: 'content/update_binary', push: true, lock: 'binary.lock' });
+    assert.equal(await promote({ dir: a, from: 'content/update_binary', to: 'main_binary', lock: 'binary.lock' }), 'promoted');
     assert.equal((await remoteBranch(a, 'main_binary')).commit, pending.commit, 'the same commit, nothing sent again');
-    assert.equal(await promote({ dir: a, from: 'obsah/aktualizace_binary', to: 'main_binary', lock: 'binary.lock' }), 'current');
+    assert.equal(await promote({ dir: a, from: 'content/update_binary', to: 'main_binary', lock: 'binary.lock' }), 'current');
     await fs.writeFile(path.join(a, 'binary.lock'), `${'1'.repeat(40)}\n`);
-    await assert.rejects(promote({ dir: a, from: 'obsah/aktualizace_binary', to: 'main_binary', lock: 'binary.lock' }), /neither main_binary nor obsah\/aktualizace_binary/);
+    await assert.rejects(promote({ dir: a, from: 'content/update_binary', to: 'main_binary', lock: 'binary.lock' }), /neither main_binary nor content\/update_binary/);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -122,7 +122,7 @@ test('promote: the images of the merged update become main\'s, once; neither bra
 
 test('dropPromoted: the update branch goes once main_binary has its commit; a newer one stays', async () => {
   const { root, clones: [a] } = await setup(1);
-  const from = 'obsah/aktualizace_binary';
+  const from = 'content/update_binary';
   const heads = () => git(a, 'ls-remote', '--heads', 'origin', from);
   try {
     assert.equal(await dropPromoted({ dir: a, from, to: 'main_binary' }), false, 'no update branch: nothing');

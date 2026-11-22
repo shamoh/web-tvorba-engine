@@ -3,7 +3,7 @@
 //   - the latest run of "Zpracování obsahu" did not fail,
 //   - the latest weekly dry run of that workflow on the test data ("Zkušební běh zpracování", pavla) did not fail,
 //   - the latest commit on pavla/main was deployed,
-//   - the content pull request (obsah/aktualizace) does not wait for a merge too long,
+//   - the content pull request (content/update) does not wait for a merge too long,
 //   - no description of the content has an attribute the pipeline does not know (NEZNÁMÝ),
 //   - every image the pages of the deployed site refer to exists (scripts/lib/site-check.mjs),
 //   - both repositories and the deployed site stay well below the size limits of GitHub (evaluateSizes),
@@ -195,7 +195,7 @@ export function evaluateGameAnalyses(files, limits = GAME_ANALYSIS_LIMITS, { sit
 }
 
 /**
- * `pulls`: open pull requests from the obsah/aktualizace branch. They merge themselves (auto-merge) once
+ * `pulls`: open pull requests from the content/update branch. They merge themselves (auto-merge) once
  * "Kontrola kódu" passes, so one open longer than `days` is stuck. Not ok then.
  */
 export function evaluatePullRequest(pulls, { now = new Date(), days = 1 } = {}) {

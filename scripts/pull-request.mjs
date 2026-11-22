@@ -2,7 +2,7 @@
 // Prepares the pull request of a content update into this repo, after the pipeline ran (scripts/lib/pull-request.mjs):
 //   - step output `paths`: the output paths for add-paths of peter-evans/create-pull-request (content/ and
 //     binary.lock; empty when there is none: the workflow then skips the pull request); the images went to their
-//     branch before (scripts/binary.mjs pack obsah/aktualizace_binary --push), the description names them too,
+//     branch before (scripts/binary.mjs pack content/update_binary --push), the description names them too,
 //   - <body-file>: its Czech description.
 // Run in the folder of the site (SITE_DIR, scripts/lib/site-dir.mjs; this repo's root by default). Used by the content workflow and by .github/workflows/dry-run.yml.
 //

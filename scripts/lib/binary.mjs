@@ -3,7 +3,7 @@
 // run (force push, never a pull request). Old versions are then held by nothing and GitHub drops them in time, so the
 // history of the branch itself stays small. Used for both repositories:
 //   - this repo: the images of the site (public/tvorba, public/fotky, …: OUTPUT_ROOTS) in `main_binary` (what main
-//     shows) and `obsah/aktualizace_binary` (those of a content pull request); main names the one it belongs to in
+//     shows) and `content/update_binary` (those of a content pull request); main names the one it belongs to in
 //     binary.lock (the hash of its tree: the same images = the same hash), so a build never mixes them up,
 //   - the content repository: its exports (export/) in `<branch>_binary` of every branch.
 // Plain git only (no dependencies); every command works in `dir`, a clone with the remote `origin`.
@@ -22,15 +22,18 @@ export const BINARY_SUFFIX = '_binary';
 /** The branch with the binary files of `branch`. */
 export const binaryBranch = (branch) => `${branch}${BINARY_SUFFIX}`;
 
+/** The branch of the pull request of a content update into the repository of a site (until 2026-11 obsah/aktualizace). */
+export const CONTENT_UPDATE_BRANCH = 'content/update';
+
 /**
- * This repo: the generated images of the site (not in the history of main), the file of main naming their tree, the
- * branch of main's images and the branch of the images of a content pull request (branch obsah/aktualizace).
+ * The repository of a site: the generated images of the site (not in the history of main), the file of main naming
+ * their tree, the branch of main's images and the branch of the images of a content pull request (CONTENT_UPDATE_BRANCH).
  */
 export const SITE_BINARY = {
   paths: OUTPUT_ROOTS.map((p) => `public/${p}`),
   lock: 'binary.lock',
   main: binaryBranch('main'),
-  pending: binaryBranch('obsah/aktualizace'),
+  pending: binaryBranch(CONTENT_UPDATE_BRANCH),
 };
 
 /** The identity of the commits of binary branches (only when git has none configured, e.g. on a fresh runner). */
