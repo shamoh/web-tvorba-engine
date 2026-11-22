@@ -1,12 +1,14 @@
-# Shared workflow "Nová verze enginu" (workflow_call): when the engine has a newer version (a tag vN) than the one the
-# site uses, opens a pull request in the repository of the site and one in the calling content repository, each moving
-# `uses: …@vN` and `engine-ref: vN` of all its workflows to the newest version (scripts/engine-update.mjs).
+# Shared workflow "Nová verze enginu" (workflow_call): when the engine has a newer safe version (a tag vN whose commit
+# passed "Kontrola kódu" of the engine) than the one the site uses, opens a pull request in the repository of the site
+# and one in the calling content repository, each moving `uses: …@vN` and `engine-ref: vN` of all its workflows to it
+# (scripts/engine-update.mjs).
 #   content/   the calling repository (its own workflows)
 #   site/      the repository of the site
 #   engine/    this engine at main: the updater itself is always the newest (its own `uses:` line is @main, never moved)
-# The pull request of the site merges itself once its required check passes ("check / check", which already runs the
-# new version: the site must build with it); the one of the content repository is merged by hand. An open pull request
-# of either is updated, not doubled (branch engine/update).
+# The site goes first: its pull request merges itself once its required check passes ("check / check", which already
+# runs the new version: the site must build with it). The pull request of the content repository is merged by this
+# workflow once the site is on that version (the same run when it already was, otherwise the next daily run). An open
+# pull request of either is updated, not doubled (branch engine/update).
 # Needs the secret UPDATE_TOKEN: a fine-grained token of the owner for both repositories with Contents, Pull requests
 # and Workflows read and write. The token of the run itself may neither change workflow files nor start the checks of
 # the pull request it opens.
@@ -60,8 +62,10 @@ jobs:
           node-version: 24
 
       # step outputs `site` and `content` = "<from> <to>" when a newer version exists; descriptions in $RUNNER_TEMP
-      - name: Newest version of the engine
+      - name: Newest safe version of the engine
         id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: node engine/scripts/engine-update.mjs --repo site=site --repo content=content --body-dir "$RUNNER_TEMP"
 
       - name: Pull request into the site
@@ -87,7 +91,8 @@ jobs:
           SITE_REPOSITORY: ${{ inputs.site-repository }}
         run: gh pr merge "$PR_NUMBER" --repo "$SITE_REPOSITORY" --auto --merge
 
-      - name: Pull request into the content repository (merged by hand)
+      - name: Pull request into the content repository
+        id: content
         if: steps.plan.outputs.content != ''
         uses: peter-evans/create-pull-request@v8
         with:
@@ -100,3 +105,12 @@ jobs:
           title: "Engine: nová verze"
           body-path: ${{ runner.temp }}/engine-update-content.md
           delete-branch: true
+
+      # The site already runs the new version (its check passed with it and it merged): the content repository follows.
+      - name: Merge the pull request of the content repository once the site is on the new version
+        if: steps.plan.outputs.site == '' && steps.content.outputs.pull-request-number != '' && steps.content.outputs.pull-request-operation != 'closed'
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.content.outputs.pull-request-number }}
+        run: gh pr merge "$PR_NUMBER" --merge --delete-branch

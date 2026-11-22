@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ENGINE_REPOSITORY, latestVersion, planUpdate, updateDescription, usedVersion, versionNumber, withVersion } from './engine-version.mjs';
+import { ENGINE_REPOSITORY, VERSION_LAG_DAYS, evaluateEngineVersions, latestSafeVersion, latestVersion, planUpdate, tagCommits, updateDescription, usedVersion, versionNumber, withVersion } from './engine-version.mjs';
 
 const check = (v) => `jobs:
   check:
@@ -81,4 +81,49 @@ test('updateDescription: versions, links to the changelog and the comparison, ho
   assert.match(text, /blob\/v2\/CHANGELOG\.md/);
   assert.match(text, /compare\/v1\.\.\.v2/);
   assert.match(text, /sloučí sám/);
+});
+
+test('tagCommits: the commit of each version tag, the peeled commit of an annotated tag wins, other tags left out', () => {
+  const out = ['aaa\trefs/tags/v1', 'c01\trefs/tags/v1^{}', 'bbb\trefs/tags/v2', 'c02\trefs/tags/v2^{}', 'ddd\trefs/tags/v3', 'eee\trefs/tags/test', ''].join('\n');
+  assert.deepEqual(tagCommits(out), { v1: 'c01', v2: 'c02', v3: 'ddd' }, 'v3 lightweight: its own sha is the commit');
+});
+
+test('latestSafeVersion: the newest tag whose commit passed the check of the engine; newer ones that did not are skipped', async () => {
+  const commits = { v1: 'c1', v2: 'c2', v3: 'c3' };
+  const asked = [];
+  const passed = async (sha) => { asked.push(sha); return sha !== 'c3'; };
+  assert.deepEqual(await latestSafeVersion(commits, passed), { version: 'v2', skipped: ['v3'] });
+  assert.deepEqual(asked, ['c3', 'c2'], 'newest first, stops at the first passed');
+  assert.deepEqual(await latestSafeVersion(commits, async () => false), { version: null, skipped: ['v3', 'v2', 'v1'] });
+  assert.deepEqual(await latestSafeVersion({}, async () => true), { version: null, skipped: [] });
+});
+
+const used = (version) => ({ version, problems: [] });
+const now = new Date('2026-11-30T12:00:00Z');
+const daysAgo = (d) => new Date(now - d * 86_400_000).toISOString();
+
+test('evaluateEngineVersions: both on the newest version is fine', () => {
+  assert.deepEqual(evaluateEngineVersions({ site: used('v2'), content: used('v2'), latest: 'v2', now }), { ok: true, message: 'Engine v2 v repu webu i v obsahovém repu (nejnovější).' });
+});
+
+test('evaluateEngineVersions: behind while its pull request waits less than the days is fine, longer or without one fails', () => {
+  const waiting = evaluateEngineVersions({ site: used('v2'), content: used('v1'), latest: 'v2', pulls: { content: daysAgo(1) }, now });
+  assert.equal(waiting.ok, true);
+  assert.match(waiting.message, /čeká na sloučení/);
+  const late = evaluateEngineVersions({ site: used('v2'), content: used('v1'), latest: 'v2', pulls: { content: daysAgo(VERSION_LAG_DAYS + 1) }, now });
+  assert.equal(late.ok, false);
+  assert.match(late.message.split('\n')[0], /různé verze enginu \(repo webu v2, obsahové repo v1, nejnovější v2\).*\[engine-verze-ruzne\]$/);
+  const both = evaluateEngineVersions({ site: used('v1'), content: used('v1'), latest: 'v2', now });
+  assert.equal(both.ok, false, 'both behind, no pull request at all');
+  assert.match(both.message, /repo webu je pořád na v1 \(bez pull requestu\).*\[engine-zastaraly\]/);
+  const bothLate = evaluateEngineVersions({ site: used('v1'), content: used('v1'), latest: 'v2', pulls: { site: daysAgo(5), content: daysAgo(5) }, now });
+  assert.match(bothLate.message, /pull request čeká 5 dní/);
+});
+
+test('evaluateEngineVersions: different versions without a newer one to wait for always fail; unknown versions fail', () => {
+  assert.equal(evaluateEngineVersions({ site: used('v2'), content: used('v1'), latest: null, now }).ok, false);
+  const r = evaluateEngineVersions({ site: { version: null, problems: ['workflow používají různé verze enginu: …'] }, content: used('v2'), latest: 'v2', now });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /^Verzi enginu nejde určit: repo webu: workflow používají/);
+  assert.match(evaluateEngineVersions({ site: used('v2'), content: used('v2'), latest: null, now }).message, /^Engine v2 v repu webu i v obsahovém repu\.$/, 'latest unknown: only the agreement');
 });

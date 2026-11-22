@@ -134,6 +134,7 @@ permissions:
   contents: read
   actions: read
   issues: write
+  pull-requests: read
 jobs:
   check:
     uses: shamoh/web-tvorba-engine/.github/workflows/health-check.yml@v1
@@ -172,7 +173,8 @@ Nová verze = tag enginu (`v2`). Weby ji dostanou samy: obsahové repo má obál
 a ručně), která při novějším tagu založí pull request „Engine: nová verze“ do repa webu (sloučí se sám po kontrole
 s novou verzí) a do obsahového repa (sloučíš ho ty). Potřebuje secret `UPDATE_TOKEN` v obsahovém repu: fine-grained
 token vlastníka, *Repository access* repo webu a obsahové repo, oprávnění *Contents*, *Pull requests* a *Workflows*
-**Read and write**.
+**Read and write**. Nabízí jen verzi, na jejímž commitu prošla kontrola enginu; pull request obsahového repa sloučí sám,
+jakmile je repo webu na nové verzi. Týdenní kontrola hlásí, když se verze rep liší déle než 3 dny.
 
 ```yaml
 # .github/workflows/engine-update.yml ("Nová verze enginu")
@@ -192,5 +194,5 @@ jobs:
       UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
 ```
 
-Ručně jde totéž: změnit `@v1` a `engine-ref: v1` na `v2` ve všech čtyřech obálkách (dvě v repu webu, dvě v obsahovém
+Ručně jde totéž: změnit `@v1` a `engine-ref: v1` na `v2` ve všech čtyřech obálkách (`engine-update.yml` zůstává `@main`; dvě v repu webu, dvě v obsahovém
 repu). Co verze mění a co musí web udělat, říká `CHANGELOG.md`.

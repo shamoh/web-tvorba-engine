@@ -6,6 +6,8 @@
 // Plan and repository permissions Actions, Administration, Environments, Pages, Secrets, Variables, Webhooks: the minutes of
 // Actions and the monthly comparison of the settings),
 // SETTINGS_DIR (the stored exports of the settings, <repo name>.json), `--settings` compares them on any day.
+// The versions of the engine: the workflows of the site (SITE_DIR) and of the content repository (CONTENT_DIR) against
+// the newest safe tag of the engine (ENGINE_REPOSITORY) and their open pull requests engine/update.
 // The images and the page texts of the deployed site are checked at site.url of site.config.yaml (`--site-url <url>` overrides it,
 // e.g. a locally served build). `--demo-url <url>`: the same checks of the deployed test site (the demo of the engine on
 // GitHub Pages), its messages start with DEMO_LABEL.
@@ -18,14 +20,18 @@ import { findUnknownAttributes, findUnknownTechniques, findUntranslatedTags } fr
 import { checkSiteImages, evaluateSiteImages } from './lib/site-check.mjs';
 import { evaluatePageTexts } from './lib/page-check.mjs';
 import { evaluateInlineScripts } from './lib/inline-targets.mjs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { CONTENT_UPDATE_BRANCH } from './lib/binary.mjs';
+import { evaluateEngineVersions, latestSafeVersion, tagCommits, usedVersion } from './lib/engine-version.mjs';
 import { readSiteConfig, siteDirectory } from './lib/site-dir.mjs';
 import { siteAddress } from './lib/site-url.mjs';
 import {
   DEMO_LABEL, DRY_RUNS, evaluateCheckToken, evaluateDeploy, evaluateGameAnalyses, evaluateGamePlan, evaluateMinutes, evaluatePullRequest, evaluateRuns, evaluateSettings, evaluateSizes, evaluateToken, evaluateUnknownAttributes, evaluateUnknownTechniques, evaluateUntranslatedTags, formatReport, httpFailure, labelledCheck,
 } from './lib/health.mjs';
 
-const config = readSiteConfig(siteDirectory());
+const siteDir = siteDirectory();
+const config = readSiteConfig(siteDir);
 // The repository of the site (site.repository of site.config.yaml), e.g. "shamoh/pavla".
 const SITE_REPO = config.site.repository;
 if (!SITE_REPO) throw new Error('site.config.yaml: site.repository (owner/name of the repository of the site) is missing');
@@ -91,6 +97,30 @@ const deploy = await guarded('stav nasazení webu', async () => {
   const head = await json(`/repos/${SITE_REPO}/commits/main`);
   const data = await json(`/repos/${SITE_REPO}/actions/workflows/deploy.yml/runs?branch=main&per_page=30`);
   return evaluateDeploy({ sha: head.sha, date: head.commit.committer.date }, data.workflow_runs);
+});
+
+// The repository of the site and this content repository use the same version of the engine, the newest safe one
+// (a repository behind may wait VERSION_LAG_DAYS for its pull request engine/update). Their workflows are in the
+// checkouts (SITE_DIR, CONTENT_DIR: .github/workflows).
+const engineVersions = await guarded('verze enginu', async () => {
+  const workflows = async (dir) => {
+    const folder = path.join(dir ?? '', '.github', 'workflows');
+    const names = (await fs.readdir(folder).catch(() => [])).filter((f) => /\.ya?ml$/.test(f));
+    return Promise.all(names.map(async (f) => ({ path: f, text: await fs.readFile(path.join(folder, f), 'utf8') })));
+  };
+  const lsRemote = await promisify(execFile)('git', ['ls-remote', '--tags', `https://github.com/${ENGINE_REPO}.git`]);
+  const passed = async (sha) => (await json(`/repos/${ENGINE_REPO}/actions/workflows/check.yml/runs?head_sha=${sha}&status=success&per_page=1`, process.env.RUNS_TOKEN)).total_count > 0;
+  const { version: latest } = await latestSafeVersion(tagCommits(lsRemote.stdout), passed);
+  const opened = async (repo, auth) => {
+    const pulls = await json(`/repos/${repo}/pulls?state=open&head=${repo.split('/')[0]}:engine/update`, auth);
+    return pulls[0]?.created_at ?? null;
+  };
+  return evaluateEngineVersions({
+    site: usedVersion(await workflows(siteDir)),
+    content: usedVersion(await workflows(process.env.CONTENT_DIR)),
+    latest,
+    pulls: { site: await opened(SITE_REPO), content: process.env.REPO ? await opened(process.env.REPO, process.env.RUNS_TOKEN) : null },
+  });
 });
 
 const pr = await guarded('pull requesty webu', async () => {
@@ -205,7 +235,7 @@ const settings = !monthly ? evaluateSettings(null, { reason: 'jen první ponděl
       return evaluateSettings(results, { siteRepo: SITE_REPO });
     });
 
-const report = formatReport(token, checkTokenState, runs, dryRun, deploy, pr, unknown, techniques, translations, ...siteChecks, ...demoChecks, gameAnalyses, sizes, minutes, settings);
+const report = formatReport(token, checkTokenState, runs, dryRun, deploy, pr, engineVersions, unknown, techniques, translations, ...siteChecks, ...demoChecks, gameAnalyses, sizes, minutes, settings);
 console.log(report.text);
 if (process.env.GITHUB_STEP_SUMMARY) await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, report.text);
 // codes: "[token-vyprsi] [obrazky-chybi]" for the title of the issue (e-mails filtered by code)

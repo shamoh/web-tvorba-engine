@@ -2772,6 +2772,11 @@ nepovinný), `CHECK_TOKEN` (spotřeba minut Actions a nastavení rep, nepovinný
   (`evaluateGamePlan`, `GAME_PLAN_MIN_DAYS`, den v Praze): pipeline ho každé pondělí prodlouží na 14 dní, kratší plán znamená, že
   „Zpracování obsahu“ neběží nebo se jeho pull requesty neslučují (`plan-hry-dochazi`); web bez plánu `plan-hry-chybi`, web bez
   hry (404) se nekontroluje.
+- verze enginu (`evaluateEngineVersions`, `scripts/lib/engine-version.mjs`): workflow repa webu a obsahového repa mají
+  stejnou verzi a je to nejnovější bezpečná; repo pozadu smí na svůj pull request `engine/update` čekat
+  `VERSION_LAG_DAYS` (3) dny, jinak `[engine-verze-ruzne]` (různé verze) nebo `[engine-zastaraly]` (obě pozadu bez
+  pull requestu); workflow čte z checkoutů (`.github/workflows`), pull request obsahového repa s oprávněním
+  `pull-requests: read`,
 - velikost uložených rozborů obrázků hry Detail dne (`game/detail-dne/analysis/` v `main` tohoto repa, ze stromu větve přes veřejné
   API `git/trees/main?recursive=1`, bez tokenu; `evaluateGameAnalyses`, `GAME_ANALYSIS_LIMITS`): zpráva vždy uvede celkovou velikost,
   počet a průměr na obraz, problém `rozbory-hry-velke` je celkem přes 25 MB (při 22 kB na obraz asi 1100 obrazů) nebo průměr přes
@@ -2818,9 +2823,11 @@ konzistenci `scripts/workflows.test.mjs` (vstup `engine-ref`, checkout enginu v 
 jméno větve aktualizace obsahu `CONTENT_UPDATE_BRANCH`).
 
 **Nová verze enginu** (`.github/workflows/engine-update.yml`, sdílené, volá ho obsahové repo každý den a ručně; jeho
-`uses:` je `@main`, nikdy verze): když má engine novější tag `vN` (jen tvar `v<číslo>`), než jaký používá web, založí pull
-request `engine/update` „Engine: nová verze“ do repa webu (se zapnutým auto-merge: sloučí se, až projde `check / check`,
-která už běží s novou verzí) a do obsahového repa (sloučí správce). Mění `uses: …@vN` a `engine-ref: vN` ve všech
+`uses:` je `@main`, nikdy verze): když má engine novější **bezpečnou** verzi, než jakou používá web (tag `vN`, jen tvar
+`v<číslo>`, na jehož commitu prošla „Kontrola kódu“ enginu, `latestSafeVersion`; novější tag bez ní se přeskočí a vypíše),
+založí pull request `engine/update` „Engine: nová verze“ do repa webu (se zapnutým auto-merge: sloučí se, až projde
+`check / check`, která už běží s novou verzí) a do obsahového repa. Ten sloučí updater sám, jakmile je repo webu na nové
+verzi (týž běh, pokud už bylo, jinak další den). Mění `uses: …@vN` a `engine-ref: vN` ve všech
 workflow (`scripts/engine-update.mjs`, logika `scripts/lib/engine-version.mjs`: `latestVersion`, `usedVersion`,
 `withVersion`, `planUpdate`); různé verze v jednom repu = chyba, nic nehádá. Otevřený pull request jen aktualizuje.
 Potřebuje secret `UPDATE_TOKEN`: fine-grained token vlastníka na obě repa s *Contents*, *Pull requests* a **Workflows**

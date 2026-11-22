@@ -37,6 +37,7 @@ permissions:
   contents: read
   actions: read
   issues: write
+  pull-requests: read   # the open pull request engine/update of the content repository (the versions of the engine)
 
 env:
   ISSUE_TITLE: "Automatika webu potřebuje pozornost"
@@ -64,6 +65,7 @@ jobs:
           path: site
           sparse-checkout: |
             site.config.yaml
+            .github/workflows
           sparse-checkout-cone-mode: false
 
       - name: Checkout the descriptions (the calling repository)
@@ -76,6 +78,7 @@ jobs:
             roky
             stranky
             docs/github-nastaveni
+            .github/workflows
 
       - uses: actions/setup-node@v7
         with:

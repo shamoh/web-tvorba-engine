@@ -15,11 +15,45 @@ export const versionNumber = (tag) => {
   return m ? Number(m[1]) : null;
 };
 
+const tagName = (t) => String(t).replace(/^refs\/tags\//, '').replace(/\^\{\}$/, '');
+
 /** The newest version among the tags `tags` (names, e.g. from git ls-remote --tags), null without any. */
 export function latestVersion(tags) {
-  const versions = tags.map((t) => String(t).replace(/^refs\/tags\//, '').replace(/\^\{\}$/, '')).filter((t) => versionNumber(t) !== null);
+  const versions = tags.map(tagName).filter((t) => versionNumber(t) !== null);
 
   return versions.sort((a, b) => versionNumber(b) - versionNumber(a))[0] ?? null;
+}
+
+/**
+ * The commits of the version tags in the output of `git ls-remote --tags` ("<sha>\trefs/tags/v2" and, for an annotated
+ * tag, "<sha>\trefs/tags/v2^{}" = its commit, which wins): { v2: <commit sha> }.
+ */
+export function tagCommits(lsRemote) {
+  const commits = {};
+  for (const line of String(lsRemote).split('\n')) {
+    const [sha, ref] = line.split('\t');
+    if (!sha || !ref) continue;
+    const name = tagName(ref);
+    if (versionNumber(name) === null) continue;
+    if (ref.endsWith('^{}') || !(name in commits)) commits[name] = sha;
+  }
+
+  return commits;
+}
+
+/**
+ * The newest safe version: the newest tag vN whose commit passed the check of the engine (`passed(sha)`: async,
+ * true when a run of "Kontrola kódu" on that commit succeeded). Returns { version, skipped: [newer tags not passed] }.
+ */
+export async function latestSafeVersion(commits, passed) {
+  const names = Object.keys(commits).sort((a, b) => versionNumber(b) - versionNumber(a));
+  const skipped = [];
+  for (const name of names) {
+    if (await passed(commits[name])) return { version: name, skipped };
+    skipped.push(name);
+  }
+
+  return { version: null, skipped };
 }
 
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -100,4 +134,35 @@ export function updateDescription({ from, to }, { repository = ENGINE_REPOSITORY
     '',
     'Založeno automaticky (sdílené workflow `engine-update.yml` enginu).',
   ].join('\n');
+}
+
+/** Days a repository may stay behind the newest safe version (its pull request waiting) before the health check fails. */
+export const VERSION_LAG_DAYS = 3;
+
+/**
+ * The health check of the versions of the engine (Czech): `site` and `content` = usedVersion of the workflows of the
+ * repository of the site and of the content repository, `latest` = the newest safe version (null = unknown),
+ * `pulls` = { site, content }: the creation time of an open pull request engine/update there (null = none).
+ * Fine when both use the same version and it is the newest; a repository behind is fine for `days` while its pull
+ * request waits; otherwise a problem: different versions [engine-verze-ruzne], behind [engine-zastaraly].
+ */
+export function evaluateEngineVersions({ site, content, latest, pulls = {}, now = new Date(), days = VERSION_LAG_DAYS }) {
+  const broken = [['repo webu', site], ['obsahové repo', content]].filter(([, u]) => u.problems.length);
+  if (broken.length) {
+    return { ok: false, message: `Verzi enginu nejde určit: ${broken.map(([label, u]) => `${label}: ${u.problems.join('; ')}`).join(' · ')} [engine-verze-ruzne]` };
+  }
+  const repos = [['repo webu', site.version, pulls.site], ['obsahové repo', content.version, pulls.content]];
+  const behind = latest ? repos.filter(([, v]) => v && versionNumber(v) < versionNumber(latest)) : [];
+  const age = (created) => (created ? (now - new Date(created)) / 86_400_000 : null);
+  const late = behind.filter(([, , created]) => age(created) === null || age(created) > days);
+  const names = repos.map(([label, v]) => `${label} ${v ?? '–'}`).join(', ');
+  if (site.version !== content.version && (!behind.length || late.length)) {
+    return { ok: false, message: `Repo webu a obsahové repo používají různé verze enginu (${names}${latest ? `, nejnovější ${latest}` : ''}); mají mít stejnou. [engine-verze-ruzne]\nSluč pull request „Engine: nová verze“ (větev engine/update), nebo spusť „Nová verze enginu“ v obsahovém repu.` };
+  }
+  if (late.length) {
+    return { ok: false, message: `Engine ${latest} je venku, ale ${late.map(([label, v, created]) => `${label} je pořád na ${v}${created ? ` (pull request čeká ${Math.floor(age(created))} dní)` : ' (bez pull requestu)'}`).join(', ')}. [engine-zastaraly]\nZkontroluj běhy „Nová verze enginu“ v obsahovém repu a kontrolu pull requestu „Engine: nová verze“.` };
+  }
+  if (behind.length) return { ok: true, message: `Engine ${latest} čeká na sloučení (${names}).` };
+
+  return { ok: true, message: `Engine ${site.version ?? '–'} v repu webu i v obsahovém repu${latest ? (site.version === latest ? ' (nejnovější)' : `, nejnovější ${latest}`) : ''}.` };
 }

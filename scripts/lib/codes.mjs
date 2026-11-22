@@ -120,6 +120,8 @@ export const CODES = {
   'nasazeni-selhalo': { level: 'health', text: 'nasazení webu selhalo' },
   'nasazeni-chybi': { level: 'health', text: 'poslední commit se na web nenasadil' },
   'aktualizace-ceka': { level: 'health', text: 'aktualizace obsahu se dlouho nesloučila' },
+  'engine-verze-ruzne': { level: 'health', text: 'repo webu a obsahové repo mají různé verze enginu' },
+  'engine-zastaraly': { level: 'health', text: 'nová verze enginu se dlouho nedostala do rep webu' },
   'neznamy-atribut': { level: 'health', text: 'popis má neznámý atribut (NEZNÁMÝ)' },
   'nova-technika': { level: 'health', text: 'technika bez druhu díla pro vyhledávače' },
   'preklad-chybi': { level: 'health', text: 'štítek nebo technika bez anglického překladu (Instagram, Pinterest)' },
