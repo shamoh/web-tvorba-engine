@@ -1772,10 +1772,12 @@ test('exports: the READMEs say where a work is published, the overviews group th
   assert.ok(!index.includes('href="2026-plener/rano/"'), 'no link into a folder that is gone');
   // the same overview in the folder of each collection: its works only, links relative to it, a way back (Instagram
   // also with the story of the collection)
-  for (const [sub, heading] of [['instagram', 'Fotky pro Instagram'], ['fler', 'Fotky pro Fler']]) {
+  // (Instagram: its only work in the collection is already there, no image is left, so the folder is gone)
+  assert.ok(!(await exists(path.join(contentDir, 'export/instagram/2026-plener'))), 'no image left: no folder');
+  for (const [sub, heading] of [['fler', 'Fotky pro Fler']]) {
     const own = await fs.readFile(path.join(contentDir, `export/${sub}/2026-plener/README.md`), 'utf8');
     assert.ok(own.startsWith(`# ${heading}: ${title}\n\n[← Všechny](../README.md)\n`), sub);
-    const row = sub === 'fler' ? '<a href="rano/"><b>Ráno</b></a>' : '<td></td><td><b>Ráno</b>';
+    const row = '<a href="rano/"><b>Ráno</b></a>';
     assert.ok(own.includes(row) && !own.includes('Večer') && !own.includes(`## ${title}`), sub);
   }
   // kept by the next run (not taken for a stale export)
@@ -1788,7 +1790,6 @@ test('exports: the READMEs say where a work is published, the overviews group th
   const sold = await run(opts());
   assert.ok(sold.pruned.includes('export/fler/2026-plener/README.md'), sold.pruned.join(', '));
   assert.ok(!(await exists(path.join(contentDir, 'export/fler/2026-plener'))));
-  assert.ok(await exists(path.join(contentDir, 'export/instagram/2026-plener/README.md')), 'still on Instagram');
   // on sale again and already on Fler (a link): no Fler photos either
   await fs.writeFile(rano, (await fs.readFile(rano, 'utf8')).replace(/^status: .*$/m, 'status: available').replace(/^# fler: .*$/m, 'fler: https://www.fler.cz/zbozi/rano-1'));
   assert.equal((await run(opts())).ok, true);

@@ -232,6 +232,16 @@ test('collectionIndexes: the entries by the folder of their collection, folders 
   ]);
 });
 
+test('collectionIndexes onlyWithImages: a collection without any image gets no README (its folder goes away)', () => {
+  const entries = [
+    { title: 'A', folder: 'plener/a', collection: 'Plenér', thumb: 'x.jpg' },
+    { title: 'B', folder: 'plener/b', collection: 'Plenér', thumb: null },
+    { title: 'C', folder: 'olejomalby/c', collection: '', thumb: null },
+  ];
+  assert.deepEqual(collectionIndexes(entries, { onlyWithImages: true }).map((g) => g.dir), ['plener']);
+  assert.deepEqual(collectionIndexes(entries).map((g) => g.dir), ['olejomalby', 'plener'], 'default unchanged');
+});
+
 test('exportIndex and draftIndex within a collection: its title in the heading, a link back, no group heading', () => {
   const entry = { title: 'Ráno', code: 'k3f9a', folder: 'rano', thumb: 't.jpg', note: 'akvarel', collection: 'Plenér', url: '' };
   const insta = exportIndex('instagram', [entry], { within: 'Plenér' });

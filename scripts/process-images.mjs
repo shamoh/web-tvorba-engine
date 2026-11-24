@@ -1095,7 +1095,7 @@ export async function run({
       wanted[sub].set('', new Set([README]));
       await writeIfChanged(path.join(exportRoot, sub, README), exportIndex(sub, overview[sub]));
       // the same overview for each collection, in its folder
-      for (const { dir, title, entries } of collectionIndexes(overview[sub])) {
+      for (const { dir, title, entries } of collectionIndexes(overview[sub], { onlyWithImages: true })) {
         wanted[sub].set(dir, new Set([README]));
         await writeIfChanged(path.join(exportRoot, sub, dir, README), exportIndex(sub, entries, { within: title }));
       }

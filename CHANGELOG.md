@@ -10,6 +10,11 @@ Značky: **Nové** = nová vlastnost, **Změna** = jinak než dřív, **Konec** 
 
 ---
 
+## 2026-11-24
+
+- **Změna** Složka kolekce v `export/instagram/` a `export/fler/` se smaže, jakmile v ní nezůstane žádný obraz (všechna její
+  díla už mají odkaz na zveřejnění): dřív v ní zůstal jen přehled `README.md`.
+
 ## 2026-11-22
 
 - **Nové** Nová verze enginu se do webů dostane sama: sdílené workflow `engine-update.yml` (obsahové repo ho volá každý

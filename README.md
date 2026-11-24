@@ -1976,7 +1976,7 @@ i v obsahovém repu), kolekce a odkaz na stránku díla na webu (`site.url` +
 `/tvorba/<rok>/<slug>-<id>/`), pak náhledy všech fotek (klik = plná velikost). Dřívější `post.txt` úklid smaže. `export/instagram/README.md` a `export/fler/README.md` (seskupené pod nadpisy kolekcí podle abecedy, díla bez kolekce
 na konci pod „Mimo kolekce“, u každého díla kód `<id>` za názvem, ✓/○ stav zveřejnění a nahoře počty) jsou
 přehledy všech děl platformy s miniaturou a odkazem do složky (jen když platforma nějaké dílo má). Stejný přehled
-jen s díly kolekce je i v její složce: `export/<platforma>/<kolekce>/README.md` a `export/draft/<kolekce>/README.md`
+jen s díly kolekce je i v její složce: `export/<platforma>/<kolekce>/README.md` a `export/draft/<kolekce>/README.md` (u Instagramu a Fleru jen dokud má kolekce aspoň jedno dílo s obrazy; jinak se složka smaže)
 (`collectionIndexes`, `within`: název kolekce v nadpisu, odkaz „← Všechny“ na celý přehled, bez nadpisu skupiny;
 u Instagramu i „Příběh kolekce“), úklid je nechá (`wanted`). Kód
 `scripts/lib/export-readme.mjs`; složky děl se píšou každým během (hned následují popis, cenu i štítky), přehledy

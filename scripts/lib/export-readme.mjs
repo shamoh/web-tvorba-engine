@@ -186,8 +186,10 @@ function byCollection(entries) {
 /**
  * The entries of an overview split by the folder of their collection, for a README in each such folder (works without
  * a collection are left out): [{ dir, title, entries }] sorted by dir, the folders of the entries relative to `dir`.
+ * `onlyWithImages`: a collection none of whose entries has an image (`thumb`) gets no README, so the folder goes
+ * away once its last image is gone (exports of works already published are removed).
  */
-export function collectionIndexes(entries) {
+export function collectionIndexes(entries, { onlyWithImages = false } = {}) {
   const groups = new Map();
   for (const e of entries) {
     const at = e.folder.lastIndexOf('/');
@@ -196,7 +198,7 @@ export function collectionIndexes(entries) {
     if (!groups.has(dir)) groups.set(dir, []);
     groups.get(dir).push({ ...e, folder: e.folder.slice(at + 1) });
   }
-  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([dir, list]) => ({ dir, title: list[0].collection || dir, entries: list }));
+  return [...groups].filter(([, list]) => !onlyWithImages || list.some((e) => e.thumb)).sort(([a], [b]) => a.localeCompare(b)).map(([dir, list]) => ({ dir, title: list[0].collection || dir, entries: list }));
 }
 
 /**
