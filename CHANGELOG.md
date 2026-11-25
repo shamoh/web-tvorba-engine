@@ -12,6 +12,9 @@ Značky: **Nové** = nová vlastnost, **Změna** = jinak než dřív, **Konec** 
 
 ## 2026-11-25
 
+- **Nové** Volitelné funkce webu: `features:` v `site.config.yaml` (`game`, `cinema`, `favorites`, `pinterest`, `instagram`,
+  `fler`; výchozí vše zapnuto). Zatím jen načtení a kontrola (`npm run check:site`: neznámé jméno nebo hodnota jiná než
+  `true`/`false` = chyba); vypínání jednotlivých částí přibývá po funkcích.
 - **Změna** Zbytky prvního webu z enginu pryč: výchozí texty kostry (úvodní stránka, O mně, Kontakt) jsou obecné, bez
   jména autorky a místa; značka polohy listu v JPEGu se jmenuje `wt:sheet` (starší `pavla:sheet` se čte dál); přehled
   vzhledů hry odkazuje na adresu webu z `site.config.yaml`; jména v hláškách a příkladech obecná.

@@ -8,6 +8,7 @@ import { MANIFEST_SHORTCUTS, MANIFEST_SIZES, manifestIconFile, shortcutIconFile 
 import { CAPTION_FONTS, loadInstagramScenes, studioScenesProblems } from './instagram.mjs';
 import { loadScenes, mockupScenesProblems } from './mockups.mjs';
 import { readSiteConfig, sitePaths } from './site-dir.mjs';
+import { featuresOf } from './features.mjs';
 import { storagePrefixOf } from './storage-prefix.mjs';
 import { overviewSkips } from './game-overview.mjs';
 
@@ -36,7 +37,7 @@ export function siteFileProblems(siteDir) {
     try {
       const config = readSiteConfig(siteDir);
       if (!config?.site?.url) problems.push('site.config.yaml: no site.url');
-      for (const check of [storagePrefixOf, overviewSkips]) {
+      for (const check of [storagePrefixOf, overviewSkips, featuresOf]) {
         try {
           check(config);
         } catch (e) {

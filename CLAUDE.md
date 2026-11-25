@@ -32,6 +32,7 @@ Každá změna vlastností = záznam v `CHANGELOG.md` (dnešní den nahoře, **N
   (`scripts/lib/storage-prefix.mjs`, `site.storagePrefix`, Pavla `pavla`), nikdy natvrdo; klíče jmenované níže jsou Pavliny.
   Web smí ležet v podsložce adresy (`site.url` s cestou, testovací web na Pages enginu; `siteBase`, Astro `base`): odkazy
   na stránky jen `url()`, celé adresy jen `absolute` / `siteAddress` (`scripts/lib/site-url.mjs`), nikdy `new URL('/…', site.url)`.
+- Volitelné funkce webu: `features:` v `site.config.yaml` (`scripts/lib/features.mjs`: `FEATURES`, `featuresOf`, `featureOn(config, 'game')`; výchozí vše zapnuto, neznámé jméno nebo jiná hodnota než `true`/`false` = chyba `check:site`). Část enginu, kterou jde vypnout, se vždy ptá `featureOn`, nikdy `config.features?.…` přímo; nová volitelná funkce = záznam ve `FEATURES` + README „Volitelné funkce“.
 - **Toto repo je veřejné, obsah je v odděleném soukromém obsahovém repu každého webu.** Jména, cesty ani odkazy
   obsahových rep a soukromých dokumentů správce sem nikdy nepiš (kód, komentáře, README, CLAUDE.md, CHANGELOG, commity,
   texty pull requestů); piš jen „obsahové repo“ / „the content repository“, „repo webu“. Odkazy vedou jen odtamtud sem.

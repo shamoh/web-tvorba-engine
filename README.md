@@ -3117,6 +3117,31 @@ Kód (pipeline, web, testy) čte všechno, co patří jednomu webu, ze složky w
 | `content/`, `game/`, `binary.lock` | vyrobená data a trvalý stav | pipeline, build, pull request |
 | `dist/`, `.previews/` | postavený web, náhledy ořezu | build, `check:images`, `npm run preview` |
 
+### Volitelné funkce (`features:`)
+
+Web, který některé části enginu nechce, je vypne v `site.config.yaml` (`scripts/lib/features.mjs`: `FEATURES`,
+`featuresOf`, `featureOn(config, 'game')`). Každá funkce je zapnutá, dokud nastavení neřekne `false`, takže web bez
+`features:` zůstane celý:
+
+```yaml
+features:
+  game: false        # bez hry Detail dne
+  fler: false        # bez Fleru
+```
+
+| Funkce | Co web bez ní nemá |
+|---|---|
+| `game` | hra Detail dne (stránky `/detail-dne/`, sekce na úvodní stránce, odkaz v menu, plán dnů, Můj Detail dne) |
+| `cinema` | promítání („▶ Promítat“ a odkazy do něj v patičce a ve zkratkách aplikace) |
+| `favorites` | oblíbené obrazy návštěvníka (srdce, „Moje oblíbené“, stránka Můj výběr) |
+| `pinterest` | kanál `/pinterest.xml`, piny děl, sdílení na Pinterest, profil v patičce |
+| `instagram` | exporty pro Instagram a odkaz „Na Instagramu“ u děl |
+| `fler` | exporty pro Fler a odkaz „Fler“ u děl |
+
+Neznámé jméno funkce (překlep by ji tiše nechal zapnutou) nebo jiná hodnota než `true`/`false` je chyba v
+`npm run check:site` (`features.<jméno>: …`) a `featuresOf` ji vyhodí i při buildu. Zatím (od 2026-11-25) nastavení jen
+čte a kontroluje; jednotlivé funkce se vypínají postupně (viz `CHANGELOG.md`).
+
 Složku určí proměnná `SITE_DIR` (relativně k pracovní složce nebo absolutně; lokálně v `.env`), vždy: bez ní příkazy,
 které potřebují web, skončí chybou `SITE_DIR_MISSING` (engine vlastní web nemá). Verze buildu v patičce bere commit
 repa webu (`GITHUB_SHA` workflow webu, lokálně git složky webu). Pipeline (`run` v `process-images.mjs`) bere scény, písma a nastavení ze své `siteDir`, jen když je

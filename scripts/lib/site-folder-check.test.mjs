@@ -39,6 +39,10 @@ test('siteFileProblems: the files every site folder has, the fonts, the dark fav
   assert.deepEqual(siteFileProblems(dir).filter((p) => p.startsWith('site.config')), [], 'no prefix = the default');
   fs.writeFileSync(path.join(dir, 'site.config.yaml'), 'site:\n  url: https://web.test\ngame:\n  overviewSkip: [Barbora III]\n');
   assert.match(siteFileProblems(dir).join(), /site\.config\.yaml: game\.overviewSkip must be a list of ids/);
+  fs.writeFileSync(path.join(dir, 'site.config.yaml'), 'site:\n  url: https://web.test\nfeatures:\n  game: false\n  gane: false\n');
+  assert.match(siteFileProblems(dir).join(), /site\.config\.yaml: features\.gane: tuhle funkci engine nezná/);
+  fs.writeFileSync(path.join(dir, 'site.config.yaml'), 'site:\n  url: https://web.test\nfeatures:\n  game: false\n');
+  assert.deepEqual(siteFileProblems(dir).filter((p) => p.startsWith('site.config')), [], 'a known feature switched off is fine');
   fs.writeFileSync(path.join(dir, 'site.config.yaml'), 'site: [\n');
   assert.match(siteFileProblems(dir).join(), /site\.config\.yaml: /);
   // an empty folder: everything missing, the fonts too
