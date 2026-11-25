@@ -4,7 +4,7 @@ import WorkGrid from '../components/WorkGrid.astro';
 import ViewSwitch from '../components/ViewSwitch.astro';
 import Cover from '../components/Cover.astro';
 import GameTeaser from '../components/GameTeaser.astro';
-import { config, coverShareImage, coverWorkId, getHome, getWorks, hasFeaturedWorks, photoImageUrl, site, url } from '../lib/site';
+import { config, coverShareImage, features, coverWorkId, getHome, getWorks, hasFeaturedWorks, photoImageUrl, site, url } from '../lib/site';
 import { featuredShowPath } from '../../scripts/lib/cinema.mjs';
 import { graphLd, personLd, websiteLd } from '../../scripts/lib/seo.mjs';
 import { hiddenInList } from '../../scripts/lib/random-pick.mjs';
@@ -55,7 +55,7 @@ const jsonLd = graphLd(websiteLd(site), personLd(site, { image: photoImageUrl('p
   )}
 
   {/* The game Detail dne: today's three close-ups, each a link into its level (GameTeaser.astro). */}
-  {works.length > 0 && <GameTeaser />}
+  {features.game && works.length > 0 && <GameTeaser />}
 
   {recentHidden.some((h) => !h) && (
     <section>

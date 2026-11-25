@@ -102,3 +102,15 @@ test('webManifest: screenshots for the install dialog, phones and a computer, si
   }
 });
 
+
+test('webManifest: the shortcuts and screenshots of a feature the site switched off are left out', async () => {
+  const { webManifest } = await import('./favicons.mjs');
+  const names = (m) => m.shortcuts.map((s) => s.name);
+  const all = webManifest({ title: 'Web', tagline: '' }, '#fff', { hasFeatured: true });
+  assert.deepEqual(names(all), ['Detail dne', 'Tvorba', 'Promítat', 'Oblíbené']);
+  assert.ok(all.screenshots.some((s) => s.src === 'app-screenshot-game.webp'));
+  const noGame = webManifest({ title: 'Web', tagline: '' }, '#fff', { hasFeatured: true, features: { game: false } });
+  assert.deepEqual(names(noGame), ['Tvorba', 'Promítat', 'Oblíbené']);
+  assert.ok(!noGame.screenshots.some((s) => s.src === 'app-screenshot-game.webp') && noGame.screenshots.length === all.screenshots.length - 1);
+  assert.deepEqual(names(webManifest({ title: 'Web', tagline: '' }, '#fff', { hasFeatured: true, features: { cinema: false, favorites: false } })), ['Detail dne', 'Tvorba']);
+});

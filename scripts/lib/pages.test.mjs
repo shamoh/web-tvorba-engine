@@ -200,3 +200,14 @@ test('Podmínky užití: an empty title_en is a problem, a missing English part 
   const again = await preparePages(dir);
   assert.equal(again.pages.find((p) => p.name === 'podminky-uziti').data.text_en, TERMS_TEXT_EN);
 });
+
+test('preparePages: the text page of a feature the site switched off gets no skeleton and no check; a file already there stays', async () => {
+  const off = { game: false };
+  const r = await preparePages(dir, { features: off });
+  assert.ok(!r.created.includes(`${PAGES_SUBDIR}/detail-dne.yaml`) && !r.pages.some((p) => p.name === 'detail-dne'));
+  await assert.rejects(fs.access(path.join(dir, PAGES_SUBDIR, 'detail-dne.yaml')));
+  await fs.writeFile(path.join(dir, PAGES_SUBDIR, 'detail-dne.yaml'), 'description: neco\n');
+  const again = await preparePages(dir, { features: off });
+  assert.deepEqual(again.problems, [], 'a leftover file is neither an error nor checked');
+  assert.equal(await fs.readFile(path.join(dir, PAGES_SUBDIR, 'detail-dne.yaml'), 'utf8'), 'description: neco\n');
+});

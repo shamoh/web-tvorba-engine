@@ -61,6 +61,7 @@ import YAML from 'yaml';
 import { PUBLIC_COLLECTION_FIELDS, coverSource, prepareCollections, validateCollectionCovers } from './lib/collections.mjs';
 import { PUBLIC_YEAR_FIELDS, prepareYears } from './lib/years.mjs';
 import { PUBLIC_HOME_FIELDS, prepareHome } from './lib/home.mjs';
+import { featureOn, featuresOf } from './lib/features.mjs';
 import { PAGES_SUBDIR, preparePages, publicPageFields } from './lib/pages.mjs';
 import { COLLECTION_SCHEMA, HOME_SCHEMA, PAGE_SCHEMAS, UNCOLLECTED_SCHEMA, WORK_SCHEMA, YEAR_SCHEMA } from './lib/schema.mjs';
 import { fillDescriptionsWorkLinks, workLinkProblems } from './lib/work-links.mjs';
@@ -574,7 +575,7 @@ export async function run({
   created.push(...home.created);
   updated.push(...home.updated);
   // stranky/<page>.yaml: the texts of the pages (O mně, Kontakt, 404, generic ones), their photos from fotky/.
-  const pages = await preparePages(contentDir, { photos: photos.photos.map((p) => p.name) });
+  const pages = await preparePages(contentDir, { photos: photos.photos.map((p) => p.name), features: featuresOf(config) });
   created.push(...pages.created);
   updated.push(...pages.updated);
   // tvorba/_index.yaml: the cover of "Mimo kolekce" (the works without a collection) on the collections overview.
@@ -1206,7 +1207,7 @@ export async function run({
   if (!only.length) await writeOverview({ misfits });
   runWatch.lap('overview');
   // The plan of the days of the game Detail dne: the days up to tomorrow stay, the next two weeks from the works of now.
-  if (!only.length && gamePlan) {
+  if (!only.length && gamePlan && featureOn(config, 'game')) {
     try {
       // the places kept out of the game in shares of the web picture: the photo cut by its corners as the web images are
       const exclusions = await contentExclusions(works, (w) => photoRegion(w.masterPath, w.data.meta_corners, edges));

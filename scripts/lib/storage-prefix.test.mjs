@@ -33,7 +33,7 @@ test('outside the build the prefix is the default; every name of the browser sta
 
 test('the build defines the prefix of the site (astro.config.mjs) under the name the module reads', () => {
   const astroConfig = fs.readFileSync(path.join(CODE_ROOT, 'astro.config.mjs'), 'utf8');
-  assert.match(astroConfig, /define: \{ \[STORAGE_PREFIX_GLOBAL\]: JSON\.stringify\(storagePrefixOf\(config\)\) \}/);
+  assert.match(astroConfig, /define: \{ \[STORAGE_PREFIX_GLOBAL\]: JSON\.stringify\(storagePrefixOf\(config\)\)/);
   const source = fs.readFileSync(new URL('./storage-prefix.mjs', import.meta.url), 'utf8');
   assert.ok(source.includes(`typeof ${STORAGE_PREFIX_GLOBAL} === 'string' ? ${STORAGE_PREFIX_GLOBAL} :`));
 });

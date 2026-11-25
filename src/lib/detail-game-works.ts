@@ -1,5 +1,5 @@
-// The works of the site as the game Detail dne takes them, for its data (src/pages/detail-dne/data.json.ts, and dnes.json.ts of
-// the home page) and the archive files of the plan of the days (src/pages/detail-dne/plan/[year].json.ts).
+// The works of the site as the game Detail dne takes them, for its data (src/pages/_detail-dne/data.json.ts, and dnes.json.ts of
+// the home page) and the archive files of the plan of the days (src/pages/_detail-dne/plan/[year].json.ts).
 import { config, formatSize, getCollections, getWorks, site, siteDataRoot, workUrl } from './site';
 import { gameShareName, gameShareParts } from '../../scripts/lib/detail-game-share.mjs';
 import { gameData, gameWorkFields, prepareGame } from '../../scripts/lib/detail-game-data.mjs';
@@ -52,7 +52,7 @@ export function gamePageData(): Promise<any> {
 
 /**
  * The share image of the page of the game (scripts/lib/detail-game-share.mjs): its parts (three works of the site), its fingerprinted
- * name and size; drawn by src/pages/detail-dne/[file].ts. Null without works.
+ * name and size; drawn by src/pages/_detail-dne/[file].ts. Null without works.
  */
 export function gameShareImage() {
   const og = config.images.og;

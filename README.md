@@ -652,7 +652,7 @@ klíče `grid` = velké obrazy, `s` / `m` / `l` = dlaždice; chybějící = výc
 
 Denní hádanka „ze kterého obrazu je tento detail?“ ve třech úrovních (Lehká, Střední, Těžká), pro všechny stejná, každý den nová
 (podle data od `GAME_EPOCH`). Pravidla a výpočty jsou v `scripts/lib/detail-game.mjs` (podrobně v *Prototypy*, `detail-dne.html`),
-stránka je `src/pages/detail-dne/index.astro`, hra v prohlížeči `src/lib/detail-game.ts`.
+stránka je `src/pages/_detail-dne/index.astro`, hra v prohlížeči `src/lib/detail-game.ts`.
 
 - **Zveřejnění (2026-11-18):** položka „Detail dne“ v hlavním menu (Tvorba · Detail dne · O mně · Kontakt, na telefonu do 480 px
   menší a blíž u sebe, každá položka na jednom řádku; ověřeno na 320 px), sekce na úvodní stránce (viz níže), stránka v mapě webu
@@ -673,12 +673,12 @@ stránka je `src/pages/detail-dne/index.astro`, hra v prohlížeči `src/lib/det
   tytéž hádanky jako hra, `plannedPuzzles`, a jen hádaná díla, asi 13 kB) a prohlížeč vybere dnešek podle svého data. Data i velké
   obrázky výřezů se načtou, až se sekce přiblíží k obrazovce (`IntersectionObserver`); po návratu ze hry tlačítkem Zpět a po hře
   v jiné kartě se sekce překreslí. Bez JavaScriptu, bez souboru nebo bez dnešního dne zůstane věta a odkaz „Hrát →“.
-- **Náhled pro sdílení** (`og:image`): `/detail-dne/og-<otisk>.jpg` 1200 × 800 kreslí build (`src/pages/detail-dne/[file].ts`,
+- **Náhled pro sdílení** (`og:image`): `/detail-dne/og-<otisk>.jpg` 1200 × 800 kreslí build (`src/pages/_detail-dne/[file].ts`,
   `scripts/lib/detail-game-share.mjs`, sharp z `1600.jpg` děl): tři čtvercové výřezy ze středu tří nejnovějších děl výběru autorky
   (`featured`, jinak nejnovějších), jeden čistý, jeden v mlze, jeden mozaikou, na papíře `images.og.background`
   (`gameShareParts`, `gameShareLayout`, `renderGameShare`). Otisk v názvu z dílů, jejich `modified`, vzhledu a rozměru
   (`gameShareName`, změna kreslení = zvýšit `GAME_SHARE_VERSION`), takže náhled odkazu se po změně obnoví.
-- **Data při sestavení webu:** `/detail-dne/data.json` (`src/pages/detail-dne/data.json.ts`) rozebere nejmenší JPEG každého díla
+- **Data při sestavení webu:** `/detail-dne/data.json` (`src/pages/_detail-dne/data.json.ts`) rozebere nejmenší JPEG každého díla
   (`prepareGame`, `scripts/lib/detail-game-data.mjs`, sharp) a uloží odpovědi všech úrovní s falešnými náhledy a jen ta díla, na která
   něco odkazuje (`gameData`: název, technika · rozměr, rok, kolekce, zkrácený text, adresa, složka obrázků, šířky, poměr stran).
   Build tím trvá asi o 12 s déle, soubor má kolem 200 kB (zabalený kolem 45 kB). Navíc dny z plánu letošního a loňského roku
@@ -804,7 +804,7 @@ stránka je `src/pages/detail-dne/index.astro`, hra v prohlížeči `src/lib/det
     rok, až děl přibude asi o třetinu).
   - **Na webu** (`sitePlan`, `planYearsShown`): `data.json` dostane dny letošního a loňského roku (rok sestavení v Praze,
     `planBuildYear`) a v `plan.archive` seznam starších let; každý starší rok je soubor `/detail-dne/plan/<rok>.json`
-    (`src/pages/detail-dne/plan/[year].json.ts`, `archiveData`: `{ year, days, works }`, dny stejně jako v `data.json` a díla, na
+    (`src/pages/_detail-dne/plan/[year].json.ts`, `archiveData`: `{ year, days, works }`, dny stejně jako v `data.json` a díla, na
     která odkazují). Formát je pro letošek i archiv stejný, takže skončený rok se jen přestěhuje do svého souboru.
   - **Ve hře** (`plannedPuzzles`): den z plánu, úroveň s dílem, které už na webu není, nebo bez plánu = spočítaná postaru. Den
     archivního roku (`?den=`, dlaždice archivu) si stránka před zobrazením jednou dočte z jeho souboru (`ensureDay`,
@@ -878,7 +878,7 @@ stránka je `src/pages/detail-dne/index.astro`, hra v prohlížeči `src/lib/det
   vzhled), takže rozehraný a odehraný den vypadá stejně i po přeskládání pořadí; dokud jsou všechna jeho díla na webu (`keptPuzzle`),
   jinak se ukáže hádanka dne podle nových dat (kapky za odehraný den zůstanou, znovu se nepřičtou). Bez úložiště hra jde, jen si nic
   nepamatuje. Nový formát = nový klíč.
-- **Moje sbírka** (`gameCollection`, `collectionHtml` v `scripts/lib/detail-game.mjs`, styl v `src/pages/detail-dne/index.astro`):
+- **Moje sbírka** (`gameCollection`, `collectionHtml` v `scripts/lib/detail-game.mjs`, styl v `src/pages/_detail-dne/index.astro`):
   každý uhodnutý obraz jednou, nejnovější první (podle dne kola, v jednom dni naposled hrané první), jako malý náhled s odkazem na
   stránku díla a pod ním řádek teček = barvy výřezů, podle kterých se hádal (z každého výřezu tři, nejnovější první, každá jednou,
   nejvýš 6; obraz uhodnutý víckrát má víc barev a v bublině „uhodnuto N×“). Sbírka se skládá z odehraných kol (`roundPuzzle` drží
@@ -905,7 +905,7 @@ Kdokoli si z obrazu udělá jedno kolo hry a pošle ho odkazem. Web nic neuklád
 - **Odkaz** „Udělat z obrazu Můj Detail dne“ (`work_link`) s ikonou výřezu (`ICONS.quiz`) vpravo v hlavičce detailů pod řádkem
   „Sdílet“ na stránce díla (`.details-block`: vlevo štítek „Detaily“ jen s detaily, bez nich jen odkaz vpravo; na telefonu za
   „Sdílet“, `order`), `rel="nofollow"`, jen u díla ve hře (`game` není `false`; dílo mimo hru ukáže jen detaily). Vede na editor `/detail-dne/muj-kviz/?obraz=<id>` (`QUIZ_EDITOR_PATH`, `noindex`, mimo mapu webu).
-- **Editor** (`src/pages/detail-dne/muj-kviz.astro`, `src/lib/my-quiz-editor.ts`): 1. obtížnost (`gameLevels`, z odkazu `?uroven=`
+- **Editor** (`src/pages/_detail-dne/muj-kviz.astro`, `src/lib/my-quiz-editor.ts`): 1. obtížnost (`gameLevels`, z odkazu `?uroven=`
   `levelFromParam`), 2. místo výřezu ťuknutím kamkoli do obrazu (`quizCrop`: čtverec velikosti úrovně celý v obraze, bez okrajů
   `QUIZ_SAFE`) nebo „Vybrat místo za mě“ (dokola místa, která by vybrala hra, `picks`), vynechaná místa (`skips.json`) šrafovaná
   a výřez do nich červeně s hláškou (`cropExcluded`, sdílet nejde), 3. zkreslení = vzhledy úrovně (`gameLooks`, každý s živým
@@ -916,7 +916,7 @@ Kdokoli si z obrazu udělá jedno kolo hry a pošle ho odkazem. Web nic neuklád
 - **Adresa kvízu** `/detail-dne/muj/?obraz=<id>&uroven=<lehka|stredni|tezka>&x=<%>&y=<%>&zkresleni=<vzhled>&nabidka=<8 id čárkou>`
   (`QUIZ_PARAMS`, `quizToParams`, `quizUrl`; střed výřezu v % obrazu s jedním desetinným místem). Nabídka je v adrese pevně, takže
   kvíz zůstane stejný, i když web poroste. Pořadí 9 náhledů je podle adresy (`gameRandom(gameHash(…))`), pro všechny stejné.
-- **Hra** (`src/pages/detail-dne/muj/index.astro`, `src/lib/my-quiz.ts`): přečte kvíz (`quizFromParams`: neznámé dílo, dílo mimo hru,
+- **Hra** (`src/pages/_detail-dne/muj/index.astro`, `src/lib/my-quiz.ts`): přečte kvíz (`quizFromParams`: neznámé dílo, dílo mimo hru,
   špatná úroveň, vzhled jiné úrovně, střed mimo obraz, nabídka jiná než 8 různých známých děl bez hádaného = hláška „Tenhle odkaz
   na kvíz nejde přečíst“), adresu hned zkrátí na `/detail-dne/muj/` (`history.replaceState`), kvíz i kolo drží v `sessionStorage`
   (`QUIZ_STORE` = `pavla.myQuiz`, obnovení stránky hraje dál; znovu otevřená adresa kvízu vždy začne nové kolo, i dohraného, `quizOnOpen`; nově vykreslený obraz dostane výřez bez přechodu `withoutMotion`, tutéž funkci používá hra, nikdy zoom z celého obrazu; po vykreslení nadpis kvízu (i editoru) nahoře jako ve hře (`startTop`, na telefonu vždy, jinak jen čerstvé otevření `skipsHeader`), na konci kola posun k výsledku; obraz a všechny náhledy se vejdou na obrazovku jako ve hře (`fitStageIn` / `stageFit`, sdílené); tlačítka v hlavičce, když se vedle nadpisu nevejdou, spolu na řádku pod ním), „Zkopírovat odkaz“ vrátí celou adresu, vedle něj „Udělat vlastní“ (editor z téhož obrazu). Jedno kolo stejně jako hra
@@ -1508,7 +1508,7 @@ podle pravidla hry `anyTag`: jeden společný štítek cíle = stejný námět, 
 celého díla posunou pořadí nabízených obrazů. Jak matoucí je výřez (`confusion`, práh úrovní `maxConfusion`) se počítá
 bez barev celého díla: barvy mění, které obrazy se nabídnou, nikdy které obrazy můžou být hádankou (na skutečných datech
 77 / 72 / 64 hádanek v úrovních jako dřív, z 5 nejbližších nabízených obrazů je asi 40–46 % jiných). Data hry nesou
-`colourProfile` děl (`src/pages/detail-dne/data.json.ts`).
+`colourProfile` děl (`src/pages/_detail-dne/data.json.ts`).
 
 **Podobné obrazy** na stránce díla (`scripts/lib/similar.mjs`, pod „Související obrazy“): filtr galerie z toho, co
 dílo sdílí s jinými (technika, štítky; barvy, až budou; nikdy kolekce: tu stránka odkazuje sama, podobné obrazy mají
@@ -3139,8 +3139,18 @@ features:
 | `fler` | exporty pro Fler a odkaz „Fler“ u děl |
 
 Neznámé jméno funkce (překlep by ji tiše nechal zapnutou) nebo jiná hodnota než `true`/`false` je chyba v
-`npm run check:site` (`features.<jméno>: …`) a `featuresOf` ji vyhodí i při buildu. Zatím (od 2026-11-25) nastavení jen
-čte a kontroluje; jednotlivé funkce se vypínají postupně (viz `CHANGELOG.md`).
+`npm run check:site` (`features.<jméno>: …`) a `featuresOf` ji vyhodí i při buildu. Vypínají se postupně (viz
+`CHANGELOG.md`); zatím umí vypnout **`game`**:
+
+- Stránky hry (`/detail-dne/`, `dnes.json`, `data.json`, archivní roky plánu, Můj Detail dne) leží v `src/pages/_detail-dne/`
+  (Astro složku s `_` nestaví) a jejich adresy přidá do buildu jen zapnutá funkce (`scripts/lib/feature-routes.mjs`,
+  `astro.config.mjs`); stránka přidaná do té složky bez záznamu v `FEATURE_ROUTES` se nikdy nepostaví (hlídá test).
+- Bez hry nemá web odkaz „Detail dne“ v menu, sekci na úvodní stránce, odkaz „Udělat z obrazu Můj Detail dne“ u děl, stránku
+  v mapě webu, zkratku ani snímek hry v manifestu aplikace (`webManifest`, `APP_SCREENSHOTS` mají `feature`), nic
+  nestahuje pro hru offline (`SITE_FEATURES` v prohlížeči) a pipeline nepočítá plán dnů ani přehled `export/detail-dne/`.
+- Soubor `stranky/detail-dne.yaml` se bez hry nezakládá ani nekontroluje; už existující zůstane a nic se s ním neděje.
+  Ikona zkratky hry se nevyžaduje (`check:site`). Týdenní kontrola plán hry a rozbory bez hry zatím jen neřeší
+  (stránka `/detail-dne/` neexistuje = „nezkontrolováno“).
 
 Složku určí proměnná `SITE_DIR` (relativně k pracovní složce nebo absolutně; lokálně v `.env`), vždy: bez ní příkazy,
 které potřebují web, skončí chybou `SITE_DIR_MISSING` (engine vlastní web nemá). Verze buildu v patičce bere commit

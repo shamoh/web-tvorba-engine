@@ -1,4 +1,4 @@
-// The markup of the game Detail dne, the same on the page /detail-dne/ (src/pages/detail-dne/index.astro) and in its prototype
+// The markup of the game Detail dne, the same on the page /detail-dne/ (src/pages/_detail-dne/index.astro) and in its prototype
 // (scripts/prototypes/detail-game.html, scripts/lib/prototypes.mjs): the script (src/lib/detail-game.ts, startGame) fills its
 // [data-…] places, the look is src/styles/detail-game.css.
 

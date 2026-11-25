@@ -49,6 +49,7 @@ export const PAGES = {
   kurzy: { schema: PAGE_SCHEMAS.kurzy, optional: true },
   // the texts of the game Detail dne and of the quiz of a visitor (its own pages build them, getGamePage)
   'detail-dne': {
+    feature: 'game', // only on a site with the game (scripts/lib/features.mjs)
     schema: PAGE_SCHEMAS['detail-dne'],
     defaults: {
       description: GAME_DESCRIPTION, editor_description: EDITOR_DESCRIPTION, editor_text: QUIZ_EDITOR_TEXT,
@@ -85,9 +86,9 @@ export function pageProblems(yamlPath, data, name = 'o-mne') {
 /**
  * Reads stranky/*.yaml, writes skeletons for the fixed pages that have none, brings every file in line with its schema
  * and returns { pages: [{ name, data, yamlPath }], created, updated, problems }. Any other file in stranky/ is a problem.
- * `photos`: the names of the photos in fotky/ (preparePhotos), the only ones a text may place.
+ * `photos`: the names of the photos in fotky/ (preparePhotos), the only ones a text may place. `features`: featuresOf of the site.
  */
-export async function preparePages(contentDir, { photos = [] } = {}) {
+export async function preparePages(contentDir, { photos = [], features = {} } = {}) {
   const photoNames = new Set(photos);
   const root = path.join(contentDir, PAGES_SUBDIR);
   const pages = [];
@@ -101,7 +102,8 @@ export async function preparePages(contentDir, { photos = [] } = {}) {
     if (name && Object.hasOwn(PAGES, name)) present.add(name);
     else problems.push(`${PAGES_SUBDIR}/${e.name}${e.isDirectory() ? '/' : ''}: sem patří jen texty stránek ${Object.keys(PAGES).map((p) => `${p}.yaml`).join(', ')}; novou stránku musí přidat správce webu [cizi-soubor]`);
   }
-  for (const [name, { schema, defaults, optional }] of Object.entries(PAGES)) {
+  for (const [name, { schema, defaults, optional, feature }] of Object.entries(PAGES)) {
+    if (features[feature] === false) continue; // the text of a feature the site switched off: no skeleton, no check, no copy; a file already there stays
     const file = path.join(root, `${name}.yaml`);
     const yamlPath = `${PAGES_SUBDIR}/${name}.yaml`;
     let text;

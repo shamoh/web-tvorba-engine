@@ -4,6 +4,7 @@ import {
   backTarget, buildAssets, GAME_OFFLINE_KEY, gameOfflineFiles, INSTALL_HELP, INSTALL_METHODS, installMode, isIos, isoDay, SW_FILE,
 } from '../../scripts/lib/app-install.mjs';
 import { EVENTS, trackEvent } from '../../scripts/lib/analytics.mjs';
+import { SITE_FEATURES } from '../../scripts/lib/features.mjs';
 
 type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
 
@@ -91,6 +92,7 @@ async function keep(url: string, text = false): Promise<string | null> {
  * (offline, a missing file) just tries again on the next page.
  */
 async function keepGameOffline() {
+  if (!SITE_FEATURES.game) return; // a site without the game has nothing to keep
   const worker = navigator.serviceWorker?.controller;
   const onGamePage = location.pathname.startsWith(`${base}detail-dne/`);
   if (!worker || !navigator.onLine || !(standalone() || onGamePage)) return;

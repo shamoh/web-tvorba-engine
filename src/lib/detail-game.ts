@@ -1,4 +1,4 @@
-// Browser side of the game Detail dne (/detail-dne/, markup and look src/pages/detail-dne/index.astro, rules
+// Browser side of the game Detail dne (/detail-dne/, markup and look src/pages/_detail-dne/index.astro, rules
 // scripts/lib/detail-game.mjs): three puzzles a day, the same for everyone; the data comes ready from the build
 // (/detail-dne/data.json, scripts/lib/detail-game-data.mjs). The progress (drops, series, rank, the collection) stays in this
 // browser only (localStorage, GAME_STORE), the page works without it too, it only forgets. The days before today are the archive

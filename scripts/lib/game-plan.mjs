@@ -7,8 +7,8 @@
 // A year once over never changes again (its file stays as it is); this year's file grows day by day. Every full run of the
 // pipeline (scripts/process-images.mjs) extends the plan: the days up to tomorrow stay as they are, the next two weeks are planned
 // again from the works on the site now. The build puts this year and the year before into the data of the page
-// (src/pages/detail-dne/data.json.ts); every older year is its own file on the site, read when a player opens one of its days
-// (src/pages/detail-dne/plan/[year].json.ts).
+// (src/pages/_detail-dne/data.json.ts); every older year is its own file on the site, read when a player opens one of its days
+// (src/pages/_detail-dne/plan/[year].json.ts).
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { colourProfile } from './affinity.mjs';

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HIDDEN_SITE_ROBOTS } from './seo.mjs';
-import { STATIC_PAGES, isNoindex, sitemapEntries, sitemapUrls, sitemapXml, unlistedPages } from './sitemap.mjs';
+import { STATIC_PAGES, isNoindex, sitemapEntries, staticPagesOf, sitemapUrls, sitemapXml, unlistedPages } from './sitemap.mjs';
 
 test('sitemapEntries: static pages, years, collections and works; never the short addresses of works', () => {
   const rano = { year: 2026, key: 'rano-k3f9a', id: 'k3f9a', collection: 'plener', modified: '2026-10-07' };
@@ -63,4 +63,13 @@ test('STATIC_PAGES: the page Podmínky užití (TERMS_PATH) is in the map', asyn
   const { STATIC_PAGES } = await import('./sitemap.mjs');
   const { TERMS_PATH } = await import('./pages.mjs');
   assert.ok(STATIC_PAGES.includes(TERMS_PATH));
+});
+
+test('staticPagesOf / sitemapEntries: the page of a feature the site switched off is left out, everything on by default', () => {
+  assert.deepEqual(staticPagesOf(), STATIC_PAGES);
+  assert.deepEqual(staticPagesOf({ game: true }), STATIC_PAGES);
+  assert.ok(!staticPagesOf({ game: false }).includes('/detail-dne/'));
+  assert.equal(staticPagesOf({ game: false }).length, STATIC_PAGES.length - 1);
+  assert.ok(sitemapEntries({}).some((e) => e.path === '/detail-dne/'));
+  assert.ok(!sitemapEntries({ features: { game: false } }).some((e) => e.path === '/detail-dne/'));
 });

@@ -1,5 +1,5 @@
 // The data of the game "Detail dne" (scripts/lib/detail-game.mjs), prepared in Node from the pictures of the site: for the page
-// /detail-dne/ (src/pages/detail-dne/data.json.ts) and for the prototypes (scripts/lib/prototypes.mjs). The browser gets
+// /detail-dne/ (src/pages/_detail-dne/data.json.ts) and for the prototypes (scripts/lib/prototypes.mjs). The browser gets
 // it ready and only plays.
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';

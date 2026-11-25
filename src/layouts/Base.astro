@@ -1,7 +1,7 @@
 ---
 import CodeJump from '../components/CodeJump.astro';
 import MessagePanel from '../components/MessagePanel.astro';
-import { analyticsId, hasFeaturedWorks, hiddenFromSearch, hasWorksOnSale, messages, site, url, version, type ShareImage } from '../lib/site';
+import { analyticsId, features, hasFeaturedWorks, hiddenFromSearch, hasWorksOnSale, messages, site, url, version, type ShareImage } from '../lib/site';
 import { favoritesShowPath, featuredShowPath, saleShowPath } from '../../scripts/lib/cinema.mjs';
 import { gtagConfigScript, gtagSrc } from '../../scripts/lib/analytics.mjs';
 import { HIDDEN_SITE_ROBOTS, TDM_RESERVATION, absolute, jsonLdText, summarize, verificationMeta } from '../../scripts/lib/seo.mjs';
@@ -31,7 +31,7 @@ const fullTitle = title ? `${title} · ${site.title}` : `${site.title} — ${sit
 const path = Astro.url.pathname.replace(/\/$/, '') || '/';
 const nav = [
   { href: '/tvorba/', label: 'Tvorba' },
-  { href: '/detail-dne/', label: 'Detail dne' },
+  ...(features.game ? [{ href: '/detail-dne/', label: 'Detail dne' }] : []),
   { href: '/o-mne/', label: 'O mně' },
   { href: '/kontakt/', label: 'Kontakt' },
 ];

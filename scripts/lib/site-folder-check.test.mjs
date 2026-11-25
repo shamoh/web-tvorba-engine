@@ -45,6 +45,12 @@ test('siteFileProblems: the files every site folder has, the fonts, the dark fav
   assert.deepEqual(siteFileProblems(dir).filter((p) => p.startsWith('site.config')), [], 'a known feature switched off is fine');
   fs.writeFileSync(path.join(dir, 'site.config.yaml'), 'site: [\n');
   assert.match(siteFileProblems(dir).join(), /site\.config\.yaml: /);
+  // the icon of a shortcut of a feature that is off is not needed
+  fs.rmSync(path.join(dir, 'public/shortcut-detail-dne.png'));
+  fs.writeFileSync(path.join(dir, 'site.config.yaml'), 'site:\n  url: https://web.test\nfeatures:\n  game: false\n');
+  assert.ok(!siteFileProblems(dir).includes('missing public/shortcut-detail-dne.png'));
+  fs.writeFileSync(path.join(dir, 'site.config.yaml'), 'site:\n  url: https://web.test\n');
+  assert.ok(siteFileProblems(dir).includes('missing public/shortcut-detail-dne.png'), 'needed while the game is on');
   // an empty folder: everything missing, the fonts too
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'site-folder-'));
   assert.equal(siteFileProblems(empty).length, SITE_FILES.length + SITE_FONTS.length);

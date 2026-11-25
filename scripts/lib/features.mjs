@@ -47,3 +47,10 @@ export function featureOn(config, name) {
   if (!(name in FEATURES)) throw new Error(`unknown feature "${name}"`);
   return featuresOf(config)[name];
 }
+
+/** The name the build replaces with the features of the site (vite define, a JSON object; astro.config.mjs). */
+export const FEATURES_GLOBAL = '__SITE_FEATURES__';
+
+/* global __SITE_FEATURES__ */
+/** The features of this build for the scripts of the browser; outside the build (Node: tests, pipeline) everything is on. */
+export const SITE_FEATURES = typeof __SITE_FEATURES__ === 'object' ? __SITE_FEATURES__ : Object.fromEntries(FEATURE_NAMES.map((name) => [name, true]));

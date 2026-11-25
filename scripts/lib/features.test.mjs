@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FEATURES, FEATURE_NAMES, featureOn, featureProblems, featuresOf } from './features.mjs';
+import { FEATURES, FEATURES_GLOBAL, FEATURE_NAMES, SITE_FEATURES, featureOn, featureProblems, featuresOf } from './features.mjs';
 
 test('every feature is on without `features` and in an empty one', () => {
   for (const config of [undefined, null, {}, { features: null }, { features: {} }]) {
@@ -33,4 +33,13 @@ test('featuresOf throws a bad configuration (never half-way), featureOn an unkno
 
 test('every feature says what a site loses without it', () => {
   for (const [name, doc] of Object.entries(FEATURES)) assert.ok(doc.length > 20, name);
+});
+
+test('the build defines the features (astro.config.mjs) under the name the module reads; in Node everything is on', async () => {
+  const fs = await import('node:fs');
+  const astroConfig = fs.readFileSync(new URL('../../astro.config.mjs', import.meta.url), 'utf8');
+  assert.match(astroConfig, /\[FEATURES_GLOBAL\]: JSON\.stringify\(features\)/);
+  const source = fs.readFileSync(new URL('./features.mjs', import.meta.url), 'utf8');
+  assert.ok(source.includes(`typeof ${FEATURES_GLOBAL} === 'object' ? ${FEATURES_GLOBAL} :`));
+  assert.deepEqual(SITE_FEATURES, featuresOf({}));
 });

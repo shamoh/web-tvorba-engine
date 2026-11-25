@@ -3,7 +3,7 @@ import Base from '../../../layouts/Base.astro';
 import Picture from '../../../components/Picture.astro';
 import Img from '../../../components/Img.astro';
 import FeaturedStar from '../../../components/FeaturedStar.astro';
-import { collectionUrl, config, getGamePage, detailCaption, detailCaptionHtml, getCollection, workPinImage, workShareImage, getWorks, messages, site, statusLabel, formatSize, formatPrice, textHtml, url, workUrl, workImagePath, workDetails, type Work } from '../../../lib/site';
+import { collectionUrl, config, features, getGamePage, detailCaption, detailCaptionHtml, getCollection, workPinImage, workShareImage, getWorks, messages, site, statusLabel, formatSize, formatPrice, textHtml, url, workUrl, workImagePath, workDetails, type Work } from '../../../lib/site';
 import { isOnSale, relatedWorks, wantsMockups, workCodeHint, workShortPath } from '../../../../scripts/lib/works.mjs';
 import WorkCard from '../../../components/WorkCard.astro';
 import SimilarTile from '../../../components/SimilarTile.astro';
@@ -42,6 +42,8 @@ const collectionTitle = (slug: string) => getCollection(slug)?.title ?? slug;
 // Everything the viewer can step through: the work itself, its details, then its mockups.
 const base = workImagePath(work);
 // caption: plain (title, alt, the viewer), html: formatted under the thumbnail
+// the link to the quiz of a visitor made of this work (Můj Detail dne): only with the game, and not for a work kept out of it
+const myQuiz = features.game && work.game !== false;
 const details = workDetails(work).map((d, i) => ({ ...d, caption: detailCaption(work, d.name) || `detail ${i + 1}`, html: detailCaptionHtml(work, d.name) || `detail ${i + 1}` }));
 // Mockups only when the author asked for them (mockups: true), whether or not the work is for sale.
 const mockups = wantsMockups(work) ? work.image.mockups ?? [] : [];
@@ -161,11 +163,11 @@ const story = textHtml(work.text);
       </div>
       {/* the details of the work and the way to the quiz of a visitor made of it (Můj Detail dne): one head line, the label
           only with details, the link on the right also without them */}
-      {(details.length > 0 || work.game !== false) && (
+      {(details.length > 0 || myQuiz) && (
         <section class="details-block" aria-label={details.length > 0 ? 'Detaily obrazu' : 'Můj Detail dne'}>
           <div class="details-head">
             {details.length > 0 && <span class="eyebrow">Detaily</span>}
-            {work.game !== false && (
+            {myQuiz && (
               <a class="my-quiz" href={url(`/detail-dne/muj-kviz/?obraz=${work.id}`)} rel="nofollow" title="Udělej si z obrazu kvíz s výřezem a pošli ho dál">
                 <Fragment set:html={icon('quiz')} />{getGamePage().workLink}
               </a>

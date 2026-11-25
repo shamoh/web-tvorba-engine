@@ -1,6 +1,6 @@
 // The share image (og:image) of the page of the game Detail dne: three close-ups of works of the site side by side on paper, one
 // clear, one in mist, one in a mosaic, as the three levels of the game cover them. Made while the site is built
-// (src/pages/detail-dne/[file].ts) from the pictures of the works; the name carries a fingerprint of what it is made of, so a
+// (src/pages/_detail-dne/[file].ts) from the pictures of the works; the name carries a fingerprint of what it is made of, so a
 // link preview takes a new one after a change (as the share images of the pipeline, fingerprintedName).
 import crypto from 'node:crypto';
 import path from 'node:path';

@@ -1,4 +1,4 @@
-/* The look of the game Detail dne, the same on the page /detail-dne/ (src/pages/detail-dne/index.astro) and in its prototype
+/* The look of the game Detail dne, the same on the page /detail-dne/ (src/pages/_detail-dne/index.astro) and in its prototype
    (.prototypes/detail-dne.html, inlined by scripts/lib/prototypes.mjs). Colours only from the palettes, fonts --serif / --sans of
    the site (Base.astro). */
 /* Everything under .detail-game: the script makes most of it (src/lib/detail-game.ts). */

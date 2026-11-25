@@ -20,12 +20,23 @@ export const SITE_FILES = [
   ...MANIFEST_SHORTCUTS.map(({ id }) => `public/${shortcutIconFile(id)}`),
 ];
 
+/** The icons of the shortcuts of the features the site switched off are not needed (their shortcut is not in the manifest). */
+const unneededFiles = (siteDir) => {
+  let features = {};
+  try {
+    features = featuresOf(readSiteConfig(siteDir));
+  } catch { /* an unreadable config is reported below; every file is then needed */ }
+
+  return MANIFEST_SHORTCUTS.filter((s) => features[s.feature] === false).map(({ id }) => `public/${shortcutIconFile(id)}`);
+};
+
 /** The fonts of the captions (loadFonts in instagram.mjs). */
 export const SITE_FONTS = Object.values(CAPTION_FONTS);
 
 /** What is wrong with the files of the site folder `siteDir` (no scene is loaded): missing files, a broken favicon, bad settings. */
 export function siteFileProblems(siteDir) {
-  const problems = SITE_FILES.filter((file) => !fs.existsSync(path.join(siteDir, file))).map((file) => `missing ${file}`);
+  const unneeded = fs.existsSync(sitePaths(siteDir).config) ? unneededFiles(siteDir) : [];
+  const problems = SITE_FILES.filter((file) => !unneeded.includes(file) && !fs.existsSync(path.join(siteDir, file))).map((file) => `missing ${file}`);
   problems.push(...SITE_FONTS.filter((font) => !fs.existsSync(path.join(sitePaths(siteDir).fonts, font))).map((font) => `missing fonts/${font}`));
   const favicon = path.join(siteDir, 'public/favicon.svg');
   if (fs.existsSync(favicon)) {

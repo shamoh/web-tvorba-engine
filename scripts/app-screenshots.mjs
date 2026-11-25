@@ -13,7 +13,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { APP_SCREENSHOTS, SCREENSHOT_FORMS } from './lib/favicons.mjs';
+import { featuresOf } from './lib/features.mjs';
+import { readSiteConfig, siteDirectory } from './lib/site-dir.mjs';
 
+// the pages of a feature the site switched off are not photographed (the manifest leaves them out too)
+const features = featuresOf(readSiteConfig(siteDirectory()));
+const shots = APP_SCREENSHOTS.filter((s) => features[s.feature] !== false);
 const chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const args = process.argv.slice(2);
 const outAt = args.indexOf('--out');
@@ -71,7 +76,7 @@ try {
   await send('Page.addScriptToEvaluateOnNewDocument', {
     source: "addEventListener('DOMContentLoaded', () => document.head.append(Object.assign(document.createElement('style'), { textContent: '[data-message-panel] { display: none !important; }' })));",
   });
-  for (const shot of APP_SCREENSHOTS) {
+  for (const shot of shots) {
     const form = SCREENSHOT_FORMS[shot.form];
     const mobile = shot.form === 'narrow';
     await send('Emulation.setDeviceMetricsOverride', { width: form.width, height: form.height, deviceScaleFactor: form.ratio, mobile });

@@ -4,6 +4,12 @@
 
 /** Pages that are not made from the content. A new page in src/pages without data behind it belongs here. */
 export const STATIC_PAGES = ['/', '/tvorba/', '/tvorba/kolekce/', '/detail-dne/', '/o-mne/', '/kontakt/', '/podminky-uziti/'];
+
+/** The static pages that exist only with a feature (scripts/lib/features.mjs): address → feature. */
+export const FEATURE_PAGES = { '/detail-dne/': 'game' };
+
+/** STATIC_PAGES of a site with these `features` ({ name: boolean }, featuresOf; all on by default). */
+export const staticPagesOf = (features = {}) => STATIC_PAGES.filter((path) => features[FEATURE_PAGES[path]] !== false);
 /** Static pages that list works: their lastmod is the newest change of all works. */
 const LISTS_ALL = new Set(['/', '/tvorba/', '/tvorba/kolekce/']);
 
@@ -15,12 +21,13 @@ const latest = (works) => works.map((w) => w.modified).filter(Boolean).sort().at
  * and the works. `works`: [{ year, key, collection, modified }] (modified = derived_modified of the public copy),
  * `years`: [2026, …], `collections`: [{ slug, works }]. A work: the day it last changed; a list (year, collection,
  * the home page, all works, the collections): the newest change of its works; O mně and Kontakt: none (unknown).
- * `pages`: names of the generic text pages that exist (/<name>/ after the static pages, no lastmod).
+ * `pages`: names of the generic text pages that exist (/<name>/ after the static pages, no lastmod). `features`: the pages of
+ * a feature the site switched off are left out (staticPagesOf).
  */
-export function sitemapEntries({ years = [], collections = [], works = [], pages = [] }) {
+export function sitemapEntries({ years = [], collections = [], works = [], pages = [], features = {} }) {
   const all = latest(works);
   return [
-    ...STATIC_PAGES.map((path) => ({ path, lastmod: LISTS_ALL.has(path) ? all : undefined })),
+    ...staticPagesOf(features).map((path) => ({ path, lastmod: LISTS_ALL.has(path) ? all : undefined })),
     ...pages.map((name) => ({ path: `/${name}/`, lastmod: undefined })),
     ...years.map((y) => ({ path: `/tvorba/${y}/`, lastmod: latest(works.filter((w) => w.year === y)) })),
     ...collections.map((c) => ({ path: `/tvorba/kolekce/${c.slug}/`, lastmod: latest(c.works ?? works.filter((w) => w.collection === c.slug)) })),
