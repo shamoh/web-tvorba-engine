@@ -18,3 +18,10 @@ test('copiedText: what a copy button says, the value itself when it could not co
   assert.equal(copiedText(true, 'https://x/', 'Odkaz'), 'Odkaz zkopírován');
   assert.equal(copiedText(false, 'mpugj', 'Kód'), 'mpugj');
 });
+
+test('shareLinks: Pinterest only for a site that has it (the other services stay)', async () => {
+  const { shareLinks } = await import('./share.mjs');
+  const args = { url: 'https://x.test/a/', media: 'https://x.test/a.jpg', title: 'A', description: 'd' };
+  assert.deepEqual(shareLinks(args).map((l) => l.method), ['pinterest', 'facebook', 'whatsapp']);
+  assert.deepEqual(shareLinks({ ...args, pinterest: false }).map((l) => l.method), ['facebook', 'whatsapp']);
+});

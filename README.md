@@ -2892,7 +2892,7 @@ roky. Web je na Pinterest dává sám, přes kanál RSS (`scripts/lib/pinterest.
   nejnovější pin. Novou adresu (`file` s otiskem, tedy nový pin) dostane jen dílo, které do kanálu přibude, nebo
   s vyšší `meta_pinterest_version` (`feedVersion`); pak starý pin na Pinterestu smazat ručně. Tlačítko „Uložit na
   Pinterest“ a náhledy dál používají `file` s otiskem.
-- **Kanál** `/pinterest.xml` (`src/pages/pinterest.xml.ts`, `pinterestFeed`): RSS 2.0, položka na každé dílo s `pin.feed`,
+- **Kanál** `/pinterest.xml` (`src/pages/_pinterest/pinterest.xml.ts`, `pinterestFeed`): RSS 2.0, položka na každé dílo s `pin.feed`,
   nejnovější první: `title` (nejvýš 100 znaků), `link` na stránku díla s UTM parametry
   `?utm_source=pinterest&utm_medium=social&utm_campaign=rss` (`FEED_UTM`: Google Analytics tak návštěvu z pinu pozná
   i z aplikace Pinterestu, která jinak neřekne, odkud návštěvník přišel; stránka má kanonickou adresu bez nich), `guid` = `id` díla (Pinterest stejné dílo
@@ -3140,7 +3140,7 @@ features:
 
 Neznámé jméno funkce (překlep by ji tiše nechal zapnutou) nebo jiná hodnota než `true`/`false` je chyba v
 `npm run check:site` (`features.<jméno>: …`) a `featuresOf` ji vyhodí i při buildu. Vypínají se postupně (viz
-`CHANGELOG.md`); zatím umí vypnout **`game`**, **`cinema`** a **`favorites`**:
+`CHANGELOG.md`); zatím umí vypnout **`game`**, **`cinema`**, **`favorites`** a **`pinterest`**:
 
 - Stránky hry (`/detail-dne/`, `dnes.json`, `data.json`, archivní roky plánu, Můj Detail dne) leží v `src/pages/_detail-dne/`
   (Astro složku s `_` nestaví) a jejich adresy přidá do buildu jen zapnutá funkce (`scripts/lib/feature-routes.mjs`,
@@ -3151,10 +3151,20 @@ Neznámé jméno funkce (překlep by ji tiše nechal zapnutou) nebo jiná hodnot
 - **`cinema`** vypne promítání: bez tlačítek „▶ Promítat“ (galerie, lišta filtrů, Můj výběr), bez druhého tlačítka úvodní
   stránky a odkazů „Na prodej“, „Výběr“ a „Oblíbené“ v patičce, bez zkratky „Promítat“ v manifestu, bez okna promítání
   (`Cinema.astro` se nevykreslí) a bez `data-cinema` na kartách; odkaz s `?cinema=` se přehlédne.
+- **`pinterest`** vypne Pinterest: bez kanálu `/pinterest.xml` (`src/pages/_pinterest/`), bez pinů děl (pipeline je nekreslí,
+  `info.json` je nemá a staré smaže; po zapnutí se vyrobí znovu), bez „Uložit na Pinterest“ v řádku „Sdílet“, bez
+  profilu v patičce a na Kontaktu a bez ověřovacího kódu `site.verification.pinterest`; pipeline nehlásí chybějící
+  anglická klíčová slova pinů ani `featured-bez-pinu` a týdenní kontrola nehlídá překlady pro Pinterest. Atributy
+  `meta_pinterest` a `meta_pinterest_version` v popisech zůstávají, jen se nepoužijí.
 - **`favorites`** vypne oblíbené: bez srdcí na kartách, u titulku díla a v promítání, bez „Moje oblíbené“ a zaškrtávátka
   „jen moje“ v galerii, bez zkratky „Oblíbené“ a odkazu v patičce a bez stránky Můj výběr (`src/pages/_favorites/`, trasa
   jen se zapnutou funkcí). V prohlížeči je seznam oblíbených vždy prázdný a srdce nic nedělá (`SITE_FEATURES`), takže co si
   návštěvník dřív uložil, se nikde neukáže. Odkaz „Oblíbené“ v patičce je promítání, proto potřebuje i `cinema`.
+- **`pinterest`** vypne Pinterest: bez kanálu `/pinterest.xml` (`src/pages/_pinterest/`), tlačítka „Uložit na Pinterest“
+  v řádku Sdílet (ostatní služby zůstanou), profilu v patičce a na Kontaktu a ověřovacího kódu `site.verification.pinterest`.
+  Pipeline nekreslí piny (běh je rychlejší, staré zmizí; zapnutím se vyrobí znovu), `meta_pinterest` se přehlíží, chybí
+  doporučení ke klíčovým slovům pinů i k výběru autorky bez pinu a týdenní kontrola nechce anglická slova pro Pinterest.
+  Vlastní výchozí text Podmínek užití Pinterest dál zmiňuje (upraví se v `stranky/podminky-uziti.yaml`).
 - Soubor `stranky/detail-dne.yaml` se bez hry nezakládá ani nekontroluje; už existující zůstane a nic se s ním neděje.
   Ikona zkratky hry se nevyžaduje (`check:site`). Týdenní kontrola plán hry a rozbory bez hry zatím jen neřeší
   (stránka `/detail-dne/` neexistuje = „nezkontrolováno“).

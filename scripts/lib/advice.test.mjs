@@ -389,3 +389,10 @@ test('consistencyAdvice: mockups without a size, a grid without Instagram photos
   assert.deepEqual(codes({ date: new Date('2027-01-01T00:00:00Z') }), ['datum-v-budoucnu']);
   assert.deepEqual(consistencyAdvice([{ yamlPath: 'tvorba/a.yaml', data: { date: '2030-01-01' } }], undefined), [], 'without today no date check');
 });
+
+test('consistencyAdvice: a featured work not in the Pinterest feed is advised only on a site with Pinterest', async () => {
+  const { consistencyAdvice } = await import('./advice.mjs');
+  const works = [{ yamlPath: 'tvorba/a.yaml', data: { meta_draft: false, featured: true, id: 'abcde' } }];
+  assert.match(consistencyAdvice(works, '2026-11-25').join(), /\[featured-bez-pinu\]/);
+  assert.doesNotMatch(consistencyAdvice(works, '2026-11-25', { pinterest: false }).join(), /featured-bez-pinu/);
+});

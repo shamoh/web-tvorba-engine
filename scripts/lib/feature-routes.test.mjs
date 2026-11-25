@@ -18,7 +18,7 @@ test('every route points at an existing file, and every file of a feature folder
     assert.ok(FEATURE_NAMES.includes(name), `${name} is a feature`);
     for (const { entrypoint } of routes) assert.ok(fs.existsSync(path.join(ROOT, entrypoint)), entrypoint);
   }
-  const folders = { game: '_detail-dne', favorites: '_favorites' };
+  const folders = { game: '_detail-dne', favorites: '_favorites', pinterest: '_pinterest' };
   for (const [name, folder] of Object.entries(folders)) {
     assert.deepEqual(FEATURE_ROUTES[name].map((r) => path.relative(`./src/pages/${folder}`, r.entrypoint)).sort(), filesUnder(path.join(ROOT, 'src/pages', folder)), `a page added to ${folder} without a route is never built`);
   }
@@ -26,13 +26,13 @@ test('every route points at an existing file, and every file of a feature folder
 });
 
 test('the routes of a feature that is on are injected, of one that is off not', () => {
-  assert.equal(routesOf(featuresOf({})).length, FEATURE_ROUTES.game.length + FEATURE_ROUTES.favorites.length);
-  assert.deepEqual(routesOf(featuresOf({ features: { game: false, favorites: false } })), []);
-  assert.deepEqual(routesOf(featuresOf({ features: { game: false } })).map((r) => r.pattern), ['/tvorba/vyber']);
+  assert.equal(routesOf(featuresOf({})).length, FEATURE_ROUTES.game.length + FEATURE_ROUTES.favorites.length + FEATURE_ROUTES.pinterest.length);
+  assert.deepEqual(routesOf(featuresOf({ features: { game: false, favorites: false, pinterest: false } })), []);
+  assert.deepEqual(routesOf(featuresOf({ features: { game: false } })).map((r) => r.pattern), ['/pinterest.xml', '/tvorba/vyber']);
   const injected = [];
   featureRoutesIntegration(featuresOf({})).hooks['astro:config:setup']({ injectRoute: (r) => injected.push(r.pattern) });
   assert.ok(injected.includes('/detail-dne') && injected.includes('/detail-dne/plan/[year].json'));
   const none = [];
-  featureRoutesIntegration(featuresOf({ features: { game: false, favorites: false } })).hooks['astro:config:setup']({ injectRoute: (r) => none.push(r) });
+  featureRoutesIntegration(featuresOf({ features: { game: false, favorites: false, pinterest: false } })).hooks['astro:config:setup']({ injectRoute: (r) => none.push(r) });
   assert.deepEqual(none, []);
 });

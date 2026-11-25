@@ -14,6 +14,8 @@ export const FEATURE_ROUTES = {
     ['/detail-dne/muj/data.json', 'muj/data.json.ts'],
     ['/detail-dne/muj-kviz', 'muj-kviz.astro'],
   ].map(([pattern, file]) => ({ pattern, entrypoint: `./src/pages/_detail-dne/${file}` })),
+  // the feed Pinterest reads
+  pinterest: [{ pattern: '/pinterest.xml', entrypoint: './src/pages/_pinterest/pinterest.xml.ts' }],
   // "Můj výběr": the works of the favourites of a visitor (or of a link)
   favorites: [{ pattern: '/tvorba/vyber', entrypoint: './src/pages/_favorites/vyber.astro' }],
 };

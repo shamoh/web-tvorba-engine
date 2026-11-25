@@ -1,6 +1,6 @@
 // Pinterest: works with `meta_pinterest: true` get a pin (pin.jpg in the folder of their page: the work with the
 // caption on paper, 2:3, made by renderCaption of scripts/lib/instagram.mjs) and an item in the feed /pinterest.xml
-// (RSS 2.0, src/pages/pinterest.xml.ts). Pinterest reads the feed about once a day and makes a pin of every new item
+// (RSS 2.0, src/pages/_pinterest/pinterest.xml.ts). Pinterest reads the feed about once a day and makes a pin of every new item
 // (by guid = id of the work) on the board chosen for the feed; a pin links to the page of the work.
 // The page of every work also has a link "Uložit na Pinterest" for visitors (pinSaveUrl, no script of Pinterest).
 

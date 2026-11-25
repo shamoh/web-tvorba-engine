@@ -196,14 +196,14 @@ const hasLink = (v) => typeof v === 'string' && /^https?:\/\/\S+/.test(v.trim())
 
 /**
  * Attributes of a work that do not fit together (drafts too, unless said otherwise): what was forgotten when one of
- * them changed. `works`: { yamlPath|…, data }, `today` (YYYY-MM-DD).
+ * them changed. `works`: { yamlPath|…, data }, `today` (YYYY-MM-DD); `pinterest` false = the site has no Pinterest feature.
  */
-export function consistencyAdvice(works, today) {
+export function consistencyAdvice(works, today, { pinterest = true } = {}) {
   const advice = [];
   for (const w of works) {
     const where = workPath(w);
     const data = w.data ?? {};
-    if (isPublished(w) && data.featured === true && data.meta_pinterest !== true) {
+    if (pinterest && isPublished(w) && data.featured === true && data.meta_pinterest !== true) {
       advice.push(`${where}: je ve výběru autorky (featured: true), ale není v kanálu pro Pinterest; zvaž meta_pinterest: true [featured-bez-pinu]`);
     }
     if (hasLink(data.fler) && !isOnSale(data.status)) {

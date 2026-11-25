@@ -117,7 +117,7 @@ Každá změna vlastností = záznam v `CHANGELOG.md` (dnešní den nahoře, **N
   stránka díla ukáže „Na Instagramu“ s bublinou „Obraz na Instagramu“ (událost `instagram_click`); oba odkazy jsou `sameAs` v JSON-LD díla. `meta_instagram` (bool) dál jen řídí výrobu fotek; jsou nezávislé.
 - Pinterest (`scripts/lib/pinterest.mjs`): kanál drží u díla stálou adresu obrázku (`pin.feedFile` z předchozího `info.json`, `workFeedPinImage`; Pinterest pozná pin podle adresy), novou jen u díla nového v kanálu nebo s vyšší `meta_pinterest_version` (`pinterestVersion`); každé dílo má pin `pin-<otisk>.jpg` (2:3, `renderCaption` s `images.pinterest` a `snug`: popisek hned pod dílem,
   XMP) veřejně ve složce stránky díla a `pin` v `info.json`; `meta_pinterest: true` = `pin.feed` (web podle něj pozná dílo pro kanál, `meta_*` se nekopíruje);
-  kanál RSS `/pinterest.xml` (`src/pages/pinterest.xml.ts`, guid = `id`, odkazy s UTM `FEED_UTM`) čte Pinterest sám (firemní účet, ověření
+  kanál RSS `/pinterest.xml` (`src/pages/_pinterest/pinterest.xml.ts`, guid = `id`, odkazy s UTM `FEED_UTM`) čte Pinterest sám (firemní účet, ověření
   `site.verification.pinterest`). Popis pinu končí klíčovými slovy česky · anglicky
   (`pinKeywords`, vlastní slovník `pinterestKeywords.en` s obyčejnými slovy, chybějící překlad = `pinterestAdvice`). Profil `site.pinterest` v patičce, na Kontaktu a v `sameAs` autorky.
   Stránka díla má řádek „Sdílet“ s ikonami (`shareLinks` v `scripts/lib/share.mjs`: Pinterest s pinem `pinSaveUrl`/`workPinImage`,

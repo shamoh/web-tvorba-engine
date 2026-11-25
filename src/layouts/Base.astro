@@ -62,7 +62,7 @@ const skipScope = skipHeaderScope(Astro.url.pathname, import.meta.env.BASE_URL);
     {hiddenFromSearch && <meta name="robots" content={HIDDEN_SITE_ROBOTS} data-hidden-site />}
     <!-- the works may not be mined for artificial intelligence (EU directive 2019/790, art. 4; /.well-known/tdmrep.json) -->
     <meta name={TDM_RESERVATION.name} content={TDM_RESERVATION.content} />
-    {verificationMeta(site.verification).map((m) => <meta name={m.name} content={m.content} />)}
+    {verificationMeta(features.pinterest ? site.verification : { ...site.verification, pinterest: undefined }).map((m) => <meta name={m.name} content={m.content} />)}
     <meta name="author" content={site.author} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
@@ -136,7 +136,7 @@ const skipScope = skipHeaderScope(Astro.url.pathname, import.meta.env.BASE_URL);
         {features.cinema && onSale && <a href={url(saleShowPath('footer'))} title="Obrazy na prodej jeden po druhém přes celou obrazovku">Na prodej</a>}
         {features.cinema && featured && <a href={url(featuredShowPath('footer'))} title="Moje nejmilejší obrazy jeden po druhém přes celou obrazovku">Výběr</a>}
         {site.instagram && <a href={`https://www.instagram.com/${site.instagram}/`} rel="me">Instagram</a>}
-        {site.pinterest && <a href={pinterestProfileLink(site.pinterest)} rel="me">Pinterest</a>}
+        {features.pinterest && site.pinterest && <a href={pinterestProfileLink(site.pinterest)} rel="me">Pinterest</a>}
         {site.fler && <a href={site.fler}>Fler</a>}
         {withMessages && <a href={url(contactLink(messageContext))} data-message-open="" title="Napsat mi zprávu k této stránce">Napište mi</a>}
         <!-- Shown by src/lib/app-install.ts only where the site can be installed and is not yet -->

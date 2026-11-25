@@ -10,10 +10,10 @@ export { SHARE_COPY, SHARE_NATIVE } from './analytics.mjs';
  * Links to share a work: [{ method, label, href }] in the order shown.
  * `url`: the address of its page, `media`: its picture for Pinterest (the pin), `title`, `description` (of the pin).
  */
-export function shareLinks({ url, media, title, description }) {
+export function shareLinks({ url, media, title, description, pinterest = true }) {
   const text = [title, url].filter(Boolean).join(' ');
   return [
-    { method: 'pinterest', label: 'Uložit na Pinterest', href: pinSaveUrl({ url, media, description }) },
+    ...(pinterest ? [{ method: 'pinterest', label: 'Uložit na Pinterest', href: pinSaveUrl({ url, media, description }) }] : []),
     { method: 'facebook', label: 'Sdílet na Facebooku', href: `https://www.facebook.com/sharer/sharer.php?${new URLSearchParams({ u: url })}` },
     { method: 'whatsapp', label: 'Poslat přes WhatsApp', href: `https://wa.me/?${new URLSearchParams({ text })}` },
   ];

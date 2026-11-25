@@ -24,6 +24,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { CONTENT_UPDATE_BRANCH } from './lib/binary.mjs';
 import { evaluateEngineVersions, latestSafeVersion, tagCommits, usedVersion } from './lib/engine-version.mjs';
+import { featuresOf } from './lib/features.mjs';
 import { readSiteConfig, siteDirectory } from './lib/site-dir.mjs';
 import { siteAddress } from './lib/site-url.mjs';
 import {
@@ -32,6 +33,7 @@ import {
 
 const siteDir = siteDirectory();
 const config = readSiteConfig(siteDir);
+const siteFeatures = featuresOf(config);
 // The repository of the site (site.repository of site.config.yaml), e.g. "owner/site".
 const SITE_REPO = config.site.repository;
 if (!SITE_REPO) throw new Error('site.config.yaml: site.repository (owner/name of the repository of the site) is missing');
@@ -138,7 +140,7 @@ const techniques = process.env.CONTENT_DIR
 // every work, also those not on Instagram or Pinterest yet: the translation is there before it goes there
 const translations = process.env.CONTENT_DIR
   ? await guarded('překlady štítků', async () => evaluateUntranslatedTags(await findUntranslatedTags(process.env.CONTENT_DIR, {
-    Instagram: config.instagramPost?.en, Pinterest: config.pinterestKeywords?.en,
+    ...(siteFeatures.instagram ? { Instagram: config.instagramPost?.en } : {}), ...(siteFeatures.pinterest ? { Pinterest: config.pinterestKeywords?.en } : {}),
   }), { siteRepo: SITE_REPO }))
   : evaluateUntranslatedTags(null);
 

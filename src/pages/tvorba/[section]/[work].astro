@@ -74,7 +74,7 @@ const mail = site.email && mailtoLink(site.email, defaultType(message), message,
 // "Sdílet": links to share the work (Pinterest saves its pin, or the share image, with a link to this page)
 const pageUrl = absolute(site, path);
 const shares = shareLinks({
-  url: pageUrl, media: absolute(site, workPinImage(work).src), title: work.title,
+  url: pageUrl, media: absolute(site, workPinImage(work).src), title: work.title, pinterest: features.pinterest,
   description: [work.title, pinDescription(work, work.year, config.pinterestKeywords?.en)].filter(Boolean).join(' – '),
 });
 // Small line icons of the services (own drawings in the colour of the text, nothing loaded from them)

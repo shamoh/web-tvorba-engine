@@ -398,7 +398,7 @@ async function listFiles(root) {
  * from the history of the content repository (scripts/lib/git-dates.mjs; none without it), drafts waiting too long
  * and Instagram photos without the link of their post.
  */
-async function careOfSite({ works, years, collections, home, uncollected, contentDir, today }) {
+async function careOfSite({ works, years, collections, home, uncollected, contentDir, today, pinterest = true }) {
   const day = (today ?? new Date()).toISOString().slice(0, 10);
   const published = works.filter((w) => w.data?.meta_draft !== true);
   const own = (page) => Boolean(page.coverPath) || (typeof page.data?.cover === 'string' && page.data.cover.trim() !== '');
@@ -427,7 +427,7 @@ async function careOfSite({ works, years, collections, home, uncollected, conten
   const ready = await lineDates(contentDir, linkless.map((w) => w.yamlPath), '^meta_instagram: true');
   return [
     ...careAdvice(works),
-    ...consistencyAdvice(works, day),
+    ...consistencyAdvice(works, day, { pinterest }),
     ...photoSizeAdvice(photos),
     ...featuredAdvice(pages),
     ...draftAgeAdvice(drafts.map((w) => ({ where: workPath(w), added: dates.get(w.yamlPath) })), day),
@@ -599,9 +599,9 @@ export async function run({
   const workLinks = workLinkProblems({ works, descriptions: linkDescriptions });
   // "[](<id>)" gets the title of the work in the data the site and the exports get (the author's files stay)
   fillDescriptionsWorkLinks(linkDescriptions, works);
-  const advice = [...workAdvice(works, { siteTitle: config.site?.title ?? '' }), ...techniqueAdvice(works), ...tagAdvice(works), ...hashtagAdvice(works, config.instagramPost), ...pinterestAdvice(works, config.pinterestKeywords?.en), ...workLinks.advice, ...pageAdvice({
+  const advice = [...workAdvice(works, { siteTitle: config.site?.title ?? '' }), ...techniqueAdvice(works), ...tagAdvice(works), ...hashtagAdvice(works, config.instagramPost), ...(featureOn(config, 'pinterest') ? pinterestAdvice(works, config.pinterestKeywords?.en) : []), ...workLinks.advice, ...pageAdvice({
     collections: collections.collections, years: years.years, home: home.home, uncollected: uncollected.uncollected, photos: photos.photos,
-  }), ...await careOfSite({ works, years: years.years, collections: collections.collections, home: home.home, uncollected: uncollected.uncollected, contentDir, today })];
+  }), ...await careOfSite({ works, years: years.years, collections: collections.collections, home: home.home, uncollected: uncollected.uncollected, contentDir, today, pinterest: featureOn(config, 'pinterest') })];
   advice.forEach((p) => log(`? advice: ${p}`));
   // "Zbývá doplnit": descriptions still marked DOPLNIT, a block of their own under the recommendations
   const yamls = await contentYamls(contentDir);
@@ -772,6 +772,7 @@ export async function run({
   const instagramSettings = JSON.stringify({ ...img.instagram, host: siteHost(config.site?.url) });
   // the pin for Pinterest (every work): images.pinterest over the defaults
   const pinConfig = { ...PIN_DEFAULTS, ...img.pinterest };
+  const pinterestOn = featureOn(config, 'pinterest');
   let fonts = null;
 
   const publicDir = path.join(siteDir, 'public');
@@ -952,7 +953,7 @@ export async function run({
     // a work gets (makesInstagramExports, makesFlerExports) is checked apart from it, by exportsMissing
     const onSale = isOnSale(w.data.status);
     const instagram = wantsInstagram(w.data);
-    const pinterest = wantsPinterest(w.data);
+    const pinterest = pinterestOn && wantsPinterest(w.data);
     const mockupsOn = wantsMockups(w.data);
     const details = await Promise.all(w.details.map(async (d) => ({ name: d.name, buf: await fs.readFile(d.path) })));
     // Instagram exports also show the title, technique, size and date (caption) and depend on the scenes and settings.
@@ -964,7 +965,8 @@ export async function run({
     // the pin (every work) shows the caption too, in its own size
     // (a version of the pin above 1 makes it again: a new address in the feed)
     const pinVersion = pinterest && pinterestVersion(w.data) > 1 ? { version: pinterestVersion(w.data) } : {};
-    const pinInputs = [JSON.stringify(['snug', { feed: pinterest, ...pinVersion }, pinConfig, siteHost(config.site?.url), w.data.title, w.data.technique, w.data.size_cm, w.year])];
+    // (a site without Pinterest has no pin: a mark in the inputs only then, so switching it on makes them; on it nothing changes)
+    const pinInputs = [...(pinterestOn ? [] : ['no-pin']), JSON.stringify(['snug', { feed: pinterest, ...pinVersion }, pinConfig, siteHost(config.site?.url), w.data.title, w.data.technique, w.data.size_cm, w.year])];
     // Fler exports carry the signature: its settings and look (a change makes them again)
     const flerInputs = onSale ? [JSON.stringify([img.fler, WATERMARK_LOOK])] : [];
     // Creator, title, copyright, terms of use and page of the work in the XMP of its web images (a new title makes them again)
@@ -1004,7 +1006,7 @@ export async function run({
     // Pinterest: the work with the caption right under it on the paper of the first palette, 2:3, on the site; every
     // work has it ("Uložit na Pinterest" of its page), with meta_pinterest it is also in the feed /pinterest.xml
     fonts ??= await loadFonts(fontsDir);
-    const pin = await renderCaption({
+    const pin = !pinterestOn ? null : await renderCaption({
       art: await insetWork(m.buf, pinConfig.insetPercent ?? 0), work: w.data, year: w.year, host: siteHost(config.site?.url),
       colors: PALETTES[0].colors, fonts, config: pinConfig, xmp, snug: true,
     });

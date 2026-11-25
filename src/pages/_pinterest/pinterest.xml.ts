@@ -1,8 +1,8 @@
 // Feed for Pinterest (/pinterest.xml): every work with meta_pinterest (pin.feed in info.json) is an item, newest first;
 // Pinterest reads it about once a day and pins the new ones (scripts/lib/pinterest.mjs).
-import { config, getWorks, site, workFeedPinImage } from '../lib/site';
-import { absolute } from '../../scripts/lib/seo.mjs';
-import { FEED_UTM, pinDescription, pinterestFeed, withParams } from '../../scripts/lib/pinterest.mjs';
+import { config, getWorks, site, workFeedPinImage } from '../../lib/site';
+import { absolute } from '../../../scripts/lib/seo.mjs';
+import { FEED_UTM, pinDescription, pinterestFeed, withParams } from '../../../scripts/lib/pinterest.mjs';
 
 export function GET() {
   const items = getWorks().filter((w) => w.image.pin?.feed).map((w) => ({

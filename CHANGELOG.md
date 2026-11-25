@@ -19,6 +19,9 @@ Značky: **Nové** = nová vlastnost, **Změna** = jinak než dřív, **Konec** 
   odkazu na Můj Detail dne u děl, záznamu v mapě webu, zkratky a snímku v manifestu, offline stahování a plánu dnů v pipeline.
 - **Nové** `features: { cinema: false }` vypne promítání (tlačítka, patičku, zkratku, okno) a `features: { favorites: false }`
   oblíbené (srdce, „Moje oblíbené“, Můj výběr, zkratku, odkaz v patičce).
+- **Nové** `features: { pinterest: false }` vypne Pinterest: kanál, tlačítko „Uložit na Pinterest“, profil, ověřovací kód,
+  výrobu pinů v pipeline a doporučení i týdenní kontrolu k Pinterestu.
+- **Nové** `features: { pinterest: false }` vypne Pinterest (kanál, piny, „Uložit na Pinterest“, profil, ověření, související rady).
 - **Změna** Zbytky prvního webu z enginu pryč: výchozí texty kostry (úvodní stránka, O mně, Kontakt) jsou obecné, bez
   jména autorky a místa; značka polohy listu v JPEGu se jmenuje `wt:sheet` (starší `pavla:sheet` se čte dál); přehled
   vzhledů hry odkazuje na adresu webu z `site.config.yaml`; jména v hláškách a příkladech obecná.

@@ -144,6 +144,21 @@ test('pin: every work has one (2:3, with XMP) in its folder on the site; meta_pi
   assert.deepEqual((await fs.readdir(dir)).filter((f) => f.startsWith('pin')), [after.file], 'one pin only');
 });
 
+test('pin: a site without the Pinterest feature makes no pin (info.json has none, no pin file); switching it on makes them', async () => {
+  await addWork('2026', 'rano', 'title: Ráno\ndate: 2026-06-14\nmeta_pinterest: true\nsize_cm: [40, 30]\n');
+  await run(opts());
+  const dir = path.join(siteDir, 'public/tvorba/2026', `rano-${await idOf('2026', 'rano')}`);
+  assert.ok(JSON.parse(await fs.readFile(path.join(dir, 'info.json'), 'utf8')).pin, 'on: a pin');
+  const off = { ...config, features: { pinterest: false } };
+  const r = await run(opts({ config: off }));
+  assert.equal(r.processed, 1, 'switching it off regenerates the work');
+  assert.equal(JSON.parse(await fs.readFile(path.join(dir, 'info.json'), 'utf8')).pin, undefined);
+  assert.deepEqual((await fs.readdir(dir)).filter((f) => f.startsWith('pin')), [], 'the old pin goes');
+  assert.equal((await run(opts({ config: off }))).processed, 0, 'nothing more to do');
+  assert.equal((await run(opts())).processed, 1, 'on again: the pin is made');
+  assert.ok(JSON.parse(await fs.readFile(path.join(dir, 'info.json'), 'utf8')).pin?.feed);
+});
+
 test('pin in the feed: keeps its address when the pin changes, a new one only with a higher meta_pinterest_version', async () => {
   await addWork('2026', 'rano', 'title: Ráno\ndate: 2026-06-14\nmeta_pinterest: true\nsize_cm: [40, 30]\n');
   await run(opts());
