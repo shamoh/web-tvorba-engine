@@ -48,6 +48,20 @@ export function featureOn(config, name) {
   return featuresOf(config)[name];
 }
 
+/** The services of a feature that a site (site.config.yaml `site`) and a work name by a link of the same name. */
+const LINKED_SERVICES = ['instagram', 'fler'];
+
+/**
+ * `data` (the `site` settings or the data of a work) without the links of the services the site switched off: without
+ * the feature the web shows neither the profile of the author nor the links of a work (footer, contact page, work
+ * page, structured data). The same object when nothing is dropped.
+ */
+export function withoutOffLinks(data, features) {
+  const off = LINKED_SERVICES.filter((name) => features[name] === false);
+  if (!off.some((name) => name in data)) return data;
+  return Object.fromEntries(Object.entries(data).filter(([key]) => !off.includes(key)));
+}
+
 /** The name the build replaces with the features of the site (vite define, a JSON object; astro.config.mjs). */
 export const FEATURES_GLOBAL = '__SITE_FEATURES__';
 

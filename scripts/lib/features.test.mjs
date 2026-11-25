@@ -43,3 +43,13 @@ test('the build defines the features (astro.config.mjs) under the name the modul
   assert.ok(source.includes(`typeof ${FEATURES_GLOBAL} === 'object' ? ${FEATURES_GLOBAL} :`));
   assert.deepEqual(SITE_FEATURES, featuresOf({}));
 });
+
+test('withoutOffLinks: the profile and links of a service the site switched off are dropped, the rest stays', async () => {
+  const { withoutOffLinks } = await import('./features.mjs');
+  const data = { title: 'A', instagram: 'https://www.instagram.com/p/x/', fler: 'https://www.fler.cz/x', pinterest: 'p' };
+  assert.equal(withoutOffLinks(data, featuresOf({})), data, 'everything on: the same object');
+  assert.deepEqual(withoutOffLinks(data, featuresOf({ features: { fler: false } })), { title: 'A', instagram: data.instagram, pinterest: 'p' });
+  assert.deepEqual(withoutOffLinks(data, featuresOf({ features: { instagram: false, fler: false } })), { title: 'A', pinterest: 'p' });
+  const plain = { title: 'A' };
+  assert.equal(withoutOffLinks(plain, featuresOf({ features: { instagram: false } })), plain, 'nothing to drop');
+});

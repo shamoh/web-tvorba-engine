@@ -3139,8 +3139,7 @@ features:
 | `fler` | exporty pro Fler a odkaz „Fler“ u děl |
 
 Neznámé jméno funkce (překlep by ji tiše nechal zapnutou) nebo jiná hodnota než `true`/`false` je chyba v
-`npm run check:site` (`features.<jméno>: …`) a `featuresOf` ji vyhodí i při buildu. Vypínají se postupně (viz
-`CHANGELOG.md`); zatím umí vypnout **`game`**, **`cinema`**, **`favorites`** a **`pinterest`**:
+`npm run check:site` (`features.<jméno>: …`) a `featuresOf` ji vyhodí i při buildu. Vypnout jde každou:
 
 - Stránky hry (`/detail-dne/`, `dnes.json`, `data.json`, archivní roky plánu, Můj Detail dne) leží v `src/pages/_detail-dne/`
   (Astro složku s `_` nestaví) a jejich adresy přidá do buildu jen zapnutá funkce (`scripts/lib/feature-routes.mjs`,
@@ -3165,6 +3164,12 @@ Neznámé jméno funkce (překlep by ji tiše nechal zapnutou) nebo jiná hodnot
   Pipeline nekreslí piny (běh je rychlejší, staré zmizí; zapnutím se vyrobí znovu), `meta_pinterest` se přehlíží, chybí
   doporučení ke klíčovým slovům pinů i k výběru autorky bez pinu a týdenní kontrola nechce anglická slova pro Pinterest.
   Vlastní výchozí text Podmínek užití Pinterest dál zmiňuje (upraví se v `stranky/podminky-uziti.yaml`).
+- **`instagram`** a **`fler`** vypnou celou službu: pipeline pro ni nevyrábí žádné exporty a dřív vyrobené v `export/`
+  smaže (jen soubory, které sama vyrábí), chybí její doporučení (u Instagramu i hashtagy, mřížka a anglické překlady
+  v týdenní kontrole), web neukáže profil ani obchůdek (`site.instagram` / `site.fler`: patička, Kontakt, text prázdného
+  úvodu, strukturovaná data) ani odkazy u děl („Na Instagramu“, tlačítko Fleru; `withoutOffLinks`). Atributy v popisech
+  (`meta_instagram`, `instagram`, `meta_fler`, `fler`) zůstávají a po zapnutí platí znovu. Co autorka sama napsala do textu
+  stránky (např. odkaz na Fler), zůstane. Stav prodeje a filtr „na prodej“ na Fleru nezávisí.
 - Soubor `stranky/detail-dne.yaml` se bez hry nezakládá ani nekontroluje; už existující zůstane a nic se s ním neděje.
   Ikona zkratky hry se nevyžaduje (`check:site`). Týdenní kontrola plán hry a rozbory bez hry zatím jen neřeší
   (stránka `/detail-dne/` neexistuje = „nezkontrolováno“).

@@ -3,7 +3,10 @@
 // "#" button (or the key "#" anywhere on the page) that opens a short field; pasting a code (or the whole line of an
 // Instagram post with it, also from the clipboard bar of a phone keyboard) or Enter / Go opens the work. An unknown
 // code says so under the field; Escape or leaving the empty field closes it again. Statistics: code_open.
-const HINT = 'Kód obrazu, např. z Instagramu (jujn2). Vložit jde i celý řádek s adresou, Enter otevře obraz. Klávesa #.';
+// `instagram`: the site has the Instagram feature, the hint then says where codes can be found.
+interface Props { instagram?: boolean }
+const { instagram = true } = Astro.props;
+const HINT = `Kód obrazu, např. ${instagram ? 'z Instagramu ' : ''}(jujn2). Vložit jde i celý řádek s adresou, Enter otevře obraz. Klávesa #.`;
 ---
 <div class="code-jump" data-code-jump>
   <button type="button" class="toggle" aria-expanded="false" aria-controls="code-jump-form" aria-label="Otevřít obraz podle kódu" aria-keyshortcuts="#" title={HINT}>#</button>

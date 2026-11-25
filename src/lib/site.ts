@@ -12,7 +12,7 @@ import { QUIZ_LINE_KEYS } from '../../scripts/lib/schema.mjs';
 import { HOME_BUTTON, HOME_EMPTY_TEXT, HOME_HEADING, HOME_SHOW_BUTTON, HOME_TEXT, UNCOLLECTED_TEXT, homeEmptyClosing } from '../../scripts/lib/schema.mjs';
 import { buildVersion } from '../../scripts/lib/build-version.mjs';
 import { absolute } from '../../scripts/lib/seo.mjs';
-import { featuresOf } from '../../scripts/lib/features.mjs';
+import { featuresOf, withoutOffLinks } from '../../scripts/lib/features.mjs';
 import { isDemoSite, readSiteConfig, siteDirectory } from '../../scripts/lib/site-dir.mjs';
 import { NO_COLLECTION_TITLE } from '../../scripts/lib/gallery-filter.mjs';
 import { sortCollections } from '../../scripts/lib/collection-filter.mjs';
@@ -36,7 +36,8 @@ export const siteDataRoot = dataRoot;
 export const config = readSiteConfig(siteDir);
 /** The optional features of the site (scripts/lib/features.mjs): true = on. */
 export const features = featuresOf(config);
-export const site = config.site as {
+// (without the Instagram or Fler feature the web names neither the profile nor the shop: withoutOffLinks)
+export const site = withoutOffLinks(config.site, features) as {
   url: string; title: string; tagline: string; author: string;
   email: string; instagram: string; fler: string;
   /** Address of the author's profile on Pinterest (footer, contact page); empty = none. */
@@ -191,7 +192,7 @@ export function getWorks(): Work[] {
     }
     const image = JSON.parse(fs.readFileSync(infoPath, 'utf8'));
     works.push({
-      ...data,
+      ...withoutOffLinks(data, features),
       id: data.id,
       slug,
       key,

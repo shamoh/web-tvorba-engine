@@ -396,3 +396,12 @@ test('consistencyAdvice: a featured work not in the Pinterest feed is advised on
   assert.match(consistencyAdvice(works, '2026-11-25').join(), /\[featured-bez-pinu\]/);
   assert.doesNotMatch(consistencyAdvice(works, '2026-11-25', { pinterest: false }).join(), /featured-bez-pinu/);
 });
+
+test('consistencyAdvice: nothing about Fler or Instagram on a site without them', async () => {
+  const { consistencyAdvice } = await import('./advice.mjs');
+  const works = [{ yamlPath: 'tvorba/a.yaml', data: { meta_draft: false, id: 'abcde', status: 'not-for-sale', fler: 'https://www.fler.cz/x', meta_fler: true, meta_instagram_grid: '2x2' } }];
+  const codes = (options) => consistencyAdvice(works, '2026-11-25', options).map((a) => /\[([a-z-]+)\]$/.exec(a)[1]);
+  assert.deepEqual(codes(), ['fler-neni-na-prodej', 'fler-bez-prodeje', 'mrizka-bez-instagramu']);
+  assert.deepEqual(codes({ fler: false }), ['mrizka-bez-instagramu']);
+  assert.deepEqual(codes({ fler: false, instagram: false }), []);
+});

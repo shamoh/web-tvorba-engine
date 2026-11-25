@@ -21,6 +21,8 @@ Značky: **Nové** = nová vlastnost, **Změna** = jinak než dřív, **Konec** 
   oblíbené (srdce, „Moje oblíbené“, Můj výběr, zkratku, odkaz v patičce).
 - **Nové** `features: { pinterest: false }` vypne Pinterest: kanál, tlačítko „Uložit na Pinterest“, profil, ověřovací kód,
   výrobu pinů v pipeline a doporučení i týdenní kontrolu k Pinterestu.
+- **Nové** `features: { instagram: false }` a `features: { fler: false }` vypnou službu: bez exportů (dřív vyrobené se
+  smažou), doporučení, profilu či obchůdku na webu a odkazů u děl. Popisy děl se nemění.
 - **Nové** `features: { pinterest: false }` vypne Pinterest (kanál, piny, „Uložit na Pinterest“, profil, ověření, související rady).
 - **Změna** Zbytky prvního webu z enginu pryč: výchozí texty kostry (úvodní stránka, O mně, Kontakt) jsou obecné, bez
   jména autorky a místa; značka polohy listu v JPEGu se jmenuje `wt:sheet` (starší `pavla:sheet` se čte dál); přehled

@@ -398,7 +398,7 @@ async function listFiles(root) {
  * from the history of the content repository (scripts/lib/git-dates.mjs; none without it), drafts waiting too long
  * and Instagram photos without the link of their post.
  */
-async function careOfSite({ works, years, collections, home, uncollected, contentDir, today, pinterest = true }) {
+async function careOfSite({ works, years, collections, home, uncollected, contentDir, today, features }) {
   const day = (today ?? new Date()).toISOString().slice(0, 10);
   const published = works.filter((w) => w.data?.meta_draft !== true);
   const own = (page) => Boolean(page.coverPath) || (typeof page.data?.cover === 'string' && page.data.cover.trim() !== '');
@@ -421,13 +421,13 @@ async function careOfSite({ works, years, collections, home, uncollected, conten
     }
   }
   const drafts = works.filter((w) => w.data?.meta_draft === true);
-  const linkless = published.filter((w) => wantsInstagram(w.data) && !isInstagramUrl(w.data?.instagram));
+  const linkless = published.filter((w) => features.instagram && wantsInstagram(w.data) && !isInstagramUrl(w.data?.instagram));
   const dates = await addedDates(contentDir, drafts.map((w) => w.yamlPath));
   // the Instagram photos are ready since the description asked for them (the exports themselves are not in git)
   const ready = await lineDates(contentDir, linkless.map((w) => w.yamlPath), '^meta_instagram: true');
   return [
     ...careAdvice(works),
-    ...consistencyAdvice(works, day, { pinterest }),
+    ...consistencyAdvice(works, day, features),
     ...photoSizeAdvice(photos),
     ...featuredAdvice(pages),
     ...draftAgeAdvice(drafts.map((w) => ({ where: workPath(w), added: dates.get(w.yamlPath) })), day),
@@ -571,7 +571,7 @@ export async function run({
     const { width, height } = await masterSize(w.masterPath);
     gameExclusionProblems.push(...exclusionProblems(w.data[SKIP_KEY], width, height, w.yamlPath));
   }
-  const home = await prepareHome(contentDir, { instagram: config.site?.instagram ?? '' });
+  const home = await prepareHome(contentDir, { instagram: featureOn(config, 'instagram') ? config.site?.instagram ?? '' : '' });
   created.push(...home.created);
   updated.push(...home.updated);
   // stranky/<page>.yaml: the texts of the pages (O mně, Kontakt, 404, generic ones), their photos from fotky/.
@@ -599,9 +599,9 @@ export async function run({
   const workLinks = workLinkProblems({ works, descriptions: linkDescriptions });
   // "[](<id>)" gets the title of the work in the data the site and the exports get (the author's files stay)
   fillDescriptionsWorkLinks(linkDescriptions, works);
-  const advice = [...workAdvice(works, { siteTitle: config.site?.title ?? '' }), ...techniqueAdvice(works), ...tagAdvice(works), ...hashtagAdvice(works, config.instagramPost), ...(featureOn(config, 'pinterest') ? pinterestAdvice(works, config.pinterestKeywords?.en) : []), ...workLinks.advice, ...pageAdvice({
+  const advice = [...workAdvice(works, { siteTitle: config.site?.title ?? '' }), ...techniqueAdvice(works), ...tagAdvice(works), ...(featureOn(config, 'instagram') ? hashtagAdvice(works, config.instagramPost) : []), ...(featureOn(config, 'pinterest') ? pinterestAdvice(works, config.pinterestKeywords?.en) : []), ...workLinks.advice, ...pageAdvice({
     collections: collections.collections, years: years.years, home: home.home, uncollected: uncollected.uncollected, photos: photos.photos,
-  }), ...await careOfSite({ works, years: years.years, collections: collections.collections, home: home.home, uncollected: uncollected.uncollected, contentDir, today, pinterest: featureOn(config, 'pinterest') })];
+  }), ...await careOfSite({ works, years: years.years, collections: collections.collections, home: home.home, uncollected: uncollected.uncollected, contentDir, today, features: featuresOf(config) })];
   advice.forEach((p) => log(`? advice: ${p}`));
   // "Zbývá doplnit": descriptions still marked DOPLNIT, a block of their own under the recommendations
   const yamls = await contentYamls(contentDir);
@@ -817,6 +817,14 @@ export async function run({
     return detailSuffixes(d.name, set ? set.width / set.height : 0, img.instagram);
   });
 
+  // the exports of a platform only on a site with its feature (scripts/lib/features.mjs), else nothing is made, listed
+  // or kept (the files the pipeline made before are pruned like any other no longer wanted)
+  const { instagram: instagramOn, fler: flerOn } = featuresOf(config);
+  const wantsInstagramFor = (data) => instagramOn && wantsInstagram(data);
+  const makesInstagramFor = (data) => instagramOn && makesInstagramExports(data);
+  const wantsFlerFor = (data) => flerOn && wantsFler(data);
+  const makesFlerFor = (data) => flerOn && makesFlerExports(data);
+
   /**
    * The export files a published work should have, per platform: a Set of file names (with README.md), null = any
    * (the state is not known yet: Fler without web images), none when it gets no exports there. `info`: its info.json.
@@ -824,14 +832,14 @@ export async function run({
    * studio takes long: only for a work that gets Instagram exports).
    */
   const workExports = (w, info) => {
-    const variants = makesInstagramExports(w.data) ? [
+    const variants = makesInstagramFor(w.data) ? [
       ...instagramVariants.filter((v) => !v.startsWith('-scene-')), ...fittingScenes(w).map((sc) => `-scene-${sc.name}`),
       ...panoramaSuffixes(panoramaSlides(w.data.size_cm, img.instagram)), '-story', ...gridSuffixes(instagramGrid(w.data)),
       ...instagramDetailSuffixes(w, info),
     ] : [];
     const mockupScenes = info ? (info.mockups ?? []).map((m) => m.scene) : null;
     const e = expectedExports({
-      fler: makesFlerExports(w.data), details: [], mockupScenes, instagram: makesInstagramExports(w.data), instagramVariants: variants,
+      fler: makesFlerFor(w.data), details: [], mockupScenes, instagram: makesInstagramFor(w.data), instagramVariants: variants,
     });
     const files = (list) => (list === null ? null : list.length ? new Set([...list.map(exportFileName), README]) : undefined);
     return { instagram: files(e.instagram), fler: files(e.fler) };
@@ -868,7 +876,7 @@ export async function run({
     const folder = exportFolder(w.yamlPath, w.slug);
     await clearExports(exportRoot, w.year, key, folder, platforms);
     watch.lap('other');
-    if (platforms.includes('instagram') && makesInstagramExports(w.data)) {
+    if (platforms.includes('instagram') && makesInstagramFor(w.data)) {
       const insta = path.join(exportRoot, 'instagram', folder);
       await fs.mkdir(insta, { recursive: true });
       fonts ??= await loadFonts(fontsDir);
@@ -927,7 +935,7 @@ export async function run({
       }
       watch.lap('instagram');
     }
-    if (platforms.includes('fler') && makesFlerExports(w.data)) {
+    if (platforms.includes('fler') && makesFlerFor(w.data)) {
       const flerDir = path.join(exportRoot, 'fler', folder);
       await fs.mkdir(flerDir, { recursive: true });
       fonts ??= await loadFonts(fontsDir);
@@ -952,7 +960,7 @@ export async function run({
     // the flags as they always were in the fingerprint (a new formula would make every work again); which exports
     // a work gets (makesInstagramExports, makesFlerExports) is checked apart from it, by exportsMissing
     const onSale = isOnSale(w.data.status);
-    const instagram = wantsInstagram(w.data);
+    const instagram = wantsInstagramFor(w.data);
     const pinterest = pinterestOn && wantsPinterest(w.data);
     const mockupsOn = wantsMockups(w.data);
     const details = await Promise.all(w.details.map(async (d) => ({ name: d.name, buf: await fs.readFile(d.path) })));
@@ -996,7 +1004,7 @@ export async function run({
     if (mockupsOn && !picked.length) log(`  ! no mockup scene is big enough for ${rel} (see mockups/scenes.yaml maxCm)`);
     if (exportsOnly) {
       // the mockups only for the Fler exports (the web keeps its own)
-      const mockups = platforms.includes('fler') && makesFlerExports(w.data) ? await renderMockups(m, picked, w.data) : [];
+      const mockups = platforms.includes('fler') && makesFlerFor(w.data) ? await renderMockups(m, picked, w.data) : [];
       watch.lap('mockups');
       await workExportFiles(w, key, rel, m, mockups, platforms, watch);
       log(`  ⏱ ${formatLaps(watch.laps(), watch.total())}`);
@@ -1034,7 +1042,7 @@ export async function run({
     // (they follow the description, tags and price at once).
     const folder = exportFolder(w.yamlPath, w.slug);
     const about = { collection: collectionTitles.get(w.collection) ?? '', pageUrl: workPageUrl(w.year, key) };
-    if (makesInstagramExports(w.data)) {
+    if (makesInstagramFor(w.data)) {
       const text = instagramPost({
         work: w.data, year: w.year, host: siteHost(config.site?.url), onSale: isOnSale(w.data.status), settings: config.instagramPost,
         collection: collectionTitles.get(w.collection) ?? '',
@@ -1052,7 +1060,7 @@ export async function run({
       };
       await writeIfChanged(path.join(exportRoot, 'instagram', folder, README), instagramReadme({ work: w.data, year: w.year, files, post: text, ...about }));
     }
-    if (makesFlerExports(w.data)) {
+    if (makesFlerFor(w.data)) {
       const info = await readJson(path.join(publicDir, workImageDir(w.year, key), 'info.json'));
       const files = { original: [exportFileName('')], mockups: (info?.mockups ?? []).map((mk) => exportFileName(`-mockup-${mk.scene}`)) };
       await writeIfChanged(path.join(exportRoot, 'fler', folder, README), flerReadme({ work: w.data, year: w.year, files, ...about }));
@@ -1079,17 +1087,17 @@ export async function run({
       const folder = exportFolder(w.yamlPath, w.slug);
       const collection = collectionTitles.get(w.collection) ?? '';
       const facts = captionFacts(w.data, w.year);
-      if (wantsInstagram(w.data)) {
+      if (wantsInstagramFor(w.data)) {
         overview.instagram.push({
-          title: w.data.title, code: w.id, folder, thumb: makesInstagramExports(w.data) ? exportFileName('-caption-papir') : null, note: facts, collection, url: publishedUrl(w.data, 'instagram'),
+          title: w.data.title, code: w.id, folder, thumb: makesInstagramFor(w.data) ? exportFileName('-caption-papir') : null, note: facts, collection, url: publishedUrl(w.data, 'instagram'),
           // the story of the collection: its frames and links (with the UTM of stories)
-          story: makesInstagramExports(w.data) ? exportFileName('-story') : null, date: String(w.data.date ?? ''), storyUrl: withParams(workPageUrl(w.year, workKey(w.slug, w.id)), STORY_UTM),
+          story: makesInstagramFor(w.data) ? exportFileName('-story') : null, date: String(w.data.date ?? ''), storyUrl: withParams(workPageUrl(w.year, workKey(w.slug, w.id)), STORY_UTM),
           collectionUrl: w.collection ? withParams(`${siteUrl}/${collectionPageDir(w.collection)}/`, STORY_UTM) : '',
         });
       }
-      if (wantsFler(w.data) && isOnSale(w.data.status)) {
+      if (wantsFlerFor(w.data) && isOnSale(w.data.status)) {
         const price = typeof w.data.price === 'number' ? `${w.data.price.toLocaleString('cs-CZ')} Kč` : '';
-        overview.fler.push({ title: w.data.title, code: w.id, folder, thumb: makesFlerExports(w.data) ? exportFileName('') : null, note: [facts, price].filter(Boolean).join(' · '), collection, url: publishedUrl(w.data, 'fler') });
+        overview.fler.push({ title: w.data.title, code: w.id, folder, thumb: makesFlerFor(w.data) ? exportFileName('') : null, note: [facts, price].filter(Boolean).join(' · '), collection, url: publishedUrl(w.data, 'fler') });
       }
     }
     for (const sub of ['instagram', 'fler']) {

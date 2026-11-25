@@ -196,9 +196,10 @@ const hasLink = (v) => typeof v === 'string' && /^https?:\/\/\S+/.test(v.trim())
 
 /**
  * Attributes of a work that do not fit together (drafts too, unless said otherwise): what was forgotten when one of
- * them changed. `works`: { yamlPath|…, data }, `today` (YYYY-MM-DD); `pinterest` false = the site has no Pinterest feature.
+ * them changed. `works`: { yamlPath|…, data }, `today` (YYYY-MM-DD); `pinterest`, `instagram`, `fler` false = the site has
+ * not the feature, nothing is advised about it.
  */
-export function consistencyAdvice(works, today, { pinterest = true } = {}) {
+export function consistencyAdvice(works, today, { pinterest = true, instagram = true, fler = true } = {}) {
   const advice = [];
   for (const w of works) {
     const where = workPath(w);
@@ -206,12 +207,12 @@ export function consistencyAdvice(works, today, { pinterest = true } = {}) {
     if (pinterest && isPublished(w) && data.featured === true && data.meta_pinterest !== true) {
       advice.push(`${where}: je ve výběru autorky (featured: true), ale není v kanálu pro Pinterest; zvaž meta_pinterest: true [featured-bez-pinu]`);
     }
-    if (hasLink(data.fler) && !isOnSale(data.status)) {
+    if (fler && hasLink(data.fler) && !isOnSale(data.status)) {
       advice.push(`${where}: má odkaz na Fler, ale není na prodej (status: ${data.status ?? 'není'}); nabídku na Fleru ukonči a odkaz smaž [fler-neni-na-prodej]`);
     }
-    if (wantsFler(data) && !isOnSale(data.status)) {
+    if (fler && wantsFler(data) && !isOnSale(data.status)) {
       advice.push(`${where}: má fotky pro Fler (meta_fler: true), ale není na prodej (status: ${data.status ?? 'není'}); dej meta_fler: false, nebo změň stav [fler-bez-prodeje]`);
-    } else if (isPublished(w) && wantsFler(data) && !hasLink(data.fler)) {
+    } else if (fler && isPublished(w) && wantsFler(data) && !hasLink(data.fler)) {
       advice.push(`${where}: má fotky pro Fler (meta_fler: true), ale chybí odkaz na Fler; po přidání na Fler ho doplň (fler: https://www.fler.cz/…), fotky pro Fler pak zmizí [prodej-bez-fleru]`);
     }
     if (data.price !== undefined && data.price !== null && data.price !== '' && NOT_SOLD.includes(data.status)) {
@@ -220,7 +221,7 @@ export function consistencyAdvice(works, today, { pinterest = true } = {}) {
     if (wantsMockups(data) && !validSize(data.size_cm)) {
       advice.push(`${where}: má mockupy (mockups: true), ale nemá rozměr (size_cm), mockupy nedrží skutečné měřítko [mockupy-bez-rozmeru]`);
     }
-    if (data.meta_instagram_grid !== undefined && data.meta_instagram_grid !== null && data.meta_instagram_grid !== false && !wantsInstagram(data)) {
+    if (instagram && data.meta_instagram_grid !== undefined && data.meta_instagram_grid !== null && data.meta_instagram_grid !== false && !wantsInstagram(data)) {
       advice.push(`${where}: má mřížku pro Instagram (meta_instagram_grid), ale nemá fotky pro Instagram, takže mřížka nevznikne; dej meta_instagram: true, nebo mřížku smaž [mrizka-bez-instagramu]`);
     }
     const date = data.date instanceof Date ? data.date.toISOString().slice(0, 10) : data.date;

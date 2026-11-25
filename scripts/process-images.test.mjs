@@ -144,6 +144,23 @@ test('pin: every work has one (2:3, with XMP) in its folder on the site; meta_pi
   assert.deepEqual((await fs.readdir(dir)).filter((f) => f.startsWith('pin')), [after.file], 'one pin only');
 });
 
+test('exports: a site without Instagram or Fler makes and keeps none (the ones made before go), the links stay in the data', async () => {
+  await addWork('2026', 'rano', 'title: Ráno\ndate: 2026-06-14\nsize_cm: [40, 30]\nmeta_instagram: true\nmeta_fler: true\nstatus: available\nprice: 1000\n');
+  await run(opts());
+  const insta = path.join(contentDir, 'export/instagram/rano'), fler = path.join(contentDir, 'export/fler/rano');
+  assert.ok(await exists(insta) && await exists(fler), 'on: both');
+  const noInsta = await run(opts({ config: { ...config, features: { instagram: false } } }));
+  assert.equal(noInsta.ok, true);
+  assert.ok(!(await exists(path.join(contentDir, 'export/instagram'))), 'no Instagram folder at all');
+  assert.ok(await exists(fler), 'Fler stays');
+  const none = { ...config, features: { instagram: false, fler: false } };
+  assert.equal((await run(opts({ config: none }))).ok, true);
+  assert.ok(!(await exists(path.join(contentDir, 'export/fler'))));
+  assert.equal((await run(opts({ config: none }))).processed, 0, 'nothing more to do');
+  assert.equal((await run(opts())).ok, true);
+  assert.ok(await exists(insta) && await exists(fler), 'on again: made again');
+});
+
 test('pin: a site without the Pinterest feature makes no pin (info.json has none, no pin file); switching it on makes them', async () => {
   await addWork('2026', 'rano', 'title: Ráno\ndate: 2026-06-14\nmeta_pinterest: true\nsize_cm: [40, 30]\n');
   await run(opts());
