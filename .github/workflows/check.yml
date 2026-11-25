@@ -54,6 +54,10 @@ jobs:
           SITE_DIR: .demo/site
         run: npm run check:images
 
+      # the same test site with every optional feature switched off (.demo/features-off): builds, no page or link of them
+      - name: The test site without its optional features
+        run: npm run check:features
+
   # Syntax, expressions, action inputs and shell scripts (shellcheck) of every workflow in this repo.
   workflows:
     runs-on: ubuntu-latest

@@ -3141,6 +3141,11 @@ features:
 Neznámé jméno funkce (překlep by ji tiše nechal zapnutou) nebo jiná hodnota než `true`/`false` je chyba v
 `npm run check:site` (`features.<jméno>: …`) a `featuresOf` ji vyhodí i při buildu. Vypnout jde každou:
 
+**Kontrola vypnutých funkcí** (`npm run demo:build && npm run check:features`, `scripts/check-features.mjs`,
+`scripts/lib/features-check.mjs`): kopii testovacího webu (`.demo/features-off/`) postaví se všemi funkcemi vypnutými,
+zkontroluje její obrázky a ověří, že nemá žádnou jejich stránku (adresy z `FEATURE_ROUTES`) ani odkaz na ni. Trvá asi
+půl minuty; nová stránka vypínatelné funkce je v ní sama.
+
 - Stránky hry (`/detail-dne/`, `dnes.json`, `data.json`, archivní roky plánu, Můj Detail dne) leží v `src/pages/_detail-dne/`
   (Astro složku s `_` nestaví) a jejich adresy přidá do buildu jen zapnutá funkce (`scripts/lib/feature-routes.mjs`,
   `astro.config.mjs`); stránka přidaná do té složky bez záznamu v `FEATURE_ROUTES` se nikdy nepostaví (hlídá test).
@@ -3226,8 +3231,9 @@ nečtou; testovací web před nimi chrání `noindex` na každé stránce.
   v `fonts/OFL-*.txt`), stejná písma jako na webu (ten je načítá z Google Fonts).
 - `npm test`: testy pipeline a filtrů (`node:test`). Každý modul v `scripts/lib/` má svůj `*.test.mjs`.
 - **Automatická kontrola enginu** (`.github/workflows/check.yml`, „Kontrola kódu“): při každém pull requestu
-  a pushi do `main` (kromě změn jen `*.md`) `npm test`, `npm run check:site -- demo`, `npm run demo:build` a
-  `check:images` testovacího webu. Selhání při pushi do `main` založí issue „Kontrola kódu na main selhala“.
+  a pushi do `main` (kromě změn jen `*.md`) `npm test`, `npm run check:site -- demo`, `npm run demo:build`,
+  `check:images` testovacího webu a `npm run check:features` (testovací web se všemi volitelnými funkcemi vypnutými).
+  Selhání při pushi do `main` založí issue „Kontrola kódu na main selhala“.
 - **Kontrola kódu webu** (`site-check.yml`, volá ji repo webu): při každém pull requestu a pushi do `main` repa webu;
   u pull requestu je to povinná kontrola rulesetu (auto-merge aktualizací obsahu čeká na ni). Selhání při pushi do
   `main` založí issue „Kontrola kódu na main selhala“, selhání u pull requestu aktualizace obsahu (větev `content/update`,

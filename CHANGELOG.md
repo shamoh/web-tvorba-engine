@@ -23,6 +23,8 @@ Značky: **Nové** = nová vlastnost, **Změna** = jinak než dřív, **Konec** 
   výrobu pinů v pipeline a doporučení i týdenní kontrolu k Pinterestu.
 - **Nové** `features: { instagram: false }` a `features: { fler: false }` vypnou službu: bez exportů (dřív vyrobené se
   smažou), doporučení, profilu či obchůdku na webu a odkazů u děl. Popisy děl se nemění.
+- **Nové** Kontrola enginu staví i testovací web se všemi funkcemi vypnutými (`npm run check:features`): žádná jejich
+  stránka ani odkaz na ni. Návod pro nový web popisuje výběr funkcí.
 - **Nové** `features: { pinterest: false }` vypne Pinterest (kanál, piny, „Uložit na Pinterest“, profil, ověření, související rady).
 - **Změna** Zbytky prvního webu z enginu pryč: výchozí texty kostry (úvodní stránka, O mně, Kontakt) jsou obecné, bez
   jména autorky a místa; značka polohy listu v JPEGu se jmenuje `wt:sheet` (starší `pavla:sheet` se čte dál); přehled

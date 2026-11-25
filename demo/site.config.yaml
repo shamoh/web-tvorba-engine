@@ -6,6 +6,16 @@
 # potřebuje adresu, je zjevně vymyšlená (doména example.com, vyhrazená pro ukázky).
 demo: true
 
+# Volitelné funkce webu (scripts/lib/features.mjs, README enginu „Volitelné funkce“): každá je zapnutá, dokud tu není
+# false. Ukázka má všechny; co web bez nich nemá, ověřuje npm run check:features.
+# features:
+#   game: false        # hra Detail dne
+#   cinema: false      # promítání
+#   favorites: false   # oblíbené obrazy návštěvníka
+#   pinterest: false   # Pinterest (kanál, piny, sdílení, profil)
+#   instagram: false   # exporty pro Instagram, profil a odkazy u děl
+#   fler: false        # exporty pro Fler, obchůdek a odkazy u děl
+
 site:
   url: https://shamoh.github.io/web-tvorba-engine   # adresa ukázky: GitHub Pages enginu, web v podsložce adresy
   title: Růženka Borůvková

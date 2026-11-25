@@ -11,6 +11,7 @@
     "images": "node --env-file-if-exists=.env scripts/process-images.mjs",
     "check:images": "node --env-file-if-exists=.env scripts/check-images.mjs",
     "check:site": "node --env-file-if-exists=.env scripts/check-site.mjs",
+    "check:features": "node scripts/check-features.mjs",
     "test": "node --test \"scripts/**/*.test.mjs\"",
     "demo:prepare": "node scripts/demo.mjs",
     "demo:images": "node scripts/demo-images.mjs",

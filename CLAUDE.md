@@ -350,7 +350,7 @@ Každá změna vlastností = záznam v `CHANGELOG.md` (dnešní den nahoře, **N
   `site-check.yml` (povinná kontrola webu, v rulesetu `check / check`) a `site-deploy.yml` (nasazení). Volají je obálky
   (spouštěče, souběh, oprávnění, tokeny, `uses: …@v1` + stejné `engine-ref`); kontext `github` je volajícího (jeho repo,
   větev, issue). Žádné nejmenuje obsahové repo. Konzistenci hlídá `scripts/workflows.test.mjs`. Vlastní workflow enginu:
-  `check.yml` (testy, `check:site -- demo`, `demo:build`, `check:images` testovacího webu, `actionlint`),
+  `check.yml` (testy, `check:site -- demo`, `demo:build`, `check:images` testovacího webu, `check:features`, `actionlint`),
   `demo-pages.yml` (ukázka na Pages), `dry-run.yml`.
   Týdenní kontrola (token, selhané běhy, zkušební běh, nasazení, čekající PR, neznámé atributy, chybějící obrázky
   nasazeného webu `scripts/lib/site-check.mjs`, texty a JSON-LD jeho stránek `evaluatePageTexts`, vložené skripty všech jeho stránek `evaluateInlineScripts`, velikost obou rep
@@ -441,6 +441,7 @@ Každá změna vlastností = záznam v `CHANGELOG.md` (dnešní den nahoře, **N
 - Mockupy musí držet reálné měřítko podle `size_cm`.
 - Před commitem: `npm test`, `npm run check:site`, `npm run build` a `npm run demo:build` musí projít; `npm run check:images`
   (a pro testovací web `SITE_DIR=.demo/site npm run check:images`) ověří, že žádný obrázek, na který stránky odkazují, nechybí.
+  Po `demo:build` i `npm run check:features` (testovací web se všemi volitelnými funkcemi vypnutými).
 - Odkazy na stránky webu vždy s lomítkem na konci (`/tvorba/`, `/tvorba/kolekce/?…`; GitHub Pages jinak přesměruje, dev server
   stránku obslouží bez něj): v kódu psát s lomítkem, texty obsahu přes `withTrailingSlash` (`scripts/lib/page-links.mjs`),
   `check:images` (`slashlessLinks`) odkaz bez lomítka odmítne. Stránky Tvorby a hra Detail dne se otevřou pod hlavičkou (`SKIP_HEADER_SCOPES`, `skipHeaderScript`; hra sama po vykreslení,

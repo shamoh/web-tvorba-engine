@@ -19,6 +19,7 @@ Jména rep jsou volná (`kacka`, `kacka-content`); níže `<vlastník>/<web>` a 
      `site.repository` = `<vlastník>/<web>`, `site.storagePrefix` = vlastní předpona, `site.email`, `site.location`,
      profily `instagram` / `pinterest` / `fler`, `messages.subjectTag`, `analytics.googleMeasurementId`,
      `messages.accessKey`); **smazat `demo: true`** (jinak je web skrytý vyhledávačům a nic neměří ani neodesílá);
+     vybrat funkce webu (`features:`, níže);
    - `fonts/`, `mockups/` (scény a jejich kalibrace, `mockups/instagram/` ateliér), `home-screen-icon.svg`,
      `public/` (favicon, ikony, `CNAME` s doménou): z `demo/` nebo vlastní;
    - `.gitignore`: `dist/`, `.previews/`, `/mockups/export/`, `/public/tvorba/`, `/public/fotky/`, `/public/_cover/`,
@@ -26,6 +27,20 @@ Jména rep jsou volná (`kacka`, `kacka-content`); níže `<vlastník>/<web>` a 
    - `LICENSE.md` (licence workflow a dokumentace repa) a v README sekce „Licence“: obsah webu © autorka, všechna práva
      vyhrazena;
    - `.github/workflows/check.yml` a `deploy.yml`: obálky sdílených workflow (níže), verze enginu v obou stejná.
+   **Volitelné funkce** (README „Volitelné funkce“): všechno je zapnuté, dokud `site.config.yaml` neřekne `false`.
+   Co web nechce, vypnout hned, ať se pro to nic nezakládá (např. kostra textů hry, piny, exporty):
+
+   ```yaml
+   features:
+     game: true        # hra Detail dne
+     cinema: true      # promítání
+     favorites: true   # oblíbené obrazy návštěvníka (odkaz „Oblíbené“ v patičce potřebuje i cinema)
+     pinterest: true   # kanál pro Pinterest, piny, sdílení na Pinterest, profil
+     instagram: true   # exporty pro Instagram, profil a odkazy u děl
+     fler: true        # exporty pro Fler, obchůdek a odkazy u děl
+   ```
+
+   Zapnout jde kdykoli později. Vypnutí na běžícím webu smaže, co pro funkci vyrobila pipeline (piny, exporty).
 2. Ověřit lokálně (engine vedle, v jeho `.env` `SITE_DIR=../<web>`): `npm run check:site`, `npm run build`
    (prázdný web bez obsahu se postaví taky).
 3. Nastavení repa na GitHubu (kontrolní seznam: `node scripts/repo-settings.mjs <vlastník>/<web>` vypíše, co API řekne):
@@ -91,7 +106,7 @@ jobs:
    `docs/navod-pro-autorku.md` enginu), `LICENSE.md` (obsah © autorka, všechna práva vyhrazena), `.gitignore` s `export/`.
    **Nikdy testovací data** (pipeline odmítne obsah se značkou `demo-content.yaml` a díla či kolekce `demo-…`).
 2. Token pro zpracování obsahu: fine-grained personal access token vlastníka, *Repository access* jen repo webu,
-   oprávnění *Contents* a *Pull requests* **Read and write**; uložit jako secret obsahového repa (např. `<WEB>_TOKEN`).
+   oprávnění *Contents* a *Pull requests* **Read and write**; uložit jako secret obsahového repa `SITE_TOKEN`.
    Token je vázaný na ID repa: nové nebo přejmenované repo = znovu ho vybrat v *Repository access*.
 3. Nepovinný `CHECK_TOKEN` (jen čtení: minuty Actions, nastavení rep) jako druhý secret; v *Repository access*
    repo webu, obsahové repo a engine.
@@ -120,7 +135,7 @@ jobs:
       site-repository: <vlastník>/<web>
       engine-ref: v1
     secrets:
-      SITE_TOKEN: ${{ secrets.<WEB>_TOKEN }}
+      SITE_TOKEN: ${{ secrets.SITE_TOKEN }}
 ```
 
 ```yaml
@@ -142,7 +157,7 @@ jobs:
       site-repository: <vlastník>/<web>
       engine-ref: v1
     secrets:
-      SITE_TOKEN: ${{ secrets.<WEB>_TOKEN }}
+      SITE_TOKEN: ${{ secrets.SITE_TOKEN }}
       CHECK_TOKEN: ${{ secrets.CHECK_TOKEN }}
 ```
 
@@ -169,9 +184,9 @@ příkazem). Před lokálním plným `npm run images` musí být obsahové repo 
 
 ## 5. Nová verze enginu
 
-Nová verze = tag enginu (`v2`). Weby ji dostanou samy: obsahové repo má obálku sdíleného `engine-update.yml` (každý den
+Nová verze = tag enginu (`vN`). V příkladech obálek nahraď `v1` nejnovějším tagem. Weby ji dostanou samy: obsahové repo má obálku sdíleného `engine-update.yml` (každý den
 a ručně), která při novějším tagu založí pull request „Engine: nová verze“ do repa webu (sloučí se sám po kontrole
-s novou verzí) a do obsahového repa (sloučíš ho ty). Potřebuje secret `UPDATE_TOKEN` v obsahovém repu: fine-grained
+s novou verzí) a do obsahového repa. Potřebuje secret `UPDATE_TOKEN` v obsahovém repu: fine-grained
 token vlastníka, *Repository access* repo webu a obsahové repo, oprávnění *Contents*, *Pull requests* a *Workflows*
 **Read and write**. Nabízí jen verzi, na jejímž commitu prošla kontrola enginu; pull request obsahového repa sloučí sám,
 jakmile je repo webu na nové verzi. Týdenní kontrola hlásí, když se verze rep liší déle než 3 dny.
