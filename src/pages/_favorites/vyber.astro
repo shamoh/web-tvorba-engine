@@ -7,7 +7,7 @@
 import Base from '../../layouts/Base.astro';
 import WorkGrid from '../../components/WorkGrid.astro';
 import Cinema from '../../components/Cinema.astro';
-import { collectionUrl, config, getCollections, getWorks } from '../../lib/site';
+import { collectionUrl, config, features, getCollections, getWorks } from '../../lib/site';
 import { DEFAULT_VIEW, TILE_SIZE_STORAGE_KEY, VIEW_STORAGE_KEY } from '../../../scripts/lib/gallery-filter.mjs';
 import { columnsFor, viewSetup } from '../../../scripts/lib/view-layout.mjs';
 import { EVENTS } from '../../../scripts/lib/analytics.mjs';
@@ -24,13 +24,13 @@ const collections = Object.fromEntries(getCollections().map((c) => [c.slug, { ti
     <span class="actions">
       <button type="button" class="pill" id="selection-copy" data-share-link data-track={EVENTS.share} data-title="Můj výběr">Zkopírovat odkaz</button>
       <span class="muted copied" data-share-status role="status"></span>
-      <button type="button" class="pill play" id="selection-play" title="Vybraná díla jedno po druhém přes celou obrazovku"><span aria-hidden="true">▶</span> Promítat</button>
+      {features.cinema && <button type="button" class="pill play" id="selection-play" title="Vybraná díla jedno po druhém přes celou obrazovku"><span aria-hidden="true">▶</span> Promítat</button>}
     </span>
   </div>
   <p class="muted" id="selection-empty" hidden>{NO_FAVORITES_TEXT}</p>
   <noscript><p class="muted">Výběr se ukáže jen se zapnutým JavaScriptem.</p></noscript>
   <WorkGrid works={works} place="gallery" heartSource="selection" hidden={works.map(() => true)} cinema id="grid" data-view={JSON.stringify(setup)} />
-  <Cinema collections={collections} />
+  {features.cinema && <Cinema collections={collections} />}
 </Base>
 
 <style>
@@ -92,7 +92,9 @@ const collections = Object.fromEntries(getCollections().map((c) => [c.slug, { ti
   if (linked) trackEvent(EVENTS.favoritesOpen, favoritesOpenParams(ids, favorites()));
 
   // "▶ Promítat": the cinema of the selection (no address of its own: closing it leaves the page as it was)
-  const cinemaRoot = document.getElementById('cinema')!;
+  // (a site without the cinema, features.cinema, has neither it nor the button)
+  const cinemaRoot = document.getElementById('cinema');
+  if (cinemaRoot) {
   const cinemaConf = JSON.parse(cinemaRoot.dataset.settings!);
   const cinema = createCinema(cinemaRoot, cinemaConf, JSON.parse(cinemaRoot.dataset.collections!), {
     shown: () => {},
@@ -107,4 +109,5 @@ const collections = Object.fromEntries(getCollections().map((c) => [c.slug, { ti
     const interval = cinemaFromParams(new URLSearchParams(), cinemaConf, stored(CINEMA_STORAGE_KEYS.interval)).interval;
     if (cinema.open(list, null, interval, 'button')) trackEvent(EVENTS.cinema, cinemaOpenParams({ listing: 'selection', results: list.length, interval, method: 'button' }));
   });
+  }
 </script>

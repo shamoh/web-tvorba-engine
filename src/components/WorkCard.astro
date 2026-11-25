@@ -10,6 +10,7 @@ import { cinemaCard } from '../../scripts/lib/cinema.mjs';
 import { keepTogether } from '../../scripts/lib/typography.mjs';
 import { EVENTS } from '../../scripts/lib/analytics.mjs';
 import { HEART_ICON, favoriteLabel } from '../../scripts/lib/favorites.mjs';
+import { features } from '../lib/site';
 // `sizes`: of the picture, the big pictures by default (tiles are narrower, WorkGrid.astro); `marks`: the mark settings
 // of the place (tileMarksFor), none = no marks (cards outside a grid of works, e.g. on the 404 page, never show tiles).
 // `cinema`: the card carries what the cinema of its listing shows (data-cinema, cinemaCard; the gallery only).
@@ -17,7 +18,7 @@ import { HEART_ICON, favoriteLabel } from '../../scripts/lib/favorites.mjs';
 // `heart`: the heart of the favourites over the picture, with where it is for the statistics (FAVORITE_SOURCES; src/lib/favorites.ts).
 interface Props { work: Work; marks?: ReturnType<typeof tileMarks>; eager?: boolean; hidden?: boolean; sizes?: string; cinema?: boolean; track?: string; heart?: string }
 const { work, marks, eager, hidden, sizes = CARD_IMAGE_SIZES, cinema = false, track, heart } = Astro.props;
-const cinemaData = cinema ? JSON.stringify(cinemaCard(work, { url: workUrl(work), base: url(workImagePath(work)), size: formatSize(work.size_cm) ?? '', statusLabel })) : undefined;
+const cinemaData = cinema && features.cinema ? JSON.stringify(cinemaCard(work, { url: workUrl(work), base: url(workImagePath(work)), size: formatSize(work.size_cm) ?? '', statusLabel })) : undefined;
 // Marks over the picture, shown only with tiles (site.config.yaml home/gallery.tileMarks): with big pictures the title has the star
 // and the card the status chip. Decorative: the tooltip of the picture and the hidden texts tell the same.
 const shownMarks = marks ? workMarks({ featured: Boolean(work.featured), onSale: isOnSale(work.status) }, marks) : [];
@@ -48,7 +49,7 @@ const shownMarks = marks ? workMarks({ featured: Boolean(work.featured), onSale:
         <svg viewBox="0 0 24 24" set:html={MARK_ICONS[m.icon]} />
       </span>
     ))}
-    {heart && (
+    {heart && features.favorites && (
       <button type="button" class="heart" data-heart={work.id} data-heart-source={heart} data-work-title={work.title} aria-pressed="false" aria-label={favoriteLabel(false)} title={favoriteLabel(false)}>
         <svg viewBox="0 0 24 24" aria-hidden="true" set:html={HEART_ICON} />
       </button>

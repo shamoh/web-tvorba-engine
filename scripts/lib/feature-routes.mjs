@@ -14,6 +14,8 @@ export const FEATURE_ROUTES = {
     ['/detail-dne/muj/data.json', 'muj/data.json.ts'],
     ['/detail-dne/muj-kviz', 'muj-kviz.astro'],
   ].map(([pattern, file]) => ({ pattern, entrypoint: `./src/pages/_detail-dne/${file}` })),
+  // "Můj výběr": the works of the favourites of a visitor (or of a link)
+  favorites: [{ pattern: '/tvorba/vyber', entrypoint: './src/pages/_favorites/vyber.astro' }],
 };
 
 /** The routes to inject for the site `features` (featuresOf): the pages of every feature that is on. */

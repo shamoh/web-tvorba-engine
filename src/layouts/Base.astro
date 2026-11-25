@@ -132,9 +132,9 @@ const skipScope = skipHeaderScope(Astro.url.pathname, import.meta.env.BASE_URL);
       </span>
       <span class="links">
         <!-- the show of the visitor's favourites; shown by the script below only to a visitor with some (src/lib/favorites.ts) -->
-        <a href={url(favoritesShowPath('footer'))} title="Obrazy, které jste si označili srdcem, jeden po druhém přes celou obrazovku" data-favorites-footer hidden>Oblíbené</a>
-        {onSale && <a href={url(saleShowPath('footer'))} title="Obrazy na prodej jeden po druhém přes celou obrazovku">Na prodej</a>}
-        {featured && <a href={url(featuredShowPath('footer'))} title="Moje nejmilejší obrazy jeden po druhém přes celou obrazovku">Výběr</a>}
+        {features.favorites && features.cinema && <a href={url(favoritesShowPath('footer'))} title="Obrazy, které jste si označili srdcem, jeden po druhém přes celou obrazovku" data-favorites-footer hidden>Oblíbené</a>}
+        {features.cinema && onSale && <a href={url(saleShowPath('footer'))} title="Obrazy na prodej jeden po druhém přes celou obrazovku">Na prodej</a>}
+        {features.cinema && featured && <a href={url(featuredShowPath('footer'))} title="Moje nejmilejší obrazy jeden po druhém přes celou obrazovku">Výběr</a>}
         {site.instagram && <a href={`https://www.instagram.com/${site.instagram}/`} rel="me">Instagram</a>}
         {site.pinterest && <a href={pinterestProfileLink(site.pinterest)} rel="me">Pinterest</a>}
         {site.fler && <a href={site.fler}>Fler</a>}

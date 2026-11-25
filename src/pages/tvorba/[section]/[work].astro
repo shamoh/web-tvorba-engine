@@ -119,7 +119,7 @@ const story = textHtml(work.text);
     )}
     <div class="info">
       <div class="head">
-        <div class="title"><h1>{keepTogether(work.title)}</h1><span class="marks"><FeaturedStar featured={work.featured} /><button type="button" class="heart" data-heart={work.id} data-heart-source="work" data-work-title={work.title} aria-pressed="false" aria-label={favoriteLabel(false)} title={favoriteLabel(false)}><svg viewBox="0 0 24 24" aria-hidden="true" set:html={HEART_ICON} /></button></span></div>
+        <div class="title"><h1>{keepTogether(work.title)}</h1><span class="marks"><FeaturedStar featured={work.featured} />{features.favorites && <button type="button" class="heart" data-heart={work.id} data-heart-source="work" data-work-title={work.title} aria-pressed="false" aria-label={favoriteLabel(false)} title={favoriteLabel(false)}><svg viewBox="0 0 24 24" aria-hidden="true" set:html={HEART_ICON} /></button>}</span></div>
         <dl>
           <dt>Technika</dt><dd><a href={url(galleryFilterPath('technique', work.technique))} title={galleryLinkTitle('technique', work.technique)}>{work.technique}</a></dd>
           {work.support && <><dt>Podklad</dt><dd>{work.support}</dd></>}

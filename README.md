@@ -1212,7 +1212,7 @@ na stránce i v jiných kartách ukazují totéž, `storage`); bez JavaScriptu �
 - **Patička:** první odkaz „Oblíbené“ pustí promítání vlastních oblíbených `/tvorba/?favorites=1&cinema=random&from=footer`
   (`favoritesShowPath`, filtr „Jen moje oblíbené“ galerie, jako „Na prodej“ a „Výběr“, viz *Promítání*); jen když návštěvník
   nějaké oblíbené má (skript v `Base.astro`, po každé změně i z jiné karty).
-- **„Můj výběr“** `/tvorba/vyber/?obrazy=<id>,<id>…` (`SELECTION_PATH`, `SELECTION_PARAM`, `src/pages/tvorba/vyber.astro`,
+- **„Můj výběr“** `/tvorba/vyber/?obrazy=<id>,<id>…` (`SELECTION_PATH`, `SELECTION_PARAM`, `src/pages/_favorites/vyber.astro`,
   `noindex`, mimo mapu webu): díla z adresy (neznámé kódy vynechá, každé jednou, `selectionFromSearch`) v pořadí galerie,
   v zobrazení zapamatovaném pro galerii; „N obrazů. Odkaz na tuhle stránku jde poslat dál.“, vpravo „Zkopírovat odkaz“
   (na telefonu nabídka sdílení) a „▶ Promítat“ (promítání výběru, bez vlastní adresy). Kdo odkaz dostane, vidí na
@@ -3140,7 +3140,7 @@ features:
 
 Neznámé jméno funkce (překlep by ji tiše nechal zapnutou) nebo jiná hodnota než `true`/`false` je chyba v
 `npm run check:site` (`features.<jméno>: …`) a `featuresOf` ji vyhodí i při buildu. Vypínají se postupně (viz
-`CHANGELOG.md`); zatím umí vypnout **`game`**:
+`CHANGELOG.md`); zatím umí vypnout **`game`**, **`cinema`** a **`favorites`**:
 
 - Stránky hry (`/detail-dne/`, `dnes.json`, `data.json`, archivní roky plánu, Můj Detail dne) leží v `src/pages/_detail-dne/`
   (Astro složku s `_` nestaví) a jejich adresy přidá do buildu jen zapnutá funkce (`scripts/lib/feature-routes.mjs`,
@@ -3148,6 +3148,13 @@ Neznámé jméno funkce (překlep by ji tiše nechal zapnutou) nebo jiná hodnot
 - Bez hry nemá web odkaz „Detail dne“ v menu, sekci na úvodní stránce, odkaz „Udělat z obrazu Můj Detail dne“ u děl, stránku
   v mapě webu, zkratku ani snímek hry v manifestu aplikace (`webManifest`, `APP_SCREENSHOTS` mají `feature`), nic
   nestahuje pro hru offline (`SITE_FEATURES` v prohlížeči) a pipeline nepočítá plán dnů ani přehled `export/detail-dne/`.
+- **`cinema`** vypne promítání: bez tlačítek „▶ Promítat“ (galerie, lišta filtrů, Můj výběr), bez druhého tlačítka úvodní
+  stránky a odkazů „Na prodej“, „Výběr“ a „Oblíbené“ v patičce, bez zkratky „Promítat“ v manifestu, bez okna promítání
+  (`Cinema.astro` se nevykreslí) a bez `data-cinema` na kartách; odkaz s `?cinema=` se přehlédne.
+- **`favorites`** vypne oblíbené: bez srdcí na kartách, u titulku díla a v promítání, bez „Moje oblíbené“ a zaškrtávátka
+  „jen moje“ v galerii, bez zkratky „Oblíbené“ a odkazu v patičce a bez stránky Můj výběr (`src/pages/_favorites/`, trasa
+  jen se zapnutou funkcí). V prohlížeči je seznam oblíbených vždy prázdný a srdce nic nedělá (`SITE_FEATURES`), takže co si
+  návštěvník dřív uložil, se nikde neukáže. Odkaz „Oblíbené“ v patičce je promítání, proto potřebuje i `cinema`.
 - Soubor `stranky/detail-dne.yaml` se bez hry nezakládá ani nekontroluje; už existující zůstane a nic se s ním neděje.
   Ikona zkratky hry se nevyžaduje (`check:site`). Týdenní kontrola plán hry a rozbory bez hry zatím jen neřeší
   (stránka `/detail-dne/` neexistuje = „nezkontrolováno“).

@@ -2,7 +2,7 @@
 import WorkGrid from './WorkGrid.astro';
 import Pager from './Pager.astro';
 import Cinema from './Cinema.astro';
-import { type Work, collectionUrl, colourChoices, config, getCollections, getYears, url } from '../lib/site';
+import { type Work, collectionUrl, colourChoices, config, features, getCollections, getYears, url } from '../lib/site';
 import { DEFAULT_VIEW, NO_COLLECTION, NO_COLLECTION_TITLE, TILE_SIZE_STORAGE_KEY, VIEW_STORAGE_KEY, czechOrder, statusOptions, yearFilterOptions } from '../../scripts/lib/gallery-filter.mjs';
 import { columnsFor, viewScript, viewSetup } from '../../scripts/lib/view-layout.mjs';
 import { overviewLink, yearCounts, yearOptions } from '../../scripts/lib/collection-filter.mjs';
@@ -72,7 +72,7 @@ const setup = viewSetup({ defaultView: DEFAULT_VIEW, linkKeys: ['view', 'tile', 
     <span class="bar-chips" id="bar-chips" role="group" aria-label="Vybrané filtry"></span>
     <button type="button" class="bar-reset" data-filters-reset hidden>Zrušit vše</button>
     <span class="bar-count" id="bar-count"></span>
-    <a class="bar-play" data-cinema-open href="?cinema=random" aria-label="Promítat vybraná díla přes celou obrazovku" title="Promítat vybraná díla přes celou obrazovku">▶</a>
+    {features.cinema && <a class="bar-play" data-cinema-open href="?cinema=random" aria-label="Promítat vybraná díla přes celou obrazovku" title="Promítat vybraná díla přes celou obrazovku">▶</a>}
     <button type="button" class="filter-toggle" id="filter-toggle" aria-expanded="false" aria-controls="filters">Upravit</button>
   </div>
 </div>
@@ -124,7 +124,7 @@ const setup = viewSetup({ defaultView: DEFAULT_VIEW, linkKeys: ['view', 'tile', 
       <a class="mine-link" data-favorites-link hidden><svg viewBox="0 0 24 24" aria-hidden="true" set:html={HEART_ICON} /><span>Moje oblíbené (<span data-favorites-count>0</span>)</span></a>
       <span class="muted" id="count" aria-live="polite">{works.length} děl</span>
       <button type="button" class="reset-link" data-filters-reset hidden><span aria-hidden="true">×</span> Zrušit filtry</button>
-      <a class="play-link" data-cinema-open href="?cinema=random" title="Vybraná díla jedno po druhém přes celou obrazovku"><span aria-hidden="true">▶</span> Promítat</a>
+      {features.cinema && <a class="play-link" data-cinema-open href="?cinema=random" title="Vybraná díla jedno po druhém přes celou obrazovku"><span aria-hidden="true">▶</span> Promítat</a>}
     </span>
   </div>
   <div class="filters-actions">
@@ -134,11 +134,11 @@ const setup = viewSetup({ defaultView: DEFAULT_VIEW, linkKeys: ['view', 'tile', 
 </form>
 </div>
 
-<WorkGrid works={works} place="gallery" eager={3} cinema id="grid" data-selection={url(SELECTION_PATH)} data-listing={listing} data-page-sizes={JSON.stringify({ grid: pageSizes, tiles: tilePageSizes })} data-view={JSON.stringify(setup)} />
+<WorkGrid works={works} place="gallery" eager={3} cinema id="grid" data-selection={features.favorites ? url(SELECTION_PATH) : undefined} data-listing={listing} data-page-sizes={JSON.stringify({ grid: pageSizes, tiles: tilePageSizes })} data-view={JSON.stringify(setup)} />
 <script is:inline set:html={viewScript} />
 <p class="muted empty" id="empty" hidden>Tomuhle výběru nic neodpovídá.</p>
 <Pager pageSizes={pageSizes} total={works.length} views />
-<Cinema collections={cinemaCollections} />
+{features.cinema && <Cinema collections={cinemaCollections} />}
 
 <script>
   // Every filter and the page are written to the URL right away (?tag=krajina&status=unsold&page=2), so the
@@ -276,8 +276,9 @@ const setup = viewSetup({ defaultView: DEFAULT_VIEW, linkKeys: ['view', 'tile', 
     },
   });
   const viewStorage = stored(VIEW_STORAGE_KEY);
-  const cinemaRoot = document.getElementById('cinema')!;
-  const cinemaConf = JSON.parse(cinemaRoot.dataset.settings!);
+  // a site without the cinema (features.cinema) has no #cinema: no show can open (no buttons, a link with ?cinema= is ignored)
+  const cinemaRoot = document.getElementById('cinema');
+  const cinemaConf = cinemaRoot ? JSON.parse(cinemaRoot.dataset.settings!) : {};
   const intervalStorage = stored(CINEMA_STORAGE_KEYS.interval);
   /** The interval a show opened here runs at: the remembered one, else the default. */
   const cinemaInterval = () => cinemaFromParams(new URLSearchParams(), cinemaConf, intervalStorage.get()).interval;
@@ -630,7 +631,8 @@ const setup = viewSetup({ defaultView: DEFAULT_VIEW, linkKeys: ['view', 'tile', 
   const CINEMA_OPENED = 'site-cinema';
   const cinemaWorks = (): CinemaWork[] => cards.filter((_, i) => matchesFilters(works[i], state))
     .map((c) => ({ id: c.dataset.id!, collection: c.dataset.collection!, ...JSON.parse(c.dataset.cinema!) }));
-  const cinema = createCinema(cinemaRoot, cinemaConf, JSON.parse(cinemaRoot.dataset.collections!), {
+  const noCinema = { isOpen: false, current: null, open: () => false, close: () => {} } as unknown as ReturnType<typeof createCinema>;
+  const cinema = !cinemaRoot ? noCinema : createCinema(cinemaRoot, cinemaConf, JSON.parse(cinemaRoot.dataset.collections!), {
     shown: (id, interval) => history.replaceState(history.state, '', cinemaHref(id, interval)),
     closed: (reason, run, leaving) => {
       trackEvent(EVENTS.cinemaClose, cinemaCloseParams({ listing, reason, ...run }));
@@ -674,6 +676,7 @@ const setup = viewSetup({ defaultView: DEFAULT_VIEW, linkKeys: ['view', 'tile', 
   }
   // Back / Forward: the show follows the address
   addEventListener('popstate', () => {
+    if (!cinemaRoot) return;
     const wanted = cinemaFromParams(new URLSearchParams(location.search), cinemaConf, intervalStorage.get());
     if (!wanted.id && cinema.isOpen) cinema.close('back');
     else if (wanted.id && !cinema.isOpen) openCinema(wanted.id, wanted.interval, 'link');
@@ -681,7 +684,7 @@ const setup = viewSetup({ defaultView: DEFAULT_VIEW, linkKeys: ['view', 'tile', 
   // A link with the show (apply() above has written the address without it): open it on its work; a work not among
   // these (filtered out, gone) starts anywhere, no works = no show. A link of the site names itself by ?from= (counted
   // apart in cinema_open; the address written above is without it).
-  const linked = cinemaFromParams(params, cinemaConf, intervalStorage.get());
+  const linked = cinemaRoot ? cinemaFromParams(params, cinemaConf, intervalStorage.get()) : { id: null, interval: 0 };
   if (linked.id && openCinema(linked.id, linked.interval, 'link', cinemaLinkMethod(params.get(CINEMA_FROM)))) history.replaceState(history.state, '', cinemaHref(cinema.current, linked.interval));
 </script>
 

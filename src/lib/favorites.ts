@@ -4,12 +4,14 @@
 // then the hearts still toggle for this page, nothing is kept.
 import { FAVORITES_STORE, favoriteEventParams, favoriteLabel, readFavorites, toggleFavorite } from '../../scripts/lib/favorites.mjs';
 import { EVENTS, trackEvent } from '../../scripts/lib/analytics.mjs';
+import { SITE_FEATURES } from '../../scripts/lib/features.mjs';
 
 const CHANGED = `${FAVORITES_STORE}:changed`;
 let memory: string[] | null = null; // the list when storage is blocked
 
 /** The favourites of this visitor (ids, in the order they were added). */
 export function favorites(): string[] {
+  if (!SITE_FEATURES.favorites) return []; // a site without favourites has none, whatever the browser kept
   try { return readFavorites(localStorage.getItem(FAVORITES_STORE)); } catch { return memory ?? []; }
 }
 
@@ -20,6 +22,7 @@ function keep(list: string[]) {
 
 /** A heart clicked (or the key L of the cinema): the work in or out, the event, every heart repainted; true = added. */
 export function toggleStoredFavorite(id: string, source: string, title = ''): boolean {
+  if (!SITE_FEATURES.favorites) return false;
   const next = toggleFavorite(favorites(), id);
   keep(next.list);
   trackEvent(next.added ? EVENTS.favoriteAdd : EVENTS.favoriteRemove, favoriteEventParams({ workId: id, workTitle: title, source }));
@@ -60,7 +63,7 @@ let started = false;
  * data-heart-own (the cinema) handle their own clicks.
  */
 export function startHearts() {
-  if (started) return;
+  if (started || !SITE_FEATURES.favorites) return;
   started = true;
   document.documentElement.classList.add('hearts');
   paintHearts();

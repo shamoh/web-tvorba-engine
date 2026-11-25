@@ -20,6 +20,7 @@ import { copiedText } from '../../scripts/lib/share.mjs';
 import { keepTogether } from '../../scripts/lib/typography.mjs';
 import { followSwipe } from './follow-swipe';
 import { beat, onFavoritesChange, paintHearts, toggleStoredFavorite } from './favorites';
+import { SITE_FEATURES } from '../../scripts/lib/features.mjs';
 
 /** A work of the show: its id and collection (slug, '' without) with the data-cinema of its card (cinemaCard). */
 export interface CinemaWork {
@@ -227,13 +228,14 @@ export function createCinema(root: HTMLElement, settings: CinemaSettings, collec
 
   // ---- the heart of the favourites: its button in the caption (a link: the click stays here) and the key L ----
   function toggleHeart() {
-    if (!show) return;
+    if (!show || !SITE_FEATURES.favorites) return;
     const w = work(show.index);
     const added = toggleStoredFavorite(w.id, 'cinema', w.title);
     if (added) beat(heartButton);
     say(added ? '♥ Přidáno do oblíbených' : 'Odebráno z oblíbených');
     linger();
   }
+  if (!SITE_FEATURES.favorites) heartButton.style.display = 'none'; // a site without favourites has no heart here
   heartButton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleHeart(); });
   onFavoritesChange(() => paintHearts(root));
 

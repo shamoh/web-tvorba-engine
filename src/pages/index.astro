@@ -40,7 +40,7 @@ const jsonLd = graphLd(websiteLd(site), personLd(site, { image: photoImageUrl('p
         {home.paragraphs.map((p) => <p class="muted desc" set:html={p} />)}
         <p class="actions">
           <a class="btn" href={url('/tvorba/')}>{home.button}</a>
-          {home.showButton && hasFeaturedWorks() && (
+          {features.cinema && home.showButton && hasFeaturedWorks() && (
             <a class="btn ghost" href={url(featuredShowPath('home'))} title="Obrazy z mého výběru jeden po druhém přes celou obrazovku">{home.showButton}</a>
           )}
         </p>
