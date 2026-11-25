@@ -108,10 +108,10 @@ export const CODES = {
   // still to fill in
   doplnit: { level: 'todo', text: 'atributy pořád označené DOPLNIT' },
   // the weekly health check of the automation (scripts/lib/health.mjs, site-check.mjs, page-check.mjs)
-  'token-chybi': { level: 'health', text: 'secret PAVLA_TOKEN není nastavený' },
-  'token-neplatny': { level: 'health', text: 'token PAVLA_TOKEN je neplatný nebo vypršel' },
-  'token-nedostupny': { level: 'health', text: 'kontrola tokenu PAVLA_TOKEN selhala' },
-  'token-vyprsi': { level: 'health', text: 'token PAVLA_TOKEN brzy vyprší' },
+  'token-chybi': { level: 'health', text: 'secret SITE_TOKEN není nastavený' },
+  'token-neplatny': { level: 'health', text: 'token SITE_TOKEN je neplatný nebo vypršel' },
+  'token-nedostupny': { level: 'health', text: 'kontrola tokenu SITE_TOKEN selhala' },
+  'token-vyprsi': { level: 'health', text: 'token SITE_TOKEN brzy vyprší' },
   'kontrolni-token-neplatny': { level: 'health', text: 'token CHECK_TOKEN je neplatný nebo vypršel' },
   'kontrolni-token-nedostupny': { level: 'health', text: 'kontrola tokenu CHECK_TOKEN selhala' },
   'kontrolni-token-vyprsi': { level: 'health', text: 'token CHECK_TOKEN brzy vyprší' },

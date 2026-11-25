@@ -1,5 +1,5 @@
 // Opening a work by its code (id) from the header of every page (src/components/CodeJump.astro): a visitor copies the
-// code from Instagram ("pavla.kramolis.cz · jujn2"), pastes it and lands on the work. The field takes the code itself
+// code from Instagram ("example.com · jujn2"), pastes it and lands on the work. The field takes the code itself
 // or anything around it: the whole line of a post, an address of the work (its short link /tvorba/<id>/ or its page
 // /tvorba/<year>/<slug>-<id>/), any case. The page then opens the short link of the work, which leads to its page.
 

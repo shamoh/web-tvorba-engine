@@ -52,7 +52,7 @@ export const SUBJECT_TAG = 'web';
 
 /**
  * Subject of the e-mail, starting with the tag of the site (`messages.subjectTag`, so a mail filter finds them), e.g.
- * "[pavla-web] Dotaz na obraz: Ovce (v39nd)" or "[pavla-web] Chyba na webu: Kolekce".
+ * "[web] Dotaz na obraz: Ovce (v39nd)" or "[pavla-web] Chyba na webu: Kolekce".
  */
 export function messageSubject(typeId, context, tag = SUBJECT_TAG) {
   const label = messageType(typeId).label;
@@ -123,7 +123,7 @@ export function messageEventParams({ type, context }) {
   };
 }
 
-/** The sender of the e-mail, so a message from the site is not mistaken for one from the author: "Web pavla.kramolis.cz". */
+/** The sender of the e-mail, so a message from the site is not mistaken for one from the author: "Web example.com". */
 export const messageSender = (site) => `Web ${new URL(site.url).host}`;
 
 /**

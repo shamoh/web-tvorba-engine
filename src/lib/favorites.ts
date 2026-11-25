@@ -5,7 +5,7 @@
 import { FAVORITES_STORE, favoriteEventParams, favoriteLabel, readFavorites, toggleFavorite } from '../../scripts/lib/favorites.mjs';
 import { EVENTS, trackEvent } from '../../scripts/lib/analytics.mjs';
 
-const CHANGED = 'pavla:favorites';
+const CHANGED = `${FAVORITES_STORE}:changed`;
 let memory: string[] | null = null; // the list when storage is blocked
 
 /** The favourites of this visitor (ids, in the order they were added). */

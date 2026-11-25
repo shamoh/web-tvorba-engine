@@ -10,7 +10,7 @@
 //   binary.lock             the tree of the images of the site (scripts/binary.mjs)
 //   dist/                   the built site
 // SITE_DIR names the folder (relative to the working directory, or absolute); it is always needed: the engine holds no
-// site of its own (locally in .env, e.g. SITE_DIR=../pavla; a workflow checks the site out into site/). The test data
+// site of its own (locally in .env, e.g. SITE_DIR=../site; a workflow checks the site out into site/). The test data
 // build their own complete folder (.demo/site, scripts/demo.mjs; npm run demo and demo:build set SITE_DIR themselves).
 
 import fs from 'node:fs';
@@ -28,7 +28,7 @@ export const SITE_DIR_VARIABLE = 'SITE_DIR';
 export const SITE_CONFIG_FILE = 'site.config.yaml';
 
 /** Why a command needs SITE_DIR (the error without it). */
-export const SITE_DIR_MISSING = 'SITE_DIR is not set: name the folder of the site (e.g. SITE_DIR=../pavla in .env), '
+export const SITE_DIR_MISSING = 'SITE_DIR is not set: name the folder of the site (e.g. SITE_DIR=../site in .env), '
   + 'or use the test site (npm run demo, npm run demo:build)';
 
 /** The folder of the site: SITE_DIR of `env` resolved against `cwd`; without it an error (SITE_DIR_MISSING). */

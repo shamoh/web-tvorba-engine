@@ -2219,7 +2219,7 @@ vyfocená nakřivo kolem listu podlahu. V rámu na zdi by ale okraj nepatřil (p
 kryje okraje papíru) a měřítko podle `size_cm` by nesedělo. Pipeline proto
 pro mockupy (na webu i pro Fler) master ořízne na největší obdélník uvnitř rohů listu
 (`meta_corners`, viz *Ořez pozadí*, `innerRegion` v `scripts/lib/edges.mjs`) a uvnitř listu
-z metadat fotky (`pavla:sheet`, viz *Srovnání fotek obrazů*); má-li obojí, na jejich průnik.
+z metadat fotky (`wt:sheet`, viz *Srovnání fotek obrazů*); má-li obojí, na jejich průnik.
 Webové obrázky díla a exporty pro Instagram a Fler okraj neořezávají, jen podlahu vně rohů
 zprůhlední nebo nahradí barvou pozadí. Master bez obojího (sken, fotka upravená jinde) jde do
 mockupu celý jako dosud. Klik na obraz, detail nebo mockup otevře prohlížeč fotek, ve kterém se dá
@@ -3511,7 +3511,7 @@ mimo −0,2 až 0,5) nástroj
 ohlásí a nic nezpracuje.
 
 **Údaj o listu pro mockupy:** když výsledek obsahuje okraj podkladu (`--margin` > 0),
-nástroj do JPEGu zapíše, kde přesně leží list (metadata XMP, `pavla:sheet` =
+nástroj do JPEGu zapíše, kde přesně leží list (metadata XMP, `wt:sheet` (starší `pavla:sheet` se čte dál) =
 levý, horní, pravý a dolní okraj listu jako podíl 0–1, po otočení přepočítané).
 Údaj zůstane v souboru i po přejmenování a nahrání přes GitHub. Pipeline podle
 něj pro **mockupy** master ořízne na holý papír (viz *Mockupy*). Web, Instagram

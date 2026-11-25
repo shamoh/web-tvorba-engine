@@ -1,6 +1,6 @@
 // Recommendations for the descriptions of works, collections, years, the home page and photos: nothing wrong enough to
 // stop a run, only what would make the site better (shown in the run summary under "Doporučení",
-// scripts/lib/summary.mjs). Messages are Czech ("<file>: <what and how>") because Pavla reads them. Texts still starting with DOPLNIT are left to the checks.
+// scripts/lib/summary.mjs). Messages are Czech ("<file>: <what and how>") because the author reads them. Texts still starting with DOPLNIT are left to the checks.
 
 import { untranslatedWords } from './instagram.mjs';
 import { todoKeys } from './metadata-yaml.mjs';
@@ -278,7 +278,7 @@ export function featuredAdvice(pages) {
 }
 
 // Tags: the gallery shows every tag used as a chip, so the list should stay short and clear. The advice speaks only
-// where Pavla can do something about it (merge, shorten or drop a tag); a tag on most works is an honest description,
+// where the author can do something about it (merge, shorten or drop a tag); a tag on most works is an honest description,
 // it gets no advice, only the statistics (tagStats) in the run summary. Counted over all works, drafts too (they are
 // the ones being tagged now).
 

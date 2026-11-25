@@ -27,7 +27,7 @@ const answers = {
   [`/repos/${repo}/environments/github-pages/deployment-branch-policies`]: { branch_policies: [{ name: 'main', type: 'branch' }] },
   [`/repos/${repo}/actions/permissions`]: { enabled: true, allowed_actions: 'all' },
   [`/repos/${repo}/actions/permissions/workflow`]: { default_workflow_permissions: 'read', can_approve_pull_request_reviews: false },
-  [`/repos/${repo}/actions/secrets`]: { secrets: [{ name: 'PAVLA_TOKEN' }] },
+  [`/repos/${repo}/actions/secrets`]: { secrets: [{ name: 'SITE_TOKEN' }] },
   [`/repos/${repo}/actions/variables`]: { variables: [] },
   [`/repos/${repo}/collaborators`]: [{ login: 'pavla', role_name: 'write' }],
   [`/repos/${repo}/hooks`]: [],
@@ -48,7 +48,7 @@ test('collectSettings: general settings, rulesets in full, Pages, environments, 
     name: 'github-pages', protection_rules: [{ type: 'branch_policy', wait_timer: undefined, reviewers: undefined }],
     deployment_branch_policy: { custom_branch_policies: true }, branch_policies: ['branch:main'], secrets: [],
   }]);
-  assert.deepEqual(s.secrets, ['PAVLA_TOKEN']);
+  assert.deepEqual(s.secrets, ['SITE_TOKEN']);
   assert.deepEqual(s.collaborators, ['pavla (write)']);
   assert.equal(s.keys, null);
   assert.deepEqual(s.errors, { keys: 'HTTP 403' });
@@ -68,7 +68,7 @@ test('settingsMarkdown: a checklist by the sections of Settings, what to do by h
   assert.match(md, /### main \(active, cíl branch\)\n\n- \[ \] větve: ~DEFAULT_BRANCH\n- \[ \] výjimky \(bypass\): RepositoryRole 5 \(always\)\n- \[ \] pravidlo deletion\n- \[ \] pravidlo required_status_checks: check/);
   assert.match(md, /\| `cname` \| pavla\.example \|/);
   assert.match(md, /- \[ \] \*\*github-pages\*\*: větve branch:main, ochrana branch_policy/);
-  assert.match(md, /- \[ \] secret `PAVLA_TOKEN` \(hodnotu vložit znovu\)/);
+  assert.match(md, /- \[ \] secret `SITE_TOKEN` \(hodnotu vložit znovu\)/);
   assert.match(md, /- \[ \] spolupracovník pavla \(write\)/);
   for (const line of BY_HAND) assert.ok(md.includes(line), line);
   assert.match(md, /## Nepodařilo se přečíst\n\n- keys: HTTP 403/);
@@ -97,7 +97,7 @@ test('compareSnapshots: every changed, added and removed setting; an unreadable 
     ...answers,
     [`/repos/${repo}`]: { ...answers[`/repos/${repo}`], allow_auto_merge: false },
     [`/repos/${repo}/rulesets?includes_parents=false`]: [],
-    [`/repos/${repo}/actions/secrets`]: { secrets: [{ name: 'PAVLA_TOKEN' }, { name: 'NOVY' }] },
+    [`/repos/${repo}/actions/secrets`]: { secrets: [{ name: 'SITE_TOKEN' }, { name: 'NOVY' }] },
     [`/repos/${repo}/pages`]: new Error('HTTP 403'),
   };
   const diffs = compareSnapshots(saved, settingsSnapshot(await collectSettings(repo, fakeApi(changed))));

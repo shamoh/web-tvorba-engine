@@ -1,5 +1,5 @@
 // Markdown summary of a pipeline run, shown on the GitHub Actions run page ($GITHUB_STEP_SUMMARY).
-// Everything is Czech because Pavla reads it. Errors come first (grouped by file), then warnings, then
+// Everything is Czech because the author reads it. Errors come first (grouped by file), then warnings, then
 // recommendations (grouped by file, scripts/lib/advice.mjs) and, folded, what is left to fill in (DOPLNIT), then what
 // the run did and last the tag statistics,
 // so whatever needs fixing is visible without scrolling.

@@ -513,7 +513,7 @@ function renderCounts() {
         <div class="tries" role="group" aria-label="Pokus">${Array.from({ length: level.guesses }, (_, m) => `<button type="button" data-try="${m}" aria-pressed="${m === 0}">${m + 1}. pokus</button>`).join('')}</div>
         <p class="state" data-state></p>
         <ul class="params">${Array.from({ length: level.guesses }, (_, m) => `<li>${m + 1}. pokus: ${lookWords(look.effect, look.colour, effectStrength(m, level.guesses))}</li>`).join('')}</ul>
-        ${e ? `<p class="example">Hádanka z ${new Date(e.date).toLocaleDateString('cs-CZ')}: <a href="https://pavla.kramolis.cz${e.url}" target="_blank" rel="noopener">${e.title}</a></p>` : '<p class="example">V plánu zatím bez hádanky.</p>'}
+        ${e ? `<p class="example">Hádanka z ${new Date(e.date).toLocaleDateString('cs-CZ')}: <a href="${PAGE.siteUrl}${e.url}" target="_blank" rel="noopener">${e.title}</a></p>` : '<p class="example">V plánu zatím bez hádanky.</p>'}
         <div class="verdicts" role="group" aria-label="Co s tímto zkreslením">${VERDICTS.map(([v, t]) => `<button type="button" data-verdict="${v}" aria-pressed="false">${t}</button>`).join('')}</div>
         <textarea id="note-${id}" data-note placeholder="Poznámka k ${look.label}…"></textarea>`;
       grid.append(card);

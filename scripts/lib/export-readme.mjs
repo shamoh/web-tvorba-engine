@@ -1,5 +1,5 @@
 // README.md in the export folders of the content repository: GitHub shows it right under the list of files, so the
-// author sees at a glance what is ready (photos as thumbnails, the text of the post ready to copy). Czech: for Pavla.
+// author sees at a glance what is ready (photos as thumbnails, the text of the post ready to copy). Czech: for the author.
 //   export/<platform>/README.md                          overview: every work with exports, a thumbnail, a link
 //   export/<platform>/[<collection>/]<slug>/README.md    one work: all its photos (and the text of the post)
 // export/draft/ is the same for the cut previews of drafts (draftReadme, draftIndex).

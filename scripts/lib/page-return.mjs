@@ -23,7 +23,7 @@ export const RETURN_FOCUS_KEY = storageKey('return.focus');
 export const RETURN_SCOPE = '/tvorba/';
 
 /**
- * True when `pathname` lies in RETURN_SCOPE of a site with base path `base` ('/' or '/pavla/'), also the section itself
+ * True when `pathname` lies in RETURN_SCOPE of a site with base path `base` ('/' or '/site/'), also the section itself
  * without its slash ('/tvorba': the dev server serves it as it is).
  */
 export const insideScope = (pathname, base = '/') => `${pathname}/`.startsWith(`${base.replace(/\/$/, '')}${RETURN_SCOPE}`);

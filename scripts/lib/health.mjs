@@ -1,8 +1,8 @@
 // Weekly health check of the automation around the content repository:
-//   - PAVLA_TOKEN (used by the "Zpracování obsahu" workflow) works and does not expire soon,
+//   - SITE_TOKEN (used by the "Zpracování obsahu" workflow) works and does not expire soon,
 //   - the latest run of "Zpracování obsahu" did not fail,
-//   - the latest weekly dry run of that workflow on the test data ("Zkušební běh zpracování", pavla) did not fail,
-//   - the latest commit on pavla/main was deployed,
+//   - the latest weekly dry run of that workflow on the test data ("Zkušební běh zpracování") did not fail,
+//   - the latest commit on main of the site repository was deployed,
 //   - the content pull request (content/update) does not wait for a merge too long,
 //   - no description of the content has an attribute the pipeline does not know (NEZNÁMÝ),
 //   - every image the pages of the deployed site refer to exists (scripts/lib/site-check.mjs),
@@ -27,7 +27,7 @@ export function parseExpiration(header) {
 }
 
 /**
- * The name of the repository of the site in the texts ("pavla" of `siteRepo` "shamoh/pavla", site.repository of
+ * The name of the repository of the site in the texts ("site" of `siteRepo` "owner/site", site.repository of
  * site.config.yaml); "webu" without one, so "README repa webu" still reads well.
  */
 const shortRepo = (siteRepo) => (siteRepo ? siteRepo.split('/').pop() : 'webu');
@@ -54,26 +54,26 @@ export function evaluateCheckToken({ status, expiration, now = new Date(), warnD
 }
 
 /**
- * PAVLA_TOKEN from the answer of the API (see evaluateCheckToken); `siteRepo` = the repository of the site it writes to.
+ * SITE_TOKEN from the answer of the API (see evaluateCheckToken); `siteRepo` = the repository of the site it writes to.
  * A failed check carries `renew`: the steps to renew the token (formatReport adds them to the report).
  */
 export function evaluateToken({ status, expiration, now = new Date(), warnDays = 14, siteRepo }) {
   const renew = renewTokenText(siteRepo);
-  if (status === 0) return { ok: false, renew, message: 'Secret PAVLA_TOKEN není nastavený. [token-chybi]' };
+  if (status === 0) return { ok: false, renew, message: 'Secret SITE_TOKEN není nastavený. [token-chybi]' };
   if (status === 401) {
-    return { ok: false, renew, message: 'Token PAVLA_TOKEN je neplatný nebo už vypršel. Automatické zpracování obsahu nefunguje. [token-neplatny]' };
+    return { ok: false, renew, message: 'Token SITE_TOKEN je neplatný nebo už vypršel. Automatické zpracování obsahu nefunguje. [token-neplatny]' };
   }
   if (status !== 200) {
-    return { ok: false, renew, message: `Kontrola tokenu PAVLA_TOKEN selhala (HTTP ${status}). Token možná nemá přístup k repu ${siteRepo || 'webu'}. [token-nedostupny]` };
+    return { ok: false, renew, message: `Kontrola tokenu SITE_TOKEN selhala (HTTP ${status}). Token možná nemá přístup k repu ${siteRepo || 'webu'}. [token-nedostupny]` };
   }
   const date = parseExpiration(expiration);
-  if (!date) return { ok: true, message: 'Token PAVLA_TOKEN funguje a nemá nastavenou dobu platnosti.' };
+  if (!date) return { ok: true, message: 'Token SITE_TOKEN funguje a nemá nastavenou dobu platnosti.' };
   const daysLeft = Math.floor((date.getTime() - now.getTime()) / DAY);
   const when = date.toISOString().slice(0, 10);
   if (daysLeft < warnDays) {
-    return { ok: false, daysLeft, renew, message: `Token PAVLA_TOKEN vyprší ${when} (za ${Math.max(0, daysLeft)} dní). Je potřeba ho obnovit. [token-vyprsi]` };
+    return { ok: false, daysLeft, renew, message: `Token SITE_TOKEN vyprší ${when} (za ${Math.max(0, daysLeft)} dní). Je potřeba ho obnovit. [token-vyprsi]` };
   }
-  return { ok: true, daysLeft, message: `Token PAVLA_TOKEN funguje, vyprší ${when} (za ${daysLeft} dní).` };
+  return { ok: true, daysLeft, message: `Token SITE_TOKEN funguje, vyprší ${when} (za ${daysLeft} dní).` };
 }
 
 const FAILED = new Set(['failure', 'timed_out', 'startup_failure']);
@@ -88,7 +88,7 @@ export const DRY_RUNS = {
   name: 'Zkušební běh zpracování',
   code: 'zkusebni-beh-selhal',
   never: 'Zkušební běh zpracování na testovacích datech zatím neproběhl.',
-  consequence: 'Zpracování selhalo na testovacích datech, skutečný obsah by nejspíš selhal stejně. Opravit dřív, než Pavla nahraje nové obrazy.',
+  consequence: 'Zpracování selhalo na testovacích datech, skutečný obsah by nejspíš selhal stejně. Opravit dřív, než autorka nahraje nové obrazy.',
 };
 
 /**
@@ -115,7 +115,7 @@ export function evaluateRuns(runs, { now = new Date(), days = 7, workflow = CONT
 const day = (iso) => String(iso).slice(0, 10);
 
 /**
- * `commit`: latest commit on pavla/main ({ sha, date }); `runs`: runs of deploy.yml on main (newest first).
+ * `commit`: latest commit on main of the site repository ({ sha, date }); `runs`: runs of deploy.yml on main (newest first).
  * Fine when that commit has a successful or still running deploy, or is younger than `graceHours`.
  */
 export function evaluateDeploy(commit, runs, { now = new Date(), graceHours = 1 } = {}) {
@@ -385,14 +385,14 @@ export function evaluateSettings(results, { reason = '', siteRepo } = {}) {
   };
 }
 
-/** The steps to renew PAVLA_TOKEN, the token writing to the repository of the site `siteRepo`. */
+/** The steps to renew SITE_TOKEN, the token writing to the repository of the site `siteRepo`. */
 export const renewTokenText = (siteRepo) => [
   'Jak token obnovit:',
   '',
   '1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens,',
   `   u tokenu pro ${siteRepo || 'repo webu'} zvol Regenerate token (nebo vytvoř nový se stejnými oprávněními:`,
   '   Contents a Pull requests, Read and write).',
-  '2. Obsahové repo (to, ve kterém je tato kontrola) → Settings → Secrets and variables → Actions → PAVLA_TOKEN → Update, vlož nový token.',
+  '2. Obsahové repo (to, ve kterém je tato kontrola) → Settings → Secrets and variables → Actions → SITE_TOKEN → Update, vlož nový token.',
   '3. Actions → Kontrola automatiky → Run workflow, ať se ověří, že je vše v pořádku.',
 ].join('\n');
 

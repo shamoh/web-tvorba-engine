@@ -1,5 +1,5 @@
 // What search engines read besides the visible page: the description of a page (meta description) and structured
-// data (schema.org as JSON-LD), so they know that a page is a work of art by Pavla, a list of works, or about her.
+// data (schema.org as JSON-LD), so they know that a page is a work of art by the author, a list of works, or about her.
 // Pure functions, used by the pages (src/pages) through src/layouts/Base.astro; texts are Czech.
 // A work on sale tells only that it is available, never its price (the price stays on the page itself).
 
@@ -35,7 +35,7 @@ export function summarize(text, max = 160) {
 
 /**
  * Description of a work page: its own description for search engines or its text (searchDescription), otherwise made of what is known (the support as written, never
- * declined), e.g. "Ovce – akvarel, papír Arches 300 g, 42 × 30 cm, 2026. Pavla Kramolišová."
+ * declined), e.g. "Ovce – akvarel, papír Arches 300 g, 42 × 30 cm, 2026. Jana Nováková."
  */
 export function workDescription(work, site) {
   const own = searchDescription(work);

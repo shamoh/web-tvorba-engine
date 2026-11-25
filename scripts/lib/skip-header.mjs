@@ -8,7 +8,7 @@
 export const SKIP_HEADER_SCOPES = ['/tvorba/', '/detail-dne/'];
 
 /**
- * The section of SKIP_HEADER_SCOPES `pathname` lies in on a site with base path `base` ('/' or '/pavla/'), also the section
+ * The section of SKIP_HEADER_SCOPES `pathname` lies in on a site with base path `base` ('/' or '/site/'), also the section
  * itself without its slash (the dev server serves it as it is); '' outside all of them.
  */
 export function skipHeaderScope(pathname, base = '/') {

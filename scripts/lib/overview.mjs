@@ -2,7 +2,7 @@
 // searching in the browser (GitHub renders it). Every attribute of every description (also meta_* and private_*: the
 // content repository is private), links to the description, the photo and the page on the site, and what the run says
 // about it, each message with its code (scripts/lib/codes.mjs), so searching for a code finds every case. Czech: for
-// Pavla and Libor. No pictures and as few characters as possible: the whole file must stay small enough for GitHub to
+// the author and the maintainer. No pictures and as few characters as possible: the whole file must stay small enough for GitHub to
 // render; written whole by every run (cheap: text only), git shows what changed.
 
 import { CODES, LEVELS, LEVEL_LABELS, coded, codesOf, withoutCodes } from './codes.mjs';

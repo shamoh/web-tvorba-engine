@@ -5,19 +5,19 @@
 //
 // Box: [left, top, right, bottom] as fractions 0–1 of the image width and height.
 
-const NS = 'https://pavla.kramolis.cz/ns/1.0/';
+const NS = 'https://github.com/shamoh/web-tvorba-engine/ns/1.0/';
 
 /** XMP packet with the sheet box. */
 export function sheetXmp([l, t, r, b]) {
   const v = [l, t, r, b].map((n) => n.toFixed(5)).join(' ');
   return `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">`
-    + `<rdf:Description rdf:about="" xmlns:pavla="${NS}" pavla:sheet="${v}"/></rdf:RDF></x:xmpmeta>`;
+    + `<rdf:Description rdf:about="" xmlns:wt="${NS}" wt:sheet="${v}"/></rdf:RDF></x:xmpmeta>`;
 }
 
-/** Sheet box from XMP metadata (Buffer or string), or null when there is none or it is not a valid box. */
+/** Sheet box from XMP metadata (Buffer or string; `pavla:sheet` of files made before 2026-11-25 is read too), or null when there is none or it is not a valid box. */
 export function parseSheetXmp(xmp) {
   if (!xmp) return null;
-  const m = /pavla:sheet="([^"]*)"/.exec(String(xmp));
+  const m = /(?:wt|pavla):sheet="([^"]*)"/.exec(String(xmp));
   if (!m) return null;
   const box = m[1].trim().split(/\s+/).map(Number);
   const [l, t, r, b] = box;

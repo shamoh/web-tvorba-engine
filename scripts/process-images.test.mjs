@@ -1165,7 +1165,7 @@ test('prepare only (branches): skeletons, ids and checks, but no site data, imag
   // no exports; the new draft has its previews (nothing to cut here: the whole photo) in export/draft/, and the
   // overview of all works is there on a branch too
   assert.deepEqual((await fs.readdir(path.join(contentDir, 'export'))).sort(), ['README.md', 'draft', 'stranky']);
-  assert.match(await fs.readFile(path.join(contentDir, 'export/stranky/README.md'), 'utf8'), /\n### O mně\n\n\[o-mne\.yaml\]\(\.\.\/\.\.\/stranky\/o-mne\.yaml\) · \[web\]\(https:\/\/[^)]*\/o-mne\/\)\n\nMaluji pro radost\./, 'the texts of the pages also on a branch');
+  assert.match(await fs.readFile(path.join(contentDir, 'export/stranky/README.md'), 'utf8'), /\n### O mně\n\n\[o-mne\.yaml\]\(\.\.\/\.\.\/stranky\/o-mne\.yaml\) · \[web\]\(https:\/\/[^)]*\/o-mne\/\)\n\nTvořím pro radost\./, 'the texts of the pages also on a branch');
   const overview = await fs.readFile(path.join(contentDir, 'export/README.md'), 'utf8');
   assert.match(overview, /^# Přehled všech děl\n/);
   assert.match(overview, /### Novy · [a-z0-9]{5} @ 2026-05-01\n/);
@@ -1369,7 +1369,7 @@ test('texts of pages: public copies in content/stranky/ without the private note
   assert.equal(r.ok, true, r.problems.join('\n'));
   const about = YAML.parse(await fs.readFile(path.join(siteDir, 'content/stranky/o-mne.yaml'), 'utf8'));
   assert.deepEqual(Object.keys(about), ['closing', 'description', 'text']);
-  assert.match(about.text, /^Maluji pro radost\. /);
+  assert.match(about.text, /^Tvořím pro radost\. /);
 
   await fs.writeFile(path.join(contentDir, 'stranky/kontakt.yaml'), 'description: Napište mi.\ntext: Ahoj.\nprivate_note: jen pro mě\n');
   r = await run(opts());
@@ -1389,7 +1389,7 @@ test('covers of years and the home page: own photo, cover, focus; share image on
   assert.equal(r.ok, true, r.problems.join('\n'));
   assert.ok(r.created.includes('_index.yaml'));
   const home = YAML.parse(await fs.readFile(path.join(siteDir, 'content/_index.yaml'), 'utf8'));
-  assert.match(home.text, /^Maluji pro radost, hlavně akvarelem/);
+  assert.match(home.text, /^Tady najdete moje nejnovější obrazy/);
   assert.deepEqual([home.button, home.empty_text], ['Prohlédnout tvorbu', 'Obrazy tu brzy přibudou.']);
   // random covers: no share crops, no photos
   const share = (pageDir) => pageShareFile(path.join(siteDir, 'public'), pageDir);
@@ -1406,7 +1406,7 @@ test('covers of years and the home page: own photo, cover, focus; share image on
   assert.ok(!(await exists(path.join(siteDir, 'public/og.jpg'))), 'never the former name');
   assert.ok(await exists(path.join(siteDir, 'public/tvorba/2025/_cover/info.json')));
   assert.deepEqual(YAML.parse(await fs.readFile(path.join(siteDir, 'content/_index.yaml'), 'utf8')), {
-    text: 'Ahoj.\n', cover: idRano, aspect: '1:1', focus: [30, 40], heading: 'Barvy, voda\na trochu náhody\n', button: 'Prohlédnout tvorbu', button_show: '▶ Moje nejmilejší',
+    text: 'Ahoj.\n', cover: idRano, aspect: '1:1', focus: [30, 40], heading: 'Vítejte\nu mě v ateliéru\n', button: 'Prohlédnout tvorbu', button_show: '▶ Moje nejmilejší',
     empty_text: 'Obrazy tu brzy přibudou.', empty_closing: homeEmptyClosing(config.site.instagram),
   });
 

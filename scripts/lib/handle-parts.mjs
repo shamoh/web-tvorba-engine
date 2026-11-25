@@ -1,4 +1,4 @@
-// The name, addresses and accounts of the author (the footer "Pavla Kramolišová", pavla@kramolis.cz, @pavla.kramolisova
+// The name, addresses and accounts of the author (the footer "Jana Nováková", jana@novakova.cz, @jana.novakova
 // on the contact page) in three shades of the text: her given name, her surname and the rest (@, dots, the domain,
 // spaces). src/components/NameShades.astro wraps each part in a <span>, so a link around it stays one link and copies
 // as the same text.

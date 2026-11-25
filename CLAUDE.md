@@ -289,9 +289,9 @@ Každá změna vlastností = záznam v `CHANGELOG.md` (dnešní den nahoře, **N
   `looksLikeBackground` jen s rovnou hranou `straightEdge`, aby se nikdy neodřízl bílý okraj papíru; změna detekce =
   porovnat výsledky na všech skutečných fotkách před a po a doplnit testy v `edges.test.mjs`), ruční hodnotu nikdy nepřepíše, jiný rozměr fotky = chyba. Vně rohů
   průhledné s prolnutím (`images.edges`) a obrázek oříznutý na nejmenší obdélník s celým listem (`trimTransparent`;
-  mockup přepočítá rohy i `pavla:sheet` o posun `offset`): web AVIF/WebP průhledné (`transparent` v `info.json`, třída `cutout`:
+  mockup přepočítá rohy i `wt:sheet` o posun `offset`): web AVIF/WebP průhledné (`transparent` v `info.json`, třída `cutout`:
   bez `--ph`, stín jen `filter: var(--drop-…)`, nikdy `box-shadow`), JPEG na papíře první palety, og/Instagram na
-  svém pozadí, Fler bílá, mockup jen vnitřní obdélník (průnik s `pavla:sheet`). Náhledy ořezu draftů (všechny tři, `writePreviews`, stejně jako `npm run preview`; kreslí se jen při změně otisku
+  svém pozadí, Fler bílá, mockup jen vnitřní obdélník (průnik s `wt:sheet`). Náhledy ořezu draftů (všechny tři, `writePreviews`, stejně jako `npm run preview`; kreslí se jen při změně otisku
   v README draftu nebo chybějícím souboru, kreslení trvá sekundy na draft) do
   `.previews/` (mimo git; workflow je nikam nenahrávají, žádný artefakt běhu: úložiště Actions účtu má jen 0,5 GB zdarma); zmenšené
   (`DRAFT_EDGE`, `shrinkPreview`) i v `export/draft/[<kolekce>/]<slug>/` obsahového repa s `README.md` (`draftReadme`,
@@ -369,7 +369,7 @@ Každá změna vlastností = záznam v `CHANGELOG.md` (dnešní den nahoře, **N
   a u PR z `content/update` (jiné PR ne); obojí přes `.github/failure-issue.sh`.
 - Srovnání fotek obrazů (perspektiva, ořez podkladu): `npm run straighten -- <fotka|složka>` (`scripts/straighten.mjs`),
   originály nikdy nepřepisuje, výstup do `upravene/`; ruční rohy a další výřezy v `<fotka>.orez.yaml`, `--white-balance`, `--width`, `--margin` (výchozí okraj podkladu kolem listu, aby byly vidět okraje papíru).
-  S okrajem zapíše do JPEGu polohu listu (XMP `pavla:sheet`, `scripts/lib/sheet-box.mjs`); pipeline podle ní
+  S okrajem zapíše do JPEGu polohu listu (XMP `wt:sheet`, `scripts/lib/sheet-box.mjs`); pipeline podle ní
   pro mockupy (web i Fler) ořízne master na holý papír, jinde okraj zůstává (pozadí vně rohů listu řeší ořez pozadí).
 - Vyhledávače (`scripts/lib/seo.mjs`, `Base.astro` props `description`, `type`, `noindex`, `jsonLd`): každá stránka má
   vlastní titulek a popis (max. 160 znaků) a strukturovaná data schema.org (JSON-LD, `graphLd`): `VisualArtwork`

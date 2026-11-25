@@ -126,7 +126,7 @@ export function ruleLines(ruleset) {
 export function settingsMarkdown(s, { date = new Date().toISOString().slice(0, 10) } = {}) {
   const lines = [
     `# Nastavení repa ${s.repo}`, '',
-    `Export ${date} (\`node scripts/repo-settings.mjs ${s.repo}\` v repu \`pavla\`). Kontrolní seznam pro nové repo se stejným`,
+    `Export ${date} (\`node scripts/repo-settings.mjs ${s.repo}\` v repu enginu). Kontrolní seznam pro nové repo se stejným`,
     'nastavením: projdi každý řádek v *Settings* nového repa. Hodnoty secrets API nevydá, jen jména.', '',
     '## Obecné a pull requesty (*Settings → General*)', '', ...table(Object.entries(s.general)), '',
     '## Pravidla větví (*Settings → Rules → Rulesets*)', '',
@@ -205,7 +205,7 @@ export function settingsSnapshot(s) {
   }));
 }
 
-/** Marks an item of a list of plain values in a flattened key: "secrets ∋ \"PAVLA_TOKEN\"". */
+/** Marks an item of a list of plain values in a flattened key: "secrets ∋ \"SITE_TOKEN\"". */
 const MEMBER = ' ∋ ';
 
 /**

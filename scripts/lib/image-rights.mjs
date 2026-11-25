@@ -2,7 +2,7 @@
 // downloaded picture keeps them) and used by the structured data of its page (ImageObject), from one place so the two
 // never disagree. Only the author's own works: their web images, details, mockups and share image.
 
-/** "© 2026 Pavla Kramolišová": the copyright notice of a work of the given year. */
+/** "© 2026 Jana Nováková": the copyright notice of a work of the given year. */
 export const copyrightNotice = (author, year) => `© ${[year, author].filter(Boolean).join(' ')}`;
 
 const xml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]);

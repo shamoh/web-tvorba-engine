@@ -109,7 +109,7 @@ test('textProblems of a page: texts must be text, the description at most 160 ch
 
 test('paragraphs: split by empty lines, lines of a paragraph joined', () => {
   assert.deepEqual(paragraphs('První řádek\ndruhý řádek.\n\n  \nDruhý odstavec.\n'), ['První řádek druhý řádek.', 'Druhý odstavec.']);
-  assert.deepEqual(paragraphs(ABOUT_TEXT).length, 4);
+  assert.deepEqual(paragraphs(ABOUT_TEXT).length, 3);
   assert.deepEqual(paragraphs(''), []);
   assert.deepEqual(paragraphs(undefined), []);
 });

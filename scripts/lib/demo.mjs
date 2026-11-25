@@ -1,6 +1,6 @@
 // Test (demo) data are kept strictly apart from the real content:
 //   real content  content repository     what the public site is built from, never contains test data
-//   test data     pavla/demo-content/    a made-up content repository used by `npm run demo`
+//   test data     demo-content/    a made-up content repository used by `npm run demo`
 // The test data as a whole are marked by the file DEMO_MARKER in their root, every test work and collection
 // by its name ("demo-…"). The pipeline checks both directions, so neither the whole set nor a single work or
 // collection can be copied from one into the other unnoticed.
@@ -24,14 +24,14 @@ export function demoProblems({ works = [], collections = [], marked = false }, d
   ];
   const problems = [];
   if (dataset === 'real' && marked) {
-    problems.push(`${DEMO_MARKER}: tohle jsou testovací data, ne skutečný obsah; testovací data patří do pavla/demo-content (npm run demo) [testovaci-data]`);
+    problems.push(`${DEMO_MARKER}: tohle jsou testovací data, ne skutečný obsah; testovací data patří do demo-content (npm run demo) [testovaci-data]`);
   }
   if (dataset === 'demo' && !marked) {
     problems.push(`${DEMO_MARKER}: chybí, testovací data označuje tento soubor v kořeni obsahu [testovaci-data]`);
   }
   for (const { where, name } of items) {
     if (dataset === 'real' && isDemo(name)) {
-      problems.push(`${where}: testovací data do skutečného obsahu nepatří, patří do pavla/demo-content (npm run demo) [testovaci-data]`);
+      problems.push(`${where}: testovací data do skutečného obsahu nepatří, patří do demo-content (npm run demo) [testovaci-data]`);
     } else if (dataset === 'demo' && !isDemo(name)) {
       problems.push(`${where}: jména testovacích děl a kolekcí začínají „${DEMO_PREFIX}“ [demo-jmeno]`);
     }

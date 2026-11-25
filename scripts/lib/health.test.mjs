@@ -33,7 +33,7 @@ test('permissionsText: as named on the page of a token; commas = all, semicolons
   for (const nothing of [null, undefined, '', 'metadata=read', 'nonsense']) assert.equal(permissionsText(nothing), '');
 });
 
-test('evaluateCheckToken: expiry like PAVLA_TOKEN, with its own codes; not set is fine', () => {
+test('evaluateCheckToken: expiry like SITE_TOKEN, with its own codes; not set is fine', () => {
   const at = new Date('2026-12-01T10:00:00Z');
   const good = evaluateCheckToken({ status: 200, expiration: '2027-10-29 00:00:00 UTC', now: at });
   assert.equal(good.ok, true);
@@ -41,7 +41,7 @@ test('evaluateCheckToken: expiry like PAVLA_TOKEN, with its own codes; not set i
   const soon = evaluateCheckToken({ status: 200, expiration: '2026-12-10 00:00:00 UTC', now: at });
   assert.equal(soon.ok, false);
   assert.match(soon.message, /vyprší 2026-12-10 \(za 8 dní\).*Regenerate token.*\[kontrolni-token-vyprsi\]$/);
-  // the boundary is exclusive, as for PAVLA_TOKEN; --days moves it
+  // the boundary is exclusive, as for SITE_TOKEN; --days moves it
   const exactly14 = '2026-12-15 10:00:00 UTC';
   assert.equal(evaluateCheckToken({ status: 200, expiration: exactly14, now: at }).ok, true);
   assert.equal(evaluateCheckToken({ status: 200, expiration: exactly14, now: at, warnDays: 15 }).ok, false);
@@ -52,7 +52,7 @@ test('evaluateCheckToken: expiry like PAVLA_TOKEN, with its own codes; not set i
   assert.match(evaluateCheckToken({ status: 500 }).message, /HTTP 500.*\[kontrolni-token-nedostupny\]$/);
 });
 
-test('formatReport: a failing CHECK_TOKEN gives its code, not the renewal of PAVLA_TOKEN', () => {
+test('formatReport: a failing CHECK_TOKEN gives its code, not the renewal of SITE_TOKEN', () => {
   const report = formatReport({ ok: true, message: 'a' }, evaluateCheckToken({ status: 401 }));
   assert.deepEqual(report.codes, ['kontrolni-token-neplatny']);
   assert.doesNotMatch(report.text, /Jak token obnovit/);
@@ -367,7 +367,7 @@ test('evaluateGamePlan: the plan of the game on the site reaches a week ahead; n
 
 test('the texts naming the repository of the site, for shamoh/pavla', () => {
   assert.equal(evaluateToken({ status: 500, siteRepo: SITE_REPO }).message,
-    'Kontrola tokenu PAVLA_TOKEN selhala (HTTP 500). Token možná nemá přístup k repu shamoh/pavla. [token-nedostupny]');
+    'Kontrola tokenu SITE_TOKEN selhala (HTTP 500). Token možná nemá přístup k repu shamoh/pavla. [token-nedostupny]');
   assert.equal(evaluateCheckToken({ status: 500, siteRepo: SITE_REPO }).message,
     'Kontrola tokenu CHECK_TOKEN selhala (HTTP 500). Token možná nemá přístup k repu shamoh/pavla. [kontrolni-token-nedostupny]');
   assert.match(evaluateGameAnalyses(Array(1200).fill(22_000), GAME_ANALYSIS_LIMITS, { siteRepo: SITE_REPO }).message,

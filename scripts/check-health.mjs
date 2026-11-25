@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Health check of the content automation, run weekly by a workflow of the content repository.
-// Env: TOKEN (the PAVLA_TOKEN secret), RUNS_TOKEN + REPO (token with actions:read on the content repository and its
+// Env: TOKEN (the SITE_TOKEN secret), RUNS_TOKEN + REPO (token with actions:read on the content repository and its
 // name, e.g. github.token and github.repository), CONTENT_DIR (a checkout of the content repository, optional),
 // CHECK_TOKEN (optional: a read-only fine-grained token of the owner for both repositories, account permission
 // Plan and repository permissions Actions, Administration, Environments, Pages, Secrets, Variables, Webhooks: the minutes of
@@ -32,14 +32,14 @@ import {
 
 const siteDir = siteDirectory();
 const config = readSiteConfig(siteDir);
-// The repository of the site (site.repository of site.config.yaml), e.g. "shamoh/pavla".
+// The repository of the site (site.repository of site.config.yaml), e.g. "owner/site".
 const SITE_REPO = config.site.repository;
 if (!SITE_REPO) throw new Error('site.config.yaml: site.repository (owner/name of the repository of the site) is missing');
 const PR_BRANCH = CONTENT_UPDATE_BRANCH;
 // The repository of the engine (ENGINE_REPOSITORY of the shared workflow): its weekly dry run, its size.
 const ENGINE_REPO = process.env.ENGINE_REPOSITORY || 'shamoh/web-tvorba-engine';
 
-// The repository of the site is public: its data is read without a token, so these checks do not depend on PAVLA_TOKEN.
+// The repository of the site is public: its data is read without a token, so these checks do not depend on SITE_TOKEN.
 const api = (path, token) => fetch(`https://api.github.com${path}`, {
   headers: { ...(token && { Authorization: `Bearer ${token}` }), Accept: 'application/vnd.github+json', 'User-Agent': 'site-health-check' },
 });

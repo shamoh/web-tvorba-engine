@@ -144,7 +144,7 @@ export async function saveSidecar(photo, { name, corners, rotate }) {
     extra.push({ name, corners: round(corners), ...(rotate ? { rotate } : {}) });
     data.extra = extra;
   }
-  const header = '# Ořez fotky pro `npm run straighten` (repo pavla). Zapisuje ho nástroj, dá se upravit ručně.\n'
+  const header = '# Ořez fotky pro `npm run straighten`. Zapisuje ho nástroj, dá se upravit ručně.\n'
     + '# corners: rohy listu [levý horní x, y, pravý horní, pravý dolní, levý dolní] jako podíl šířky a výšky fotky (0–1).\n';
   // lists of numbers (corners) on one line, the list of extra crops as blocks
   const doc = new YAML.Document(data);

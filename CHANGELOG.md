@@ -10,6 +10,14 @@ Značky: **Nové** = nová vlastnost, **Změna** = jinak než dřív, **Konec** 
 
 ---
 
+## 2026-11-25
+
+- **Změna** Zbytky prvního webu z enginu pryč: výchozí texty kostry (úvodní stránka, O mně, Kontakt) jsou obecné, bez
+  jména autorky a místa; značka polohy listu v JPEGu se jmenuje `wt:sheet` (starší `pavla:sheet` se čte dál); přehled
+  vzhledů hry odkazuje na adresu webu z `site.config.yaml`; jména v hláškách a příkladech obecná.
+- **Změna** Token pro zápis do repa webu se v hláškách týdenní kontroly jmenuje `SITE_TOKEN` (jméno vstupu sdílených workflow);
+  obálka obsahového repa ho předává ze secretu téhož jména.
+
 ## 2026-11-24
 
 - **Změna** Složka kolekce v `export/instagram/` a `export/fler/` se smaže, jakmile v ní nezůstane žádný obraz (všechna její

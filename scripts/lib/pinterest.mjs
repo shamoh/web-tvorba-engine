@@ -16,7 +16,7 @@ export const pinterestProfileLink = (profile) => `${String(profile).replace(/\/+
 
 /**
  * The user name of a Pinterest profile (site.pinterest), shown as "@<name>" like the Instagram account: the first part
- * of the path of its address ("https://cz.pinterest.com/pavlakramolisova/_created/" → "pavlakramolisova"); '' when
+ * of the path of its address ("https://cz.pinterest.com/jananovakova/_created/" → "jananovakova"); '' when
  * the address is not one of a Pinterest profile.
  */
 export function pinterestHandle(profile) {
@@ -32,7 +32,7 @@ export function pinterestHandle(profile) {
 
 /**
  * The text of the Pinterest link on the contact page: "@<user name>" of the profile, otherwise "<first name of the
- * author> na Pinterestu" ("Pavla na Pinterestu"), without an author "Profil na Pinterestu".
+ * author> na Pinterestu" ("Jana na Pinterestu"), without an author "Profil na Pinterestu".
  */
 export function pinterestContactText(site) {
   const user = pinterestHandle(site.pinterest);

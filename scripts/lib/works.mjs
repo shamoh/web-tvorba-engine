@@ -228,7 +228,7 @@ export const workShortPath = (id) => `/tvorba/${id}/`;
 
 /**
  * The bubble over the code of a work on its page ("Kód"): what the code means and its short link, without the
- * protocol (e.g. "pavla.kramolis.cz/tvorba/mpugj/").
+ * protocol (e.g. "example.com/tvorba/mpugj/").
  */
 export function workCodeHint(id, siteUrl) {
   const link = new URL(siteAddress(siteUrl, workShortPath(id)));

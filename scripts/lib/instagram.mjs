@@ -31,8 +31,8 @@ export const instagramSuffixes = (paletteIds, sceneNames) => [
 export { captionFacts };
 
 /**
- * The address in the caption, without the protocol and the slash at the end: "https://pavla.kramolis.cz/" ->
- * "pavla.kramolis.cz", a site in a folder with its folder ("https://host.test/web/" -> "host.test/web").
+ * The address in the caption, without the protocol and the slash at the end: "https://example.com/" ->
+ * "example.com", a site in a folder with its folder ("https://host.test/web/" -> "host.test/web").
  */
 export const siteHost = (url) => {
   try {
@@ -1233,7 +1233,7 @@ const tagLine = (words) => [...new Set(words.map(hashtag).filter(Boolean))].map(
 /**
  * The text of an Instagram post of a work (in README.md of its export folder), ready to paste: title, description
  * (not a DOPLNIT placeholder), "technique · size · year", the collection, "na prodej" for a work on sale, the address
- * with the work's id ("pavla.kramolis.cz · jujn2": the gallery search finds the work by it),
+ * with the work's id ("example.com · jujn2": the gallery search finds the work by it),
  * then the hashtags in Czech (technique, tags, the collection as one word, e.g. #plenersumava2026, `always.cs` of the
  * settings) and in English (their translations from
  * `en`, `always.en`); a word without a translation has only the Czech one. `settings` = instagramPost of

@@ -56,6 +56,7 @@ const page = {
   generated: today,
   // the author (the page talks to her and about her) and the prefix of the names of the browser of the site
   author: siteConfig.site?.author ?? '',
+  siteUrl: String(siteConfig.site?.url ?? '').replace(/\/+$/, ''),
   storagePrefix: storagePrefixOf(siteConfig),
 };
 // the game's own functions, as text: the page draws exactly what the game draws

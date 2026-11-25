@@ -30,7 +30,7 @@ export async function detectFile(file, search = EDGE_DEFAULTS.search) {
 }
 
 /**
- * Detected corners for the run summary (Czech, Pavla reads it): the pixels of each corner; a corner cutting more than
+ * Detected corners for the run summary (Czech, the author reads it): the pixels of each corner; a corner cutting more than
  * `limit` (images.edges.suspicious) is marked with how much it cuts, to be checked in the cut preview first.
  */
 export function describeCorners(v, limit = EDGE_DEFAULTS.suspicious) {

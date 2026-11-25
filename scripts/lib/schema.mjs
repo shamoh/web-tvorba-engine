@@ -10,7 +10,7 @@
 //   derived_<name>   site repository only: made by the pipeline (from other attributes or the place of a file);
 //                    one in the content repository is an error
 //
-// Comments are Czech: Pavla reads and edits these files. A technical comment describes the attribute in general
+// Comments are Czech: the author reads and edits these files. A technical comment describes the attribute in general
 // (type, allowed values, examples); it stands right above the attribute and is the same in every file.
 // When its wording changes, keep the old wording in `previous`, so the pipeline recognises and replaces it.
 //
@@ -853,8 +853,8 @@ export const UNCOLLECTED_SCHEMA = {
  * Default text of the home page: the value of a new skeleton of _index.yaml, and what the site shows before the
  * first public copy exists. The same as the text of the home page in the content repository (texts to approve: T4).
  */
-export const HOME_TEXT = 'Maluji pro radost, hlavně akvarelem – na plenérech, na procházkách i doma u stolu. Tady najdete,\n'
-  + 'co mi právě uschlo na papíře, rychlé skici tužkou a brush penem i obrazy, které už visí jinde.\n';
+export const HOME_TEXT = 'Tady najdete moje nejnovější obrazy i starší díla. Rozhlédněte se, vyberte si, co se vám líbí,\n'
+  + 'a když vás některý osloví, napište mi.\n';
 
 /** Default texts of the home page while the site has no work yet, and of its buttons. */
 export const HOME_BUTTON = 'Prohlédnout tvorbu';
@@ -873,7 +873,7 @@ const HOME_DESCRIPTION_BEFORE = [[
 ]];
 
 /** Default heading of the home page: its lines are the lines of the heading. */
-export const HOME_HEADING = 'Barvy, voda\na trochu náhody\n';
+export const HOME_HEADING = 'Vítejte\nu mě v ateliéru\n';
 
 export const HOME_SCHEMA = {
   name: 'home',
@@ -955,22 +955,15 @@ export const HOME_SCHEMA = {
  * Default texts of the pages O mně and Kontakt: the values of new skeletons of stranky/<page>.yaml, and what the
  * site shows before the first public copy exists. The same as the texts the pages had in the code (approved 2026-10).
  */
-export const ABOUT_DESCRIPTION = 'Maluji pro radost už dlouhé roky, doma v Roztokách i na procházkách. Nejvíc mě chytil akvarel, skicuji i tužkou a brush penem. Kdo jsem a jak maluji.';
-export const ABOUT_TEXT = 'Maluji pro radost. Je to moje velká vášeň a dlouholetý koníček – chvíle, kdy se svět zpomalí\n'
-  + 'a zbude jen papír, barva a voda.\n'
+export const ABOUT_DESCRIPTION = 'Kdo jsem, jak a proč tvořím. Pár slov o mně a mé tvorbě.';
+export const ABOUT_TEXT = 'Tvořím pro radost. Je to moje vášeň a chvíle, kdy se svět zpomalí.\n'
   + '\n'
-  + 'Posledních pár let mě nejvíc chytil akvarel. Baví mě, že se nedá úplně ovládat: voda si vždycky\n'
-  + 'trochu dělá, co chce, a právě to bývá na obraze nejhezčí.\n'
+  + 'Nejraději tvořím tam, kde mě něco zaujme, a rozhodně nepospíchám.\n'
   + '\n'
-  + 'Nejraději maluji na procházkách v přírodě, hlavně krajinu a zvířata – a ta nejlépe v pohybu.\n'
-  + 'Obrazy a skicy tvořím převážně akvarelem, někdy fixem, brush penem či tužkou, podle toho, co si\n'
-  + 'zrovna žádá chvíle.\n'
-  + '\n'
-  + 'Kdykoli mám volnou chvilku, cvičím si ruku i oko slepou kresbou: kreslím lidi a zvířata\n'
-  + 'a na papír se přitom vůbec nedívám.\n';
-export const ABOUT_CLOSING = 'Obrazy maluji hlavně pro sebe. Některé u mě ale jen přečkávají, než najdou svůj domov.\n'
+  + 'Tady najdete obrazy, které vznikly, i ty, které teprve vzniknou.\n';
+export const ABOUT_CLOSING = 'Některé obrazy u mě jen přečkávají, než najdou svůj domov.\n'
   + 'Kdyby vás některý oslovil, napište mi.\n';
-export const CONTACT_DESCRIPTION = 'Zaujal vás obraz, nebo jen chcete pozdravit? Napište mi – a když se vám některý obraz zalíbí, domluvíme se. Žiji a maluji v Roztokách.';
+export const CONTACT_DESCRIPTION = 'Zaujal vás obraz, nebo jen chcete pozdravit? Napište mi – a když se vám některý obraz zalíbí, domluvíme se.';
 export const CONTACT_TEXT = 'Zaujal vás obraz nebo jen chcete pozdravit?\n';
 
 export const CONTACT_LOCATION_LABEL = 'Žiji a maluji';
